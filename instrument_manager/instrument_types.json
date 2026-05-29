@@ -1,0 +1,64 @@
+{
+    "instrumentTypes": [
+    {
+        "_id": "SPOT",
+        "instrumentTypeId": "SPOT",
+        "name": "Spot",
+        "description": ""
+    },
+    {
+        "_id": "INDEX",
+        "instrumentTypeId": "INDEX",
+        "name": "Index",
+        "description": ""
+    },
+    {
+        "_id": "ETF",
+        "instrumentTypeId": "ETF",
+        "name": "ETF",
+        "description": ""
+    },
+    {
+        "_id": "ETN",
+        "instrumentTypeId": "ETN",
+        "name": "ETN",
+        "description": ""
+    },
+    {
+        "_id": "FORWARD",
+        "instrumentTypeId": "FORWARD",
+        "name": "Forward",
+        "description": ""
+    },
+    {
+        "_id": "FUTURES",
+        "instrumentTypeId": "FUTURES",
+        "name": "Futures",
+        "description": ""
+    },
+    {
+        "_id": "OPTION",
+        "instrumentTypeId": "OPTION",
+        "name": "Option",
+        "description": "Derivative contract giving the right to buy/sell"
+    },
+    {
+        "_id": "SWAP",
+        "instrumentTypeId": "SWAP",
+        "name": "Swap",
+        "description": ""
+    },
+    {
+        "_id": "CFD",
+        "instrumentTypeId": "CFD",
+        "name": "Contract for Difference",
+        "description": ""
+    },
+    {
+        "_id": "INVESTMENT_FUND",
+        "instrumentTypeId": "INVESTMENT_FUND",
+        "name": "Investment Fund",
+        "description": ""
+    }
+    ]
+}

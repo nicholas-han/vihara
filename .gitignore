@@ -6,6 +6,7 @@ build/
 # --- editor / OS cruft ---
 .DS_Store
 .obsidian/
+.claude/
 
 # --- Visual Studio build artifacts (regenerable) ---
 .vs/
@@ -21,3 +22,13 @@ build/
 *.user
 *.VC.db
 Browse.VC.*
+
+# --- Python ---
+.venv/
+__pycache__/
+*.pyc
+*.pyo
+.env
+.env.local
+*.env
+!.env.example

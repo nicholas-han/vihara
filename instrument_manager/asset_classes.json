@@ -1,0 +1,263 @@
+{
+    "assetClass": [
+    {
+        "_id": "EQUITY",
+        "assetClassId": "EQUITY",
+        "name": "Equity",
+        "description": "Ownership in companies",
+        "hierarchy": {
+            "level": 1,
+            "parent": null,
+            "children": ["PUBLIC_EQUITY", "PRIVATE_EQUITY"]
+        },
+        "subClasses": [
+        {
+            "_id": "PUBLIC_EQUITY",
+            "name": "Public Equity",
+            "description": "Equity of publicly traded companies",
+            "hierarchy": {
+                "level": 2,
+                "parent": "EQUITY",
+                "children": ["COMMON_STOCK", "PREFERRED_STOCK", "REIT"]
+            },
+            "subClasses": [
+                {
+                    "_id": "COMMON_STOCK",
+                    "name": "Common Stock",
+                    "description": "Ordinary shares with voting rights",
+                    "hierarchy": {
+                        "level": 3,
+                        "parent": "PUBLIC_EQUITY",
+                        "children": []
+                    }
+                },
+                {
+                    "_id": "PREFERRED_STOCK",
+                    "name": "Preferred Stock",
+                    "description": "Shares with priority over common stock",
+                    "hierarchy": {
+                        "level": 3,
+                        "parent": "PUBLIC_EQUITY",
+                        "children": []
+                    }
+                },
+                {
+                    "_id": "REIT",
+                    "name": "Real Estate Investment Trust",
+                    "description": "Company that owns income-producing real estate",
+                    "hierarchy": {
+                        "level": 3,
+                        "parent": "PUBLIC_EQUITY",
+                        "children": []
+                    }
+                }
+            ]
+        },
+        {
+            "_id": "PRIVATE_EQUITY",
+            "name": "Private Equity",
+            "description": "Equity of privately held companies",
+            "hierarchy": {
+            "level": 2,
+            "parent": "EQUITY",
+            "children": []
+            }
+        }
+        ]
+    },
+    {
+        "_id": "FIXED_INCOME",
+        "assetClassId": "FIXED_INCOME",
+        "name": "Fixed Income",
+        "description": "Debt and interest rate instruments",
+        "hierarchy": {
+            "level": 1,
+            "parent": null,
+            "children": ["BOND", "INTEREST_RATE"]
+        },
+        "subClasses": [
+            {
+                "_id": "BOND",
+                "name": "Bond",
+                "description": "Debt instruments",
+                "hierarchy": {
+                    "level": 2,
+                    "parent": "FIXED_INCOME",
+                    "children": ["GOVERNMENT_BOND", "MUNICIPAL_BOND", "CORPORATE_BOND"]
+                },
+                "subClasses": [
+                    {
+                        "_id": "GOVERNMENT_BOND",
+                        "name": "Government Bond",
+                        "description": "Debt instrument issued by a government",
+                        "hierarchy": {
+                            "level": 3,
+                            "parent": "BOND",
+                            "children": []
+                        }
+                    },
+                    {
+                        "_id": "MUNICIPAL_BOND",
+                        "name": "Municipal Bond",
+                        "description": "Debt instrument issued by a municipality",
+                        "hierarchy": {
+                            "level": 3,
+                            "parent": "BOND",
+                            "children": []
+                        }
+                    },
+                    {
+                        "_id": "CORPORATE_BOND",
+                        "name": "Corporate Bond",
+                        "description": "Debt instrument issued by a corporation",
+                        "hierarchy": {
+                            "level": 3,
+                            "parent": "BOND",
+                            "children": []
+                        }
+                    }
+                ]
+            },
+            {
+                "_id": "INTEREST_RATE",
+                "name": "Interest Rate",
+                "description": "Interest rate instruments",
+                "hierarchy": {
+                    "level": 2,
+                    "parent": "FIXED_INCOME",
+                    "children": []
+                }
+            }
+        ]
+    },
+    {
+        "_id": "COMMODITIES",
+        "assetClassId": "COMMODITIES",
+        "name": "Commodities",
+        "description": "Physical goods such as metals, energy and agricultural products",
+        "hierarchy": {
+            "level": 1,
+            "parent": null,
+            "children": ["METAL", "ENERGY", "AGRICULTURAL", "SOFTS"]
+        },
+        "subClasses": [
+            {
+                "_id": "METAL",
+                "name": "Metal",
+                "description": "Physical goods such as metals",
+                "hierarchy": {
+                    "level": 2,
+                    "parent": "COMMODITIES",
+                    "children": []
+                }
+            },
+            {
+                "_id": "ENERGY",
+                "name": "Energy",
+                "description": "Physical goods such as crude oil, natural gas, and coal",
+                "hierarchy": {
+                    "level": 2,
+                    "parent": "COMMODITIES",
+                    "children": []
+                }
+            },
+            {
+                "_id": "AGRICULTURAL",
+                "name": "Agricultural",
+                "description": "Physical goods such as corn, wheat, and soybeans",
+                "hierarchy": {
+                    "level": 2,
+                    "parent": "COMMODITIES",
+                    "children": []
+                }
+            },
+            {
+                "_id": "SOFTS",
+                "name": "Softs",
+                "description": "Physical goods such as coffee, sugar, and cotton",
+                "hierarchy": {
+                    "level": 2,
+                    "parent": "COMMODITIES",
+                    "children": []
+                }
+            }
+        ]
+    },
+    {
+        "_id": "CURRENCY",
+        "assetClassId": "CURRENCY",
+        "name": "Currency",
+        "description": "",
+        "hierarchy": {
+            "level": 1,
+            "parent": null,
+            "children": ["FIAT_CURRENCY", "STABLECOIN", "CRYPTO_CURRENCY"]
+        },
+        "subClasses": [
+            {
+                "_id": "FIAT_CURRENCY",
+                "name": "Fiat Currency",
+                "description": "Currency of a sovereign country such as USD, EUR, GBP, JPY, etc.",
+                "hierarchy": {
+                    "level": 2,
+                    "parent": "CURRENCY",
+                    "children": []
+                }
+            },
+            {
+                "_id": "STABLECOIN",
+                "name": "Stablecoin",
+                "description": "Currency that is pegged to a stable asset such as USDT, USDC, etc.",
+                "hierarchy": {
+                    "level": 2,
+                    "parent": "CURRENCY",
+                    "children": []
+                }
+            },
+            {
+                "_id": "CRYPTO_CURRENCY",
+                "name": "Crypto Currency",
+                "description": "Currency created on a blockchain such as BTC, ETH, etc.",
+                "hierarchy": {
+                    "level": 2,
+                    "parent": "CURRENCY",
+                    "children": []
+                }
+            }
+        ]
+    },
+    {
+        "_id": "OTHER_INTANGIBLES",
+        "assetClassId": "OTHER_INTANGIBLES",
+        "name": "Other Intangibles",
+        "description": "Intangibles not covered by any other asset classes",
+        "hierarchy": {
+            "level": 1,
+            "parent": null,
+            "children": ["EVENTS", "RIGHTS"]
+        },
+        "subClasses": [
+            {
+                "_id": "EVENTS",
+                "name": "Events",
+                "description": "Events not covered by any other asset classes political events, natural disasters, etc.",
+                "hierarchy": {
+                    "level": 2,
+                    "parent": "OTHER_INTANGIBLES",
+                    "children": []
+                }
+            },
+            {
+                "_id": "RIGHTS",
+                "name": "Rights",
+                "description": "Rights not covered by any other asset classes such as patents and trademarks",
+                "hierarchy": {
+                    "level": 2,
+                    "parent": "OTHER_INTANGIBLES",
+                    "children": []
+                }
+            }
+        ]
+    }
+    ]
+}

@@ -1,0 +1,20 @@
+{
+    "instrumentFamily": [
+        {
+            "_id": "EMINI_FUTURES",
+            "instrumentFamilyId": "EMINI_FUTURES",
+            "name": "E-mini Futures",
+            "underlying": "SPX",
+            "instrumentType": "FUTURE",
+            "settlementType": "CASH"
+        },
+        {
+            "_id": "EMINI_OPTIONS",
+            "instrumentFamilyId": "EMINI_OPTIONS",
+            "name": "E-mini Options",
+            "underlying": "EMINI_FUTURES",
+            "instrumentType": "OPTION",
+            "settlementType": "PHYSICAL"
+        }
+    ]
+}
