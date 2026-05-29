@@ -1,0 +1,20 @@
+# --- new core build output ---
+build/
+*.o
+*.a
+.DS_Store
+
+# --- legacy option_pricer: Visual Studio / build artifacts (regenerable) ---
+.vs/
+*.ipch
+*.pdb
+*.exp
+*.lib
+*.xll
+*.dll
+*.obj
+*.sdf
+*.suo
+*.user
+*.VC.db
+Browse.VC.*
