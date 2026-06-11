@@ -13,6 +13,7 @@ endif()
 add_library(ap
   src/pricing/analytic/bsm.cpp
   src/pricing/montecarlo/mc.cpp
+  src/pricing/pde/fd1d.cpp
 )
 target_include_directories(ap PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)
 target_compile_options(ap PRIVATE -Wall -Wextra)
@@ -31,3 +32,4 @@ ap_add_test(test_vanilla)
 ap_add_test(test_binary)
 ap_add_test(test_barrier)
 ap_add_test(test_mc)
+ap_add_test(test_pde)

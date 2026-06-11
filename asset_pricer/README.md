@@ -7,16 +7,21 @@ instrument × engine design.
 
 ## What it prices
 
-| Instrument | Closed-form (BSM) | Monte Carlo |
-|---|:---:|:---:|
-| Vanilla call/put (+ Greeks) | ✅ | ✅ |
-| Binary — cash-or-nothing / asset-or-nothing | ✅ | ✅ |
-| Barrier — up/down × in/out (Reiner-Rubinstein) | ✅ | ✅ |
+| Instrument | Closed-form (BSM) | Monte Carlo | PDE (finite diff.) |
+|---|:---:|:---:|:---:|
+| Vanilla call/put (+ Greeks) | ✅ | ✅ | ✅ |
+| Binary — cash-or-nothing / asset-or-nothing | ✅ | ✅ | — |
+| Barrier — up/down × in/out (Reiner-Rubinstein) | ✅ | ✅ | — |
+| American call/put (early exercise) | — | — | ✅ |
 
 The Monte Carlo engine uses a single-factor GBM with antithetic variates, and a
 Brownian-bridge survival estimator for barriers so a finite step count still
-targets continuous monitoring. Every instrument is priced two independent ways
-and the MC value is regression-tested to converge to the closed form.
+targets continuous monitoring. The PDE engine solves the Black-Scholes equation
+on a log-spot grid (Crank-Nicolson + Rannacher smoothing, Thomas tridiagonal
+solve), with an early-exercise projection for American options. Every instrument
+is priced two or more independent ways and the numerical engines are
+regression-tested to converge to the closed form (and to a binomial tree for
+American).
 
 ## Layout
 
@@ -25,11 +30,12 @@ include/ap/
   core/types.hpp            OptionType, MarketData, Greeks, PriceResult
   math/normal.hpp           normal pdf / cdf / inverse-cdf (std::erfc based)
   math/rng.hpp              seeded standard-normal generator
-  instruments/              vanilla / binary / barrier contract structs
+  instruments/              vanilla / binary / barrier / american contract structs
   pricing/analytic/bsm.hpp  closed-form BSM engine
   pricing/montecarlo/mc.hpp Monte Carlo engine
+  pricing/pde/fd1d.hpp      1D finite-difference PDE engine
 src/                        implementations
-tests/                      ctest suites (incl. MC ↔ analytic cross-checks)
+tests/                      ctest suites (incl. MC/PDE ↔ analytic cross-checks)
 ```
 
 ## Build & test
@@ -53,6 +59,8 @@ Requires only a C++17 compiler and CMake ≥ 3.20. No third-party libraries.
 
 ## Roadmap
 
-- Greeks for binary/barrier (currently price only); pathwise/bump Greeks in MC.
-- American/early-exercise via the PDE solver (ported from the legacy code).
+- Greeks for binary/barrier (currently price only); pathwise/bump Greeks in MC;
+  read Greeks off the PDE grid.
+- Barrier/American via Monte Carlo least-squares (Longstaff-Schwartz) and PDE
+  with barrier boundary conditions.
 - Optional CLI front-end for batch pricing.
