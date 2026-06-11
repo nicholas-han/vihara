@@ -1,61 +1,85 @@
 /**
  * @file  test_barrier.cpp
- * @brief Single-barrier options validated via in/out parity and limit cases.
+ * @brief Single-barrier options: in/out parity (parameterized) and limits.
  *
  * The strongest dependency-free check on the Reiner-Rubinstein formulas is
- * knock-in + knock-out = vanilla (with zero rebate), which exercises every one
- * of the A/B/C/D building blocks.
+ * knock-in + knock-out = vanilla (zero rebate), which exercises every one of
+ * the A/B/C/D building blocks. We run it across all eight up/down × call/put ×
+ * K-vs-H configurations.
  */
-#include "check.hpp"
-
 #include <ap/pricing/analytic/bsm.hpp>
+
+#include <gtest/gtest.h>
+
+#include <stdexcept>
 
 using namespace ap;
 
-static void check_parity(OptionType type, bool up, double S, double K, double H,
-                         MarketData mkt, double T) {
-  mkt.spot = S;
-  BarrierType in_t = up ? BarrierType::UpAndIn : BarrierType::DownAndIn;
-  BarrierType out_t = up ? BarrierType::UpAndOut : BarrierType::DownAndOut;
+namespace {
+const MarketData kMkt{100.0, 0.08, 0.04, 0.25};
+const double kT = 0.5;
 
-  double in = analytic::price_barrier({type, in_t, K, H, 0.0, T}, mkt);
-  double out = analytic::price_barrier({type, out_t, K, H, 0.0, T}, mkt);
-  double van = analytic::price_vanilla({type, K, T}, mkt).price;
+struct BarrierCase {
+  OptionType type;
+  bool up;
+  double K;
+  double H;
+  const char* name;
+};
+}  // namespace
 
-  CHECK_CLOSE(in + out, van, 1e-9);
-  CHECK(in >= -1e-12 && out >= -1e-12);  // prices are non-negative
+class BarrierParity : public ::testing::TestWithParam<BarrierCase> {};
+
+TEST_P(BarrierParity, InPlusOutEqualsVanilla) {
+  const auto p = GetParam();
+  BarrierType in_t = p.up ? BarrierType::UpAndIn : BarrierType::DownAndIn;
+  BarrierType out_t = p.up ? BarrierType::UpAndOut : BarrierType::DownAndOut;
+
+  double in = analytic::price_barrier({p.type, in_t, p.K, p.H, 0.0, kT}, kMkt);
+  double out = analytic::price_barrier({p.type, out_t, p.K, p.H, 0.0, kT}, kMkt);
+  double vanilla = analytic::price_vanilla({p.type, p.K, kT}, kMkt).price;
+
+  EXPECT_NEAR(in + out, vanilla, 1e-9);
+  EXPECT_GE(in, -1e-12);
+  EXPECT_GE(out, -1e-12);
 }
 
-int main() {
-  MarketData mkt{100.0, 0.08, 0.04, 0.25};
-  const double T = 0.5;
+// Add rows here to cover more configurations.
+INSTANTIATE_TEST_SUITE_P(
+    AllConfigs, BarrierParity,
+    ::testing::Values(
+        BarrierCase{OptionType::Call, false, 90.0, 95.0, "down_call_KgtH"},
+        BarrierCase{OptionType::Call, false, 100.0, 95.0, "down_call_KgtH2"},
+        BarrierCase{OptionType::Put, false, 110.0, 95.0, "down_put_KgtH"},
+        BarrierCase{OptionType::Put, false, 90.0, 95.0, "down_put_KltH"},
+        BarrierCase{OptionType::Call, true, 90.0, 110.0, "up_call_KltH"},
+        BarrierCase{OptionType::Call, true, 115.0, 110.0, "up_call_KgtH"},
+        BarrierCase{OptionType::Put, true, 105.0, 110.0, "up_put_KltH"},
+        BarrierCase{OptionType::Put, true, 115.0, 110.0, "up_put_KgtH"}),
+    [](const testing::TestParamInfo<BarrierCase>& i) { return i.param.name; });
 
-  // in + out = vanilla, across both K>H and K<H, calls and puts, up and down.
-  // Down barriers (H below spot):
-  check_parity(OptionType::Call, /*up=*/false, 100.0, 90.0, 95.0, mkt, T);  // K>H
-  check_parity(OptionType::Call, false, 100.0, 100.0, 95.0, mkt, T);        // K>H
-  check_parity(OptionType::Put, false, 100.0, 110.0, 95.0, mkt, T);         // K>H
-  check_parity(OptionType::Put, false, 100.0, 90.0, 95.0, mkt, T);          // K<H
-  // Up barriers (H above spot):
-  check_parity(OptionType::Call, /*up=*/true, 100.0, 90.0, 110.0, mkt, T);  // K<H
-  check_parity(OptionType::Call, true, 100.0, 115.0, 110.0, mkt, T);        // K>H
-  check_parity(OptionType::Put, true, 100.0, 105.0, 110.0, mkt, T);         // K<H
-  check_parity(OptionType::Put, true, 100.0, 115.0, 110.0, mkt, T);         // K>H
+TEST(BarrierAnalytic, FarKnockOutApproachesVanilla) {
+  double van = analytic::price_vanilla({OptionType::Call, 100.0, kT}, kMkt).price;
+  double down_out = analytic::price_barrier(
+      {OptionType::Call, BarrierType::DownAndOut, 100.0, 1.0, 0.0, kT}, kMkt);
+  double up_out = analytic::price_barrier(
+      {OptionType::Call, BarrierType::UpAndOut, 100.0, 1.0e6, 0.0, kT}, kMkt);
+  EXPECT_NEAR(down_out, van, 1e-3);
+  EXPECT_NEAR(up_out, van, 1e-3);
+}
 
-  // Limit case: a knock-out barrier placed far away ~ vanilla.
-  double van_call = analytic::price_vanilla({OptionType::Call, 100.0, T}, mkt).price;
-  double dao = analytic::price_barrier(
-      {OptionType::Call, BarrierType::DownAndOut, 100.0, 1.0, 0.0, T}, mkt);
-  CHECK_CLOSE(dao, van_call, 1e-3);
+TEST(BarrierAnalytic, LiveKnockOutWorthLessThanVanilla) {
+  double van = analytic::price_vanilla({OptionType::Call, 100.0, kT}, kMkt).price;
+  double uo = analytic::price_barrier(
+      {OptionType::Call, BarrierType::UpAndOut, 100.0, 130.0, 0.0, kT}, kMkt);
+  EXPECT_GT(uo, 0.0);
+  EXPECT_LT(uo, van);
+}
 
-  double uao = analytic::price_barrier(
-      {OptionType::Call, BarrierType::UpAndOut, 100.0, 1.0e6, 0.0, T}, mkt);
-  CHECK_CLOSE(uao, van_call, 1e-3);
-
-  // A live knock-out is worth strictly less than the vanilla it tracks.
-  double uao_live = analytic::price_barrier(
-      {OptionType::Call, BarrierType::UpAndOut, 100.0, 130.0, 0.0, T}, mkt);
-  CHECK(uao_live < van_call && uao_live > 0.0);
-
-  return ap_test::failures();
+TEST(BarrierAnalytic, RejectsBreachedBarrier) {
+  // spot already above an up barrier -> closed form is invalid
+  EXPECT_THROW(
+      analytic::price_barrier(
+          {OptionType::Call, BarrierType::UpAndOut, 100.0, 90.0, 0.0, kT}, kMkt),
+      std::invalid_argument);
 }

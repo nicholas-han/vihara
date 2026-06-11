@@ -35,27 +35,42 @@ include/ap/
   pricing/montecarlo/mc.hpp Monte Carlo engine
   pricing/pde/fd1d.hpp      1D finite-difference PDE engine
 src/                        implementations
-tests/                      ctest suites (incl. MC/PDE ↔ analytic cross-checks)
+tests/                      Google Test suites (incl. MC/PDE ↔ analytic cross-checks)
+  test_helpers.hpp          shared helpers (e.g. EXPECT_WITHIN_SE for MC bands)
+  test_math.cpp             normal distribution
+  test_vanilla.cpp          closed-form vanilla + parameterized put-call parity
+  test_binary.cpp           digital-option identities
+  test_barrier.cpp          parameterized in/out parity (8 configs)
+  test_mc.cpp               Monte Carlo ↔ analytic convergence
+  test_pde.cpp              PDE ↔ analytic + American ↔ binomial tree
 ```
 
 ## Build & test
 
 ```sh
-cmake -S . -B build
+cmake -S . -B build         # first run fetches Google Test (needs network once)
 cmake --build build -j
 ctest --test-dir build --output-on-failure
 ```
 
-Requires only a C++17 compiler and CMake ≥ 3.20. No third-party libraries.
+The **core library** has no third-party dependencies — only a C++17 compiler and
+CMake ≥ 3.20. The **test suite** uses [GoogleTest](https://github.com/google/googletest),
+pulled in automatically via CMake `FetchContent` at configure time (pinned to
+v1.15.2). To build without tests: `cmake -S . -B build -DAP_BUILD_TESTS=OFF`.
 
 ## Design notes
 
 - **Instrument × Engine.** Contracts are plain strongly-typed structs (`enum class
   OptionType` etc., replacing the legacy `int 1/-1` convention). Pricing methods
-  are free functions in `ap::analytic` / `ap::mc` that take an instrument + market
-  data. Adding a product or a method is a new file, not an N×M explosion.
-- **Cross-validation.** `tests/test_mc.cpp` checks each MC price against its
-  closed-form counterpart to within a few standard errors.
+  are free functions in `ap::analytic` / `ap::mc` / `ap::pde` that take an
+  instrument + market data. Adding a product or a method is a new file, not an
+  N×M explosion.
+- **Cross-validation.** Numerical engines are regression-tested against the
+  closed form: `test_mc.cpp` checks MC within a few standard errors, `test_pde.cpp`
+  checks PDE against BSM and an independent binomial tree.
+- **Adding tests.** Drop a `tests/test_<x>.cpp`, write `TEST(Suite, Case)` (or
+  `TEST_P` for parameterized cases — see `test_barrier.cpp`), and register it with
+  one `ap_add_test(test_<x>)` line in `CMakeLists.txt`.
 
 ## Roadmap
 
