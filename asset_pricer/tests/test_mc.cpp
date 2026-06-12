@@ -15,7 +15,7 @@
 using namespace ap;
 
 namespace {
-const MarketData kMkt{100.0, 0.05, 0.02, 0.20};
+const BsmInputs kMkt{100.0, 0.05, 0.02, 0.20};
 const double kT = 1.0;
 
 mc::McConfig terminal_cfg() {

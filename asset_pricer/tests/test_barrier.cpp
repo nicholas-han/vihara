@@ -16,7 +16,7 @@
 using namespace ap;
 
 namespace {
-const MarketData kMkt{100.0, 0.08, 0.04, 0.25};
+const BsmInputs kMkt{100.0, 0.08, 0.04, 0.25};
 const double kT = 0.5;
 
 struct BarrierCase {

@@ -11,7 +11,7 @@
 using namespace ap;
 
 namespace {
-const MarketData kMkt{100.0, 0.05, 0.02, 0.25};
+const BsmInputs kMkt{100.0, 0.05, 0.02, 0.25};
 const double kK = 105.0, kT = 0.75;
 
 double con_call() {
@@ -30,7 +30,7 @@ double aon_call() {
 
 TEST(BinaryAnalytic, CashOrNothingCallPutSumsToDiscountFactor) {
   // N(d2) + N(-d2) = 1  =>  unit cash-or-nothing call + put = e^{-rT}
-  EXPECT_NEAR(con_call() + con_put(), std::exp(-kMkt.rate * kT), 1e-12);
+  EXPECT_NEAR(con_call() + con_put(), std::exp(-kMkt.risk_free_rate * kT), 1e-12);
 }
 
 TEST(BinaryAnalytic, VanillaDecomposition) {

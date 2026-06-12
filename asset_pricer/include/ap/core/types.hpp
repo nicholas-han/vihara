@@ -15,17 +15,17 @@ inline constexpr double phi(OptionType t) {
   return t == OptionType::Call ? 1.0 : -1.0;
 }
 
-/// Black-Scholes market inputs for a single underlying.
+/// Black-Scholes inputs for a single underlying.
 /// Rates and dividend yield are continuously compounded.
-struct MarketData {
-  double spot;       ///< current spot price S0
-  double rate;       ///< risk-free interest rate r
-  double div_yield;  ///< continuous dividend yield q
-  double vol;        ///< Black-Scholes volatility sigma
+struct BsmInputs {
+  double spot_price;      ///< current spot price S_0
+  double risk_free_rate;  ///< risk-free interest rate r
+  double dividend_yield;  ///< continuous dividend yield q
+  double volatility;      ///< Black-Scholes volatility sigma
 };
 
 /// First- and second-order sensitivities.
-struct Greeks {
+struct BsmGreeks {
   double delta = 0.0;  ///< dV/dS
   double gamma = 0.0;  ///< d2V/dS2
   double theta = 0.0;  ///< dV/dt (per year)
@@ -34,9 +34,9 @@ struct Greeks {
 };
 
 /// Result of a pricing call: present value plus optional Greeks.
-struct PriceResult {
+struct BsmValuation {
   double price = 0.0;
-  Greeks greeks{};
+  BsmGreeks greeks{};
 };
 
 }  // namespace ap

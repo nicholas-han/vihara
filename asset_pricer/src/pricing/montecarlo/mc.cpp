@@ -21,23 +21,23 @@ namespace {
 using Payoff = std::function<double(std::vector<double> const&)>;
 
 // Core engine: simulate GBM paths and average discounted payoffs.
-McResult run(Payoff const& payoff, MarketData const& mkt, double T,
+McResult run(Payoff const& payoff, BsmInputs const& mkt, double T,
              McConfig const& cfg) {
   if (T < 0.0) throw std::invalid_argument("mc::run: time to expiry must be non-negative");
-  if (mkt.vol < 0.0) throw std::invalid_argument("mc::run: volatility must be non-negative");
+  if (mkt.volatility < 0.0) throw std::invalid_argument("mc::run: volatility must be non-negative");
   if (cfg.num_paths == 0) throw std::invalid_argument("mc::run: num_paths must be positive");
 
   const unsigned n = std::max(1u, cfg.num_steps);
   const double dt = T / n;
-  const double drift = (mkt.rate - mkt.div_yield - 0.5 * mkt.vol * mkt.vol) * dt;
-  const double vol_sqrt_dt = mkt.vol * std::sqrt(dt);
-  const double df = std::exp(-mkt.rate * T);
+  const double drift = (mkt.risk_free_rate - mkt.dividend_yield - 0.5 * mkt.volatility * mkt.volatility) * dt;
+  const double vol_sqrt_dt = mkt.volatility * std::sqrt(dt);
+  const double df = std::exp(-mkt.risk_free_rate * T);
 
   math::NormalRng rng(cfg.seed);
   std::vector<double> z(n), path(n);
 
   auto one_path = [&](double sgn) -> double {
-    double s = mkt.spot;
+    double s = mkt.spot_price;
     for (unsigned i = 0; i < n; ++i) {
       s *= std::exp(drift + vol_sqrt_dt * (sgn * z[i]));
       path[i] = s;
@@ -68,7 +68,7 @@ McResult run(Payoff const& payoff, MarketData const& mkt, double T,
 
 }  // namespace
 
-McResult price_vanilla(VanillaOption const& opt, MarketData const& mkt,
+McResult price_vanilla(VanillaOption const& opt, BsmInputs const& mkt,
                        McConfig const& cfg) {
   const double sign = phi(opt.type);
   const double K = opt.strike;
@@ -78,7 +78,7 @@ McResult price_vanilla(VanillaOption const& opt, MarketData const& mkt,
   return run(payoff, mkt, opt.time_to_expiry, cfg);
 }
 
-McResult price_binary(BinaryOption const& opt, MarketData const& mkt,
+McResult price_binary(BinaryOption const& opt, BsmInputs const& mkt,
                       McConfig const& cfg) {
   const double sign = phi(opt.type);
   const double K = opt.strike;
@@ -93,7 +93,7 @@ McResult price_binary(BinaryOption const& opt, MarketData const& mkt,
   return run(payoff, mkt, opt.time_to_expiry, cfg);
 }
 
-McResult price_barrier(BarrierOption const& opt, MarketData const& mkt,
+McResult price_barrier(BarrierOption const& opt, BsmInputs const& mkt,
                        McConfig const& cfg) {
   const double sign = phi(opt.type);
   const double K = opt.strike;
@@ -101,9 +101,9 @@ McResult price_barrier(BarrierOption const& opt, MarketData const& mkt,
   const double rebate = opt.rebate;
   const bool up = is_up(opt.barrier_type);
   const bool knock_in = is_in(opt.barrier_type);
-  const double S0 = mkt.spot;
+  const double S0 = mkt.spot_price;
   const unsigned n = std::max(1u, cfg.num_steps);
-  const double var_step = mkt.vol * mkt.vol * (opt.time_to_expiry / n);
+  const double var_step = mkt.volatility * mkt.volatility * (opt.time_to_expiry / n);
 
   // Brownian-bridge probability that the path did NOT cross H over a step.
   Payoff payoff = [=](std::vector<double> const& path) {

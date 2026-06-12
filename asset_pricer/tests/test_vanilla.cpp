@@ -12,7 +12,7 @@ using namespace ap;
 
 namespace {
 // Textbook case: S=K=100, r=5%, q=0, vol=20%, T=1.
-const MarketData kMkt{100.0, 0.05, 0.0, 0.20};
+const BsmInputs kMkt{100.0, 0.05, 0.0, 0.20};
 }  // namespace
 
 TEST(VanillaAnalytic, ReferencePrices) {
@@ -36,7 +36,7 @@ TEST(VanillaAnalytic, Greeks) {
 }
 
 TEST(VanillaAnalytic, ZeroVolIsDiscountedIntrinsic) {
-  MarketData zv{100.0, 0.05, 0.0, 0.0};
+  BsmInputs zv{100.0, 0.05, 0.0, 0.0};
   auto c = analytic::price_vanilla({OptionType::Call, 90.0, 1.0}, zv);
   double fwd = analytic::forward_price(zv, 1.0);
   EXPECT_NEAR(c.price, std::exp(-0.05) * (fwd - 90.0), 1e-12);
@@ -52,7 +52,7 @@ TEST_P(PutCallParity, HoldsAcrossStrikes) {
   auto c = analytic::price_vanilla({OptionType::Call, K, T}, kMkt);
   auto p = analytic::price_vanilla({OptionType::Put, K, T}, kMkt);
   double parity =
-      kMkt.spot * std::exp(-kMkt.div_yield * T) - K * std::exp(-kMkt.rate * T);
+      kMkt.spot_price * std::exp(-kMkt.dividend_yield * T) - K * std::exp(-kMkt.risk_free_rate * T);
   EXPECT_NEAR(c.price - p.price, parity, 1e-10);
 }
 

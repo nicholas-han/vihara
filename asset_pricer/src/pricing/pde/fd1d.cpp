@@ -134,17 +134,17 @@ double solve(Spec const& s, PdeConfig const& cfg) {
 
 }  // namespace
 
-double price_vanilla(VanillaOption const& opt, MarketData const& mkt,
+double price_vanilla(VanillaOption const& opt, BsmInputs const& mkt,
                      PdeConfig const& cfg) {
-  Spec s{opt.strike, opt.time_to_expiry, mkt.rate, mkt.div_yield,
-         mkt.vol,    mkt.spot,           opt.type,  /*american=*/false};
+  Spec s{opt.strike, opt.time_to_expiry, mkt.risk_free_rate, mkt.dividend_yield,
+         mkt.volatility,    mkt.spot_price,           opt.type,  /*american=*/false};
   return solve(s, cfg);
 }
 
-double price_american(AmericanOption const& opt, MarketData const& mkt,
+double price_american(AmericanOption const& opt, BsmInputs const& mkt,
                       PdeConfig const& cfg) {
-  Spec s{opt.strike, opt.time_to_expiry, mkt.rate, mkt.div_yield,
-         mkt.vol,    mkt.spot,           opt.type,  /*american=*/true};
+  Spec s{opt.strike, opt.time_to_expiry, mkt.risk_free_rate, mkt.dividend_yield,
+         mkt.volatility,    mkt.spot_price,           opt.type,  /*american=*/true};
   return solve(s, cfg);
 }
 

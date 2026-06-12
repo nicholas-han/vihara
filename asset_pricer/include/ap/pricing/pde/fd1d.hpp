@@ -26,12 +26,12 @@ struct PdeConfig {
 };
 
 /// Price a European vanilla option by finite differences.
-double price_vanilla(VanillaOption const& opt, MarketData const& mkt,
+double price_vanilla(VanillaOption const& opt, BsmInputs const& mkt,
                      PdeConfig const& cfg = {});
 
 /// Price an American vanilla option by finite differences (early-exercise
 /// projection each step).
-double price_american(AmericanOption const& opt, MarketData const& mkt,
+double price_american(AmericanOption const& opt, BsmInputs const& mkt,
                       PdeConfig const& cfg = {});
 
 }  // namespace ap::pde

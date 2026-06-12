@@ -15,29 +15,29 @@ namespace ap::analytic {
 using math::normal_cdf;
 using math::normal_pdf;
 
-double forward_price(MarketData const& mkt, double time_to_expiry) {
-  return mkt.spot * std::exp((mkt.rate - mkt.div_yield) * time_to_expiry);
+double forward_price(BsmInputs const& mkt, double time_to_expiry) {
+  return mkt.spot_price * std::exp((mkt.risk_free_rate - mkt.dividend_yield) * time_to_expiry);
 }
 
-PriceResult price_vanilla(VanillaOption const& opt, MarketData const& mkt) {
+BsmValuation price_vanilla(VanillaOption const& opt, BsmInputs const& mkt) {
   if (opt.strike <= 0.0)
     throw std::invalid_argument("price_vanilla: strike must be positive");
   if (opt.time_to_expiry < 0.0)
     throw std::invalid_argument("price_vanilla: time to expiry must be non-negative");
-  if (mkt.vol < 0.0)
+  if (mkt.volatility < 0.0)
     throw std::invalid_argument("price_vanilla: volatility must be non-negative");
 
   const double T = opt.time_to_expiry;
   const double K = opt.strike;
-  const double S = mkt.spot;
+  const double S = mkt.spot_price;
   const double sign = phi(opt.type);
 
-  const double df = std::exp(-mkt.rate * T);        // discount factor
-  const double qf = std::exp(-mkt.div_yield * T);   // dividend factor
+  const double df = std::exp(-mkt.risk_free_rate * T);        // discount factor
+  const double qf = std::exp(-mkt.dividend_yield * T);   // dividend factor
   const double fwd = forward_price(mkt, T);
-  const double sigT = mkt.vol * std::sqrt(T);
+  const double sigT = mkt.volatility * std::sqrt(T);
 
-  PriceResult res{};
+  BsmValuation res{};
 
   // Degenerate case: zero variance -> discounted intrinsic on the forward.
   if (sigT <= 0.0) {
@@ -56,16 +56,16 @@ PriceResult price_vanilla(VanillaOption const& opt, MarketData const& mkt) {
 
   res.price = sign * df * (fwd * Nd1 - K * Nd2);
   res.greeks.delta = sign * qf * Nd1;
-  res.greeks.gamma = qf * npd1 / (S * mkt.vol * sqrtT);
-  res.greeks.theta = -qf * npd1 * S * mkt.vol / (2.0 * sqrtT)
-                     + sign * mkt.div_yield * qf * S * Nd1
-                     - sign * mkt.rate * df * K * Nd2;
+  res.greeks.gamma = qf * npd1 / (S * mkt.volatility * sqrtT);
+  res.greeks.theta = -qf * npd1 * S * mkt.volatility / (2.0 * sqrtT)
+                     + sign * mkt.dividend_yield * qf * S * Nd1
+                     - sign * mkt.risk_free_rate * df * K * Nd2;
   res.greeks.vega = qf * sqrtT * S * npd1;
   res.greeks.rho = sign * K * T * df * Nd2;
   return res;
 }
 
-double price_binary(BinaryOption const& opt, MarketData const& mkt) {
+double price_binary(BinaryOption const& opt, BsmInputs const& mkt) {
   if (opt.strike <= 0.0)
     throw std::invalid_argument("price_binary: strike must be positive");
   if (opt.time_to_expiry < 0.0)
@@ -74,10 +74,10 @@ double price_binary(BinaryOption const& opt, MarketData const& mkt) {
   const double T = opt.time_to_expiry;
   const double K = opt.strike;
   const double sign = phi(opt.type);
-  const double df = std::exp(-mkt.rate * T);
-  const double qf = std::exp(-mkt.div_yield * T);
+  const double df = std::exp(-mkt.risk_free_rate * T);
+  const double qf = std::exp(-mkt.dividend_yield * T);
   const double fwd = forward_price(mkt, T);
-  const double sigT = mkt.vol * std::sqrt(T);
+  const double sigT = mkt.volatility * std::sqrt(T);
 
   if (sigT <= 0.0) {  // deterministic terminal forward
     bool in_money = sign * (fwd - K) > 0.0;
@@ -93,7 +93,7 @@ double price_binary(BinaryOption const& opt, MarketData const& mkt) {
     return opt.cash * df * normal_cdf(sign * d2);
   }
   // asset-or-nothing: pays S_T if in the money
-  return mkt.spot * qf * normal_cdf(sign * d1);
+  return mkt.spot_price * qf * normal_cdf(sign * d1);
 }
 
 namespace {
@@ -143,7 +143,7 @@ BarrierTerms barrier_terms(double S, double K, double H, double T, double r,
 
 }  // namespace
 
-double price_barrier(BarrierOption const& opt, MarketData const& mkt) {
+double price_barrier(BarrierOption const& opt, BsmInputs const& mkt) {
   if (opt.strike <= 0.0)
     throw std::invalid_argument("price_barrier: strike must be positive");
   if (opt.barrier <= 0.0)
@@ -151,7 +151,7 @@ double price_barrier(BarrierOption const& opt, MarketData const& mkt) {
   if (opt.time_to_expiry < 0.0)
     throw std::invalid_argument("price_barrier: time to expiry must be non-negative");
 
-  const double S = mkt.spot;
+  const double S = mkt.spot_price;
   const double H = opt.barrier;
   const bool up = is_up(opt.barrier_type);
 
@@ -163,9 +163,9 @@ double price_barrier(BarrierOption const& opt, MarketData const& mkt) {
 
   const double K = opt.strike;
   const double T = opt.time_to_expiry;
-  const double r = mkt.rate;
-  const double b = mkt.rate - mkt.div_yield;  // cost of carry
-  const double sigma = mkt.vol;
+  const double r = mkt.risk_free_rate;
+  const double b = mkt.risk_free_rate - mkt.dividend_yield;  // cost of carry
+  const double sigma = mkt.volatility;
   const double eta = up ? -1.0 : 1.0;
   const double cp = phi(opt.type);
 

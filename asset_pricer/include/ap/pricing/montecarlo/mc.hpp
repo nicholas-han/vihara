@@ -29,17 +29,17 @@ struct McResult {
 };
 
 /// Price a European vanilla option by simulating terminal spots.
-McResult price_vanilla(VanillaOption const& opt, MarketData const& mkt,
+McResult price_vanilla(VanillaOption const& opt, BsmInputs const& mkt,
                        McConfig const& cfg = {});
 
 /// Price a European binary option by simulating terminal spots.
-McResult price_binary(BinaryOption const& opt, MarketData const& mkt,
+McResult price_binary(BinaryOption const& opt, BsmInputs const& mkt,
                       McConfig const& cfg = {});
 
 /// Price a single-barrier option. Uses the Brownian-bridge survival estimator
 /// so a finite number of steps still targets continuous monitoring. Rebate is
 /// assumed paid at expiry. cfg.num_steps should be > 1.
-McResult price_barrier(BarrierOption const& opt, MarketData const& mkt,
+McResult price_barrier(BarrierOption const& opt, BsmInputs const& mkt,
                        McConfig const& cfg = {});
 
 }  // namespace ap::mc

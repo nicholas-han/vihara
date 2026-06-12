@@ -27,7 +27,7 @@ American).
 
 ```
 include/ap/
-  core/types.hpp            OptionType, MarketData, Greeks, PriceResult
+  core/types.hpp            OptionType, BsmInputs, BsmGreeks, BsmValuation
   math/normal.hpp           normal pdf / cdf / inverse-cdf (std::erfc based)
   math/rng.hpp              seeded standard-normal generator
   instruments/              vanilla / binary / barrier / american contract structs
