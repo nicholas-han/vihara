@@ -5,10 +5,8 @@
 #ifndef AP_PRICING_ANALYTIC_BSM_HPP
 #define AP_PRICING_ANALYTIC_BSM_HPP
 
-#include <ap/core/types.hpp>
-#include <ap/instruments/barrier_option.hpp>
-#include <ap/instruments/binary_option.hpp>
-#include <ap/instruments/vanilla_option.hpp>
+#include <ap/core/instruments.hpp>
+#include <ap/core/valuation.hpp>
 
 namespace ap::analytic {
 

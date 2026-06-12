@@ -27,10 +27,10 @@ American).
 
 ```
 include/ap/
-  core/types.hpp            OptionType, BsmInputs, BsmGreeks, BsmValuation
+  core/instruments.hpp      OptionType, phi, Vanilla/Binary/Barrier/American structs
+  core/valuation.hpp        BsmInputs, BsmGreeks, BsmValuation
   math/normal.hpp           normal pdf / cdf / inverse-cdf (std::erfc based)
   math/rng.hpp              seeded standard-normal generator
-  instruments/              vanilla / binary / barrier / american contract structs
   pricing/analytic/bsm.hpp  closed-form BSM engine
   pricing/montecarlo/mc.hpp Monte Carlo engine
   pricing/pde/fd1d.hpp      1D finite-difference PDE engine

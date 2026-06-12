@@ -1,19 +1,11 @@
 /**
- * @file  types.hpp
- * @brief Core value types shared across instruments and pricing engines.
+ * @file  valuation.hpp
+ * @brief Black-Scholes pricing inputs and outputs (Greeks + valuation result).
  */
-#ifndef AP_CORE_TYPES_HPP
-#define AP_CORE_TYPES_HPP
+#ifndef AP_CORE_VALUATION_HPP
+#define AP_CORE_VALUATION_HPP
 
 namespace ap {
-
-/// Call or put. Replaces the legacy magic-number convention (1 = call, -1 = put).
-enum class OptionType { Call, Put };
-
-/// +1.0 for a call, -1.0 for a put. Handy as a sign multiplier in formulas.
-inline constexpr double phi(OptionType t) {
-  return t == OptionType::Call ? 1.0 : -1.0;
-}
 
 /// Black-Scholes inputs for a single underlying.
 /// Rates and dividend yield are continuously compounded.
@@ -41,4 +33,4 @@ struct BsmValuation {
 
 }  // namespace ap
 
-#endif  // AP_CORE_TYPES_HPP
+#endif  // AP_CORE_VALUATION_HPP

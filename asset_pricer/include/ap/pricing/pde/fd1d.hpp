@@ -11,9 +11,8 @@
 #ifndef AP_PRICING_PDE_FD1D_HPP
 #define AP_PRICING_PDE_FD1D_HPP
 
-#include <ap/core/types.hpp>
-#include <ap/instruments/american_option.hpp>
-#include <ap/instruments/vanilla_option.hpp>
+#include <ap/core/instruments.hpp>
+#include <ap/core/valuation.hpp>
 
 namespace ap::pde {
 
