@@ -409,3 +409,118 @@ TEST(VarianceSwapMc, MertonAddsJumpVariance) {
   EXPECT_NEAR(mc.fair_variance, expected, 4.0 * mc.std_error);
   EXPECT_GT(mc.fair_variance, 0.04);  // strictly above the diffusion-only level
 }
+
+// ---------------------------------------------------------------------------
+// Phase 5: seasoned MTM, risk, and skew approximations
+// ---------------------------------------------------------------------------
+
+// A fresh swap (t = 0) struck at the fair vol has zero value; struck rich/cheap it
+// is worth -/+ the discounted variance-notional gap.
+TEST(VarianceSwapMtm, FreshSwapValue) {
+  const double sigma = 0.20, T = 1.0;
+  const BsmInputs mkt{100.0, 0.03, 0.0, 0.0};
+  auto smile = vs::constant_smile(sigma);
+
+  VarianceSwap at_fair{/*K_vol*/ sigma, /*vega_notional*/ 1.0e6, T};
+  const auto v0 = vs::variance_swap_value(at_fair, mkt, smile, 0.0, 0.0);
+  EXPECT_NEAR(v0.fair_variance_remaining, sigma * sigma, 1e-6);
+  EXPECT_NEAR(v0.value, 0.0, 1e-2);  // ~zero on a multi-million notional
+
+  VarianceSwap cheap{/*K_vol*/ 0.15, 1.0e6, T};  // struck below fair -> long is in the money
+  const auto vc = vs::variance_swap_value(cheap, mkt, smile, 0.0, 0.0);
+  const double df = std::exp(-0.03 * T);
+  const double expect = variance_notional(cheap) * df * (sigma * sigma - 0.15 * 0.15);
+  EXPECT_NEAR(vc.value, expect, 1e-3);
+  EXPECT_GT(vc.value, 0.0);
+}
+
+// Halfway through, the expected full-life variance is the average of the realized
+// variance so far and the fair variance of the remaining leg.
+TEST(VarianceSwapMtm, SeasonedBlendsRealizedAndForward) {
+  const double sigma = 0.20, T = 1.0, t = 0.5;
+  const BsmInputs mkt{100.0, 0.0, 0.0, 0.0};
+  auto smile = vs::constant_smile(sigma);
+  VarianceSwap swap{sigma, 1.0e6, T};
+
+  const double realized = 0.09;  // 30% realized vol so far
+  const auto v = vs::variance_swap_value(swap, mkt, smile, t, realized);
+  EXPECT_NEAR(v.fair_variance_remaining, sigma * sigma, 1e-6);
+  EXPECT_NEAR(v.expected_variance, 0.5 * realized + 0.5 * sigma * sigma, 1e-6);
+  // value = N_var * (E[var] - K^2), no discount (r = 0).
+  EXPECT_NEAR(v.value, variance_notional(swap) * (v.expected_variance - sigma * sigma), 1e-3);
+}
+
+// The two realized-leg entry points agree: feeding the price path equals feeding
+// its realized variance.
+TEST(VarianceSwapMtm, PricePathMatchesRealizedInput) {
+  const double sigma = 0.20, T = 1.0, t = 0.5;
+  const BsmInputs mkt{100.0, 0.02, 0.0, 0.0};
+  auto smile = vs::constant_smile(sigma);
+  VarianceSwap swap{sigma, 1.0e6, T};
+
+  std::vector<double> path{100.0};
+  for (int i = 0; i < 30; ++i) path.push_back(path.back() * (i % 2 ? 1.012 : 0.99));
+  const double rv = vs::realized_variance(path, swap.annualization_factor);
+
+  const auto from_path = vs::variance_swap_value(swap, mkt, smile, t, path);
+  const auto from_rv = vs::variance_swap_value(swap, mkt, smile, t, rv);
+  EXPECT_NEAR(from_path.value, from_rv.value, 1e-9);
+}
+
+TEST(VarianceSwapMtm, RejectsBadElapsed) {
+  VarianceSwap swap{0.2, 1.0e6, 1.0};
+  const BsmInputs mkt{100.0, 0.0, 0.0, 0.0};
+  EXPECT_THROW(vs::variance_swap_value(swap, mkt, vs::constant_smile(0.2), 1.5, 0.0),
+               std::invalid_argument);
+}
+
+// For a flat smile struck ATM the variance-swap vega equals the vega notional
+// (times the discount) -- the defining property of the vega-notional quote. The
+// finite-difference vega is exact here: bumping a flat sigma to sigma +- d gives
+// K_var = (sigma +- d)^2, whose central difference is exactly 2 sigma.
+TEST(VarianceSwapRiskTest, VegaEqualsVegaNotionalFlatAtm) {
+  const double sigma = 0.20, T = 1.0;
+  const BsmInputs mkt{100.0, 0.03, 0.0, 0.0};
+  VarianceSwap swap{/*K_vol*/ sigma, /*vega_notional*/ 1.0e6, T};
+
+  const auto risk = vs::variance_swap_risk(swap, mkt, vs::constant_smile(sigma));
+  const double df = std::exp(-0.03 * T);
+  EXPECT_NEAR(risk.vega, 1.0e6 * df, 1.0);  // ~ vega notional * discount
+}
+
+// The bump-and-reval vega matches a direct central finite difference of fair
+// variance scaled to value, and a log-moneyness tilt has a genuine first-order
+// effect even on a (here symmetric-ATM) smile.
+TEST(VarianceSwapRiskTest, BumpRevalIsConsistent) {
+  const volatility::SviSlice slice({0.04, 0.4, -0.3, 0.0, 0.1}, 1.0);
+  const BsmInputs mkt{100.0, 0.0, 0.0, 0.0};
+  VarianceSwap swap{0.28, 1.0e6, 1.0};
+  const double forward = 100.0;
+  auto smile = vs::smile_from_svi(slice, forward);
+
+  const auto risk = vs::variance_swap_risk(swap, mkt, smile);
+
+  // Independent finite difference of fair variance -> value.
+  const double d = 1e-4;
+  const double up = vs::fair_variance_continuous(forward, 1.0, [&](double K) { return smile(K) + d; });
+  const double dn = vs::fair_variance_continuous(forward, 1.0, [&](double K) { return smile(K) - d; });
+  const double expected_vega = variance_notional(swap) * (up - dn) / (2.0 * d);
+  EXPECT_NEAR(risk.vega, expected_vega, 1e-3 * std::fabs(expected_vega));
+  EXPECT_NE(risk.skew, 0.0);  // log-moneyness tilt moves fair variance at first order
+}
+
+// DDKZ EQ 31 reproduces the continuous engine on the GS section-III skew: with
+// Sigma0 = 20%, b = 0.20, T = 0.25, both give ~ (20.3%)^2.
+TEST(VarianceSwapSkewApprox, LinearStrikeMatchesEngine) {
+  const double Sigma0 = 0.20, b = 0.20, T = 0.25;
+  const double approx = vs::fair_variance_skew_linear_strike(Sigma0, b, T);
+  const double engine = vs::fair_variance_continuous(100.0, T, gs_linear_skew());
+  EXPECT_NEAR(approx, Sigma0 * Sigma0 * 1.03, 1e-9);  // 0.04 * (1 + 3*0.25*0.04)
+  EXPECT_NEAR(approx, engine, 1e-3);                  // agrees with the strip integral
+}
+
+// The skew approximations reduce to the flat-vol variance when the slope is zero.
+TEST(VarianceSwapSkewApprox, ZeroSkewIsFlatVariance) {
+  EXPECT_NEAR(vs::fair_variance_skew_linear_strike(0.25, 0.0, 1.0), 0.0625, 1e-12);
+  EXPECT_NEAR(vs::fair_variance_skew_linear_delta(0.25, 0.0, 1.0), 0.0625, 1e-12);
+}

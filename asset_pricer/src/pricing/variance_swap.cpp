@@ -303,4 +303,95 @@ double fair_variance_discrete_quotes(double forward, double time_to_expiry,
   return strip_sum(forward, time_to_expiry, strikes, forward_values, cfg.vix_correction);
 }
 
+// ---------------------------------------------------------------------------
+// Seasoned mark-to-market
+// ---------------------------------------------------------------------------
+
+VarianceSwapValue variance_swap_value(VarianceSwap const& swap, BsmInputs const& mkt,
+                                      SmileFn const& smile_remaining, double time_elapsed,
+                                      double realized_variance_so_far,
+                                      ContinuousConfig const& cfg) {
+  const double T = swap.time_to_expiry;
+  if (!(time_elapsed >= 0.0) || time_elapsed > T)
+    throw std::invalid_argument("variance_swap_value: time_elapsed must be in [0, T]");
+  if (!(realized_variance_so_far >= 0.0))
+    throw std::invalid_argument("variance_swap_value: realized variance must be non-negative");
+
+  const double tau = T - time_elapsed;  // remaining maturity
+  const double k_strike = swap.vol_strike * swap.vol_strike;
+
+  VarianceSwapValue out;
+  if (tau > 0.0) {
+    const double forward = bsm::forward_price(mkt, tau);
+    out.fair_variance_remaining = fair_variance_continuous(forward, tau, smile_remaining, cfg);
+  }
+  // E_t[sigma_R^2] over the full life: realized part weighted by elapsed fraction,
+  // forward part by the remaining fraction.
+  out.expected_variance =
+      (time_elapsed / T) * realized_variance_so_far + (tau / T) * out.fair_variance_remaining;
+
+  const double discount = std::exp(-mkt.risk_free_rate * tau);
+  out.value = variance_notional(swap) * discount * (out.expected_variance - k_strike);
+  return out;
+}
+
+VarianceSwapValue variance_swap_value(VarianceSwap const& swap, BsmInputs const& mkt,
+                                      SmileFn const& smile_remaining, double time_elapsed,
+                                      std::vector<double> const& observed_prices,
+                                      ContinuousConfig const& cfg) {
+  const double realized = observed_prices.size() >= 2
+                              ? realized_variance(observed_prices, swap.annualization_factor)
+                              : 0.0;
+  return variance_swap_value(swap, mkt, smile_remaining, time_elapsed, realized, cfg);
+}
+
+// ---------------------------------------------------------------------------
+// Risk (bump-and-reval)
+// ---------------------------------------------------------------------------
+
+VarianceSwapRisk variance_swap_risk(VarianceSwap const& swap, BsmInputs const& mkt,
+                                    SmileFn const& smile, double bump, ContinuousConfig const& cfg) {
+  if (!(bump > 0.0))
+    throw std::invalid_argument("variance_swap_risk: bump must be positive");
+
+  const double T = swap.time_to_expiry;
+  const double forward = bsm::forward_price(mkt, T);
+  const double discount = std::exp(-mkt.risk_free_rate * T);
+  const double scale = variance_notional(swap) * discount;
+
+  // The position value is variance_notional * discount * (K_var(smile) - K_vol^2),
+  // so d(value)/d(param) = scale * d(K_var)/d(param). Bump the smile and reval.
+  auto kvar = [&](SmileFn const& s) { return fair_variance_continuous(forward, T, s, cfg); };
+
+  const double k_up = kvar([&](double K) { return smile(K) + bump; });
+  const double k_dn = kvar([&](double K) { return smile(K) - bump; });
+
+  const double s_up = kvar([&](double K) { return smile(K) + bump * std::log(K / forward); });
+  const double s_dn = kvar([&](double K) { return smile(K) - bump * std::log(K / forward); });
+
+  VarianceSwapRisk risk;
+  risk.vega = scale * (k_up - k_dn) / (2.0 * bump);
+  risk.skew = scale * (s_up - s_dn) / (2.0 * bump);
+  return risk;
+}
+
+// ---------------------------------------------------------------------------
+// Skew analytic approximations (DDKZ Appendix B / C)
+// ---------------------------------------------------------------------------
+
+double fair_variance_skew_linear_strike(double atmf_vol, double skew_slope_b, double T) {
+  if (!(atmf_vol > 0.0) || !(T > 0.0))
+    throw std::invalid_argument("fair_variance_skew_linear_strike: need atmf_vol, T > 0");
+  return atmf_vol * atmf_vol * (1.0 + 3.0 * T * skew_slope_b * skew_slope_b);
+}
+
+double fair_variance_skew_linear_delta(double atm_vol, double skew_slope_b, double T) {
+  if (!(atm_vol > 0.0) || !(T > 0.0))
+    throw std::invalid_argument("fair_variance_skew_linear_delta: need atm_vol, T > 0");
+  const double b = skew_slope_b;
+  return atm_vol * atm_vol *
+         (1.0 + (1.0 / std::sqrt(M_PI)) * b * std::sqrt(T) +
+          (1.0 / 12.0) * b * b / (atm_vol * atm_vol));
+}
+
 }  // namespace asset_pricer::vs

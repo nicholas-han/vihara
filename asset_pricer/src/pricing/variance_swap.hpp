@@ -200,6 +200,79 @@ double fair_variance_discrete_quotes(double forward, double time_to_expiry,
                                      std::vector<double> const& otm_prices,
                                      double discount_factor, DiscreteConfig const& cfg = {});
 
+// ---------------------------------------------------------------------------
+// Seasoned mark-to-market
+// ---------------------------------------------------------------------------
+
+/// Mark-to-market of a (possibly seasoned) variance swap.
+struct VarianceSwapValue {
+  double fair_variance_remaining = 0.0;  ///< K_var over the remaining period [t, T], annualized
+  double expected_variance = 0.0;        ///< E_t[sigma_R^2] over the full life [0, T], annualized
+  double value = 0.0;                    ///< present value (MTM) to the LONG, in currency
+};
+
+/// Mark a variance swap at elapsed time `time_elapsed` (years), with the realized
+/// leg supplied as the annualized realized variance accrued so far over [0, t].
+/// The expected full-life variance splits into the realized and forward parts:
+///
+///   E_t[sigma_R^2] = (t/T) * realized + (tau/T) * K_var(t, T),   tau = T - t,
+///
+/// where K_var(t, T) is priced from `smile_remaining` (the current smile for the
+/// remaining maturity tau) and `mkt` (current spot, rates). The MTM to the long is
+///   value = variance_notional * exp(-r tau) * (E_t[sigma_R^2] - K_vol^2).
+/// At t = 0 this is the fresh-swap value; at t = T it is the settlement amount.
+/// Assumes uniform observation spacing (t/T = fraction of fixings done). Throws
+/// std::invalid_argument for time_elapsed outside [0, T].
+VarianceSwapValue variance_swap_value(VarianceSwap const& swap, BsmInputs const& mkt,
+                                      SmileFn const& smile_remaining, double time_elapsed,
+                                      double realized_variance_so_far,
+                                      ContinuousConfig const& cfg = {});
+
+/// Same, with the realized leg given by the observed fixings S_0..S_n so far
+/// (annualized with the swap's own convention). Equivalent to calling the overload
+/// above with realized_variance(observed_prices, swap.annualization_factor).
+VarianceSwapValue variance_swap_value(VarianceSwap const& swap, BsmInputs const& mkt,
+                                      SmileFn const& smile_remaining, double time_elapsed,
+                                      std::vector<double> const& observed_prices,
+                                      ContinuousConfig const& cfg = {});
+
+// ---------------------------------------------------------------------------
+// Risk (bump-and-reval)
+// ---------------------------------------------------------------------------
+
+/// First-order risk of a fresh variance swap to the implied-vol smile.
+struct VarianceSwapRisk {
+  double vega = 0.0;   ///< d(value)/d(vol), a parallel shift of the whole smile, per 1.00 of vol.
+                       ///< For a flat smile struck ATM this equals the vega notional (times the
+                       ///< discount), which is exactly what the vega-notional quote is designed for.
+  double skew = 0.0;   ///< d(value)/d(skew slope), a tilt smile(K) -> smile(K) + b*ln(K/F) about the
+                       ///< forward, per unit slope. Non-zero even at a symmetric smile: a tilt linear
+                       ///< in log-moneyness lifts fair variance at FIRST order (the strip integrand is
+                       ///< not symmetric in k), unlike a tilt linear in strike which enters only at
+                       ///< order b^2 (DDKZ EQ 31 vs the linear sqrt(T) term of EQ 33).
+};
+
+/// Risk of a fresh (full-maturity) variance swap by central bump-and-reval of the
+/// smile. `bump` is the vol/slope shift used for the finite differences.
+VarianceSwapRisk variance_swap_risk(VarianceSwap const& swap, BsmInputs const& mkt,
+                                    SmileFn const& smile, double bump = 1e-4,
+                                    ContinuousConfig const& cfg = {});
+
+// ---------------------------------------------------------------------------
+// Skew analytic approximations (DDKZ Appendix B / C)
+// ---------------------------------------------------------------------------
+
+/// DDKZ EQ 31: fair variance for a skew linear in strike, Sigma(K) = Sigma0 -
+/// b*(K - S_F)/S_F (Sigma0 the at-the-money-forward vol, b the slope):
+///   K_var ~ Sigma0^2 (1 + 3 T b^2).
+/// A quick rule of thumb for how the skew lifts fair variance; accurate for short
+/// maturities and moderate skews. Throws std::invalid_argument on bad inputs.
+double fair_variance_skew_linear_strike(double atmf_vol, double skew_slope_b, double T);
+
+/// DDKZ EQ 33: fair variance for a skew linear in Black-Scholes delta,
+///   K_var ~ Sigma0^2 (1 + (1/sqrt(pi)) b sqrt(T) + (1/12) b^2 / Sigma0^2).
+double fair_variance_skew_linear_delta(double atm_vol, double skew_slope_b, double T);
+
 }  // namespace asset_pricer::vs
 
 #endif  // ASSET_PRICER_PRICING_VARIANCE_SWAP_HPP
