@@ -1,18 +1,23 @@
 /**
- * @file  normal.hpp
- * @brief Standard normal distribution: pdf, cdf, and inverse cdf.
+ * @file  distributions.hpp
+ * @brief Standard normal distribution (pdf, cdf, inverse cdf) and a seeded
+ *        standard-normal random number generator.
  *
- * Ported from the legacy orflib NormalDistribution / ErrorFunction, but
- * built on the C++ standard library (std::erfc) instead of a hand-rolled
- * error function, so it carries no third-party dependency.
+ * The distribution helpers are ported from the legacy orflib
+ * NormalDistribution / ErrorFunction, but built on the C++ standard library
+ * (std::erfc) instead of a hand-rolled error function, so they carry no
+ * third-party dependency. The generator draws N(0,1) deviates from a seeded
+ * std::mt19937_64 Mersenne Twister.
  */
-#ifndef AP_MATH_NORMAL_HPP
-#define AP_MATH_NORMAL_HPP
+#ifndef ASSET_PRICER_CORE_DISTRIBUTIONS_HPP
+#define ASSET_PRICER_CORE_DISTRIBUTIONS_HPP
 
 #include <cmath>
+#include <cstdint>
+#include <random>
 #include <stdexcept>
 
-namespace ap::math {
+namespace asset_pricer {
 
 /// 1 / sqrt(2 * pi)
 inline constexpr double kInvSqrt2Pi = 0.3989422804014327;
@@ -74,6 +79,18 @@ inline double normal_inv_cdf(double p) {
   return x;
 }
 
-}  // namespace ap::math
+/// Draws standard-normal deviates from a seeded Mersenne Twister.
+class StandardNormalGenerator {
+ public:
+  explicit StandardNormalGenerator(std::uint64_t seed) : gen_(seed) {}
 
-#endif  // AP_MATH_NORMAL_HPP
+  double operator()() { return dist_(gen_); }
+
+ private:
+  std::mt19937_64 gen_;
+  std::normal_distribution<double> dist_{0.0, 1.0};
+};
+
+}  // namespace asset_pricer
+
+#endif  // ASSET_PRICER_CORE_DISTRIBUTIONS_HPP

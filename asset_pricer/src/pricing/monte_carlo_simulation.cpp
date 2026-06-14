@@ -1,10 +1,10 @@
 /**
- * @file  mc.cpp
+ * @file  monte_carlo_simulation.cpp
  * @brief Implementation of single-factor Black-Scholes Monte Carlo pricing.
  */
-#include <ap/pricing/montecarlo/mc.hpp>
+#include <pricing/monte_carlo_simulation.hpp>
 
-#include <ap/math/rng.hpp>
+#include <core/distributions.hpp>
 
 #include <algorithm>
 #include <cmath>
@@ -12,7 +12,7 @@
 #include <stdexcept>
 #include <vector>
 
-namespace ap::mc {
+namespace asset_pricer::mcs {
 
 namespace {
 
@@ -21,11 +21,11 @@ namespace {
 using Payoff = std::function<double(std::vector<double> const&)>;
 
 // Core engine: simulate GBM paths and average discounted payoffs.
-McResult run(Payoff const& payoff, BsmInputs const& mkt, double T,
-             McConfig const& cfg) {
-  if (T < 0.0) throw std::invalid_argument("mc::run: time to expiry must be non-negative");
-  if (mkt.volatility < 0.0) throw std::invalid_argument("mc::run: volatility must be non-negative");
-  if (cfg.num_paths == 0) throw std::invalid_argument("mc::run: num_paths must be positive");
+McsResult run(Payoff const& payoff, BsmInputs const& mkt, double T,
+             McsConfig const& cfg) {
+  if (T < 0.0) throw std::invalid_argument("mcs::run: time to expiry must be non-negative");
+  if (mkt.volatility < 0.0) throw std::invalid_argument("mcs::run: volatility must be non-negative");
+  if (cfg.num_paths == 0) throw std::invalid_argument("mcs::run: num_paths must be positive");
 
   const unsigned n = std::max(1u, cfg.num_steps);
   const double dt = T / n;
@@ -33,7 +33,7 @@ McResult run(Payoff const& payoff, BsmInputs const& mkt, double T,
   const double vol_sqrt_dt = mkt.volatility * std::sqrt(dt);
   const double df = std::exp(-mkt.risk_free_rate * T);
 
-  math::NormalRng rng(cfg.seed);
+  StandardNormalGenerator rng(cfg.seed);
   std::vector<double> z(n), path(n);
 
   auto one_path = [&](double sgn) -> double {
@@ -60,7 +60,7 @@ McResult run(Payoff const& payoff, BsmInputs const& mkt, double T,
   double var = N > 1 ? (sum_sq - sum * mean) / static_cast<double>(N - 1) : 0.0;
   var = std::max(var, 0.0);
 
-  McResult res;
+  McsResult res;
   res.price = df * mean;
   res.std_error = df * std::sqrt(var / static_cast<double>(N));
   return res;
@@ -68,8 +68,8 @@ McResult run(Payoff const& payoff, BsmInputs const& mkt, double T,
 
 }  // namespace
 
-McResult price_vanilla(VanillaOption const& opt, BsmInputs const& mkt,
-                       McConfig const& cfg) {
+McsResult price_vanilla(VanillaOption const& opt, BsmInputs const& mkt,
+                       McsConfig const& cfg) {
   const double sign = phi(opt.type);
   const double K = opt.strike;
   Payoff payoff = [=](std::vector<double> const& path) {
@@ -78,8 +78,8 @@ McResult price_vanilla(VanillaOption const& opt, BsmInputs const& mkt,
   return run(payoff, mkt, opt.time_to_expiry, cfg);
 }
 
-McResult price_binary(BinaryOption const& opt, BsmInputs const& mkt,
-                      McConfig const& cfg) {
+McsResult price_binary(BinaryOption const& opt, BsmInputs const& mkt,
+                      McsConfig const& cfg) {
   const double sign = phi(opt.type);
   const double K = opt.strike;
   const double cash = opt.cash;
@@ -93,8 +93,8 @@ McResult price_binary(BinaryOption const& opt, BsmInputs const& mkt,
   return run(payoff, mkt, opt.time_to_expiry, cfg);
 }
 
-McResult price_barrier(BarrierOption const& opt, BsmInputs const& mkt,
-                       McConfig const& cfg) {
+McsResult price_barrier(BarrierOption const& opt, BsmInputs const& mkt,
+                       McsConfig const& cfg) {
   const double sign = phi(opt.type);
   const double K = opt.strike;
   const double H = opt.barrier;
@@ -102,34 +102,48 @@ McResult price_barrier(BarrierOption const& opt, BsmInputs const& mkt,
   const bool up = is_up(opt.barrier_type);
   const bool knock_in = is_in(opt.barrier_type);
   const double S0 = mkt.spot_price;
+  const double T = opt.time_to_expiry;
+  const double r = mkt.risk_free_rate;
   const unsigned n = std::max(1u, cfg.num_steps);
-  const double var_step = mkt.volatility * mkt.volatility * (opt.time_to_expiry / n);
+  const double dt = T / n;
+  const double var_step = mkt.volatility * mkt.volatility * dt;
 
-  // Brownian-bridge probability that the path did NOT cross H over a step.
+  // Brownian-bridge survival, plus the per-step first-passage mass so a knock-out
+  // rebate can be discounted from the hit time (approximated by the crossing
+  // step's midpoint) instead of from expiry. P(first passage in step k) =
+  // survival-so-far * p_cross; these masses telescope to 1 - survival.
   Payoff payoff = [=](std::vector<double> const& path) {
-    double survival = 1.0;  // P(barrier never touched)
+    double survival = 1.0;   // P(barrier not yet touched)
+    double rebate_fv = 0.0;  // knock-out rebate cashflows compounded forward to T
     double prev = S0;
+    unsigned i = 0;
     for (double cur : path) {
+      // A rebate paid at this step's midpoint is carried forward to T at r; run()
+      // then discounts the whole payoff from T, netting e^{-r * t_hit}.
+      const double carry = std::exp(r * (T - (i + 0.5) * dt));
       bool endpoint_crossed = up ? (prev >= H || cur >= H) : (prev <= H || cur <= H);
       if (endpoint_crossed) {
+        rebate_fv += survival * carry;  // all surviving mass knocks out in this step
         survival = 0.0;
         break;
       }
       double p_cross =
           std::exp(-2.0 * std::log(H / prev) * std::log(H / cur) / var_step);
+      rebate_fv += survival * p_cross * carry;  // first-passage mass for this step
       survival *= (1.0 - p_cross);
       prev = cur;
+      ++i;
     }
 
     double vanilla = std::max(sign * (path.back() - K), 0.0);
     if (knock_in) {
       double p_in = 1.0 - survival;
-      return vanilla * p_in + rebate * survival;  // rebate if it fails to knock in
+      return vanilla * p_in + rebate * survival;  // rebate at expiry if it never knocks in
     }
-    // knock-out
-    return vanilla * survival + rebate * (1.0 - survival);  // rebate if knocked out
+    // knock-out: vanilla if it survives to T, rebate discounted from the hit time
+    return vanilla * survival + rebate * rebate_fv;
   };
   return run(payoff, mkt, opt.time_to_expiry, cfg);
 }
 
-}  // namespace ap::mc
+}  // namespace asset_pricer::mcs

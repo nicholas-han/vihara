@@ -2,14 +2,14 @@
  * @file  test_math.cpp
  * @brief Standard-normal distribution: pdf / cdf / inverse-cdf.
  */
-#include <ap/math/normal.hpp>
+#include <core/distributions.hpp>
 
 #include <gtest/gtest.h>
 
 #include <cmath>
 #include <stdexcept>
 
-using namespace ap::math;
+using namespace asset_pricer;
 
 TEST(Normal, Pdf) {
   EXPECT_NEAR(normal_pdf(0.0), 0.3989422804014327, 1e-15);

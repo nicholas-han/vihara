@@ -1,19 +1,19 @@
 /**
- * @file  bsm.cpp
+ * @file  black_scholes_merton.cpp
  * @brief Implementation of closed-form Black-Scholes-Merton pricing.
  */
-#include <ap/pricing/analytic/bsm.hpp>
+#include <pricing/black_scholes_merton.hpp>
 
-#include <ap/math/normal.hpp>
+#include <core/distributions.hpp>
 
 #include <algorithm>
 #include <cmath>
 #include <stdexcept>
 
-namespace ap::analytic {
+namespace asset_pricer::bsm {
 
-using math::normal_cdf;
-using math::normal_pdf;
+using asset_pricer::normal_cdf;
+using asset_pricer::normal_pdf;
 
 double forward_price(BsmInputs const& mkt, double time_to_expiry) {
   return mkt.spot_price * std::exp((mkt.risk_free_rate - mkt.dividend_yield) * time_to_expiry);
@@ -32,14 +32,14 @@ BsmValuation price_vanilla(VanillaOption const& opt, BsmInputs const& mkt) {
   const double S = mkt.spot_price;
   const double sign = phi(opt.type);
 
-  const double df = std::exp(-mkt.risk_free_rate * T);        // discount factor
+  const double df = std::exp(-mkt.risk_free_rate * T);   // discount factor
   const double qf = std::exp(-mkt.dividend_yield * T);   // dividend factor
   const double fwd = forward_price(mkt, T);
   const double sigT = mkt.volatility * std::sqrt(T);
 
   BsmValuation res{};
 
-  // Degenerate case: zero variance -> discounted intrinsic on the forward.
+  // Degenerate case: zero variance -> discounted payoff on the deterministic forward.
   if (sigT <= 0.0) {
     double intrinsic = std::max(sign * (fwd - K), 0.0);
     res.price = df * intrinsic;
@@ -57,12 +57,61 @@ BsmValuation price_vanilla(VanillaOption const& opt, BsmInputs const& mkt) {
   res.price = sign * df * (fwd * Nd1 - K * Nd2);
   res.greeks.delta = sign * qf * Nd1;
   res.greeks.gamma = qf * npd1 / (S * mkt.volatility * sqrtT);
+  // Greek units (see BsmGreeks): theta per calendar year, vega per 1.00 of vol,
+  // rho per 1.00 of rate -- all absolute, not per-day / per-1% / per-bp.
   res.greeks.theta = -qf * npd1 * S * mkt.volatility / (2.0 * sqrtT)
                      + sign * mkt.dividend_yield * qf * S * Nd1
                      - sign * mkt.risk_free_rate * df * K * Nd2;
   res.greeks.vega = qf * sqrtT * S * npd1;
   res.greeks.rho = sign * K * T * df * Nd2;
   return res;
+}
+
+double implied_volatility(double target_price, VanillaOption const& opt,
+                          BsmInputs const& mkt, double tol, int max_iter) {
+  if (opt.time_to_expiry <= 0.0)
+    throw std::invalid_argument("implied_volatility: time to expiry must be positive");
+  if (target_price < 0.0)
+    throw std::invalid_argument("implied_volatility: target price must be non-negative");
+
+  BsmInputs m = mkt;  // only m.volatility is varied during the search
+  auto price_at = [&](double sigma) {
+    m.volatility = sigma;
+    return price_vanilla(opt, m).price;
+  };
+
+  // sigma -> 0 gives the discounted-intrinsic lower bound; target must clear it.
+  const double intrinsic = price_at(0.0);
+  if (target_price <= intrinsic + tol) {
+    if (target_price < intrinsic - tol)
+      throw std::domain_error("implied_volatility: target below the no-arbitrage lower bound");
+    return 0.0;
+  }
+
+  // Bracket the root in [lo, hi]: grow hi until the model price clears target.
+  double lo = 0.0, hi = 1.0;
+  constexpr double kMaxVol = 100.0;  // 10000% vol; beyond this, treat as unsolvable
+  while (price_at(hi) < target_price) {
+    hi *= 2.0;
+    if (hi > kMaxVol)
+      throw std::domain_error("implied_volatility: target above the no-arbitrage upper bound");
+  }
+
+  // Safeguarded Newton-Raphson: take the Newton step when it stays inside the
+  // bracket and vega is healthy, otherwise bisect.
+  double sigma = std::min(0.2, 0.5 * (lo + hi));
+  for (int it = 0; it < max_iter; ++it) {
+    m.volatility = sigma;
+    BsmValuation v = price_vanilla(opt, m);
+    double diff = v.price - target_price;
+    if (std::fabs(diff) < tol) return sigma;
+    if (diff > 0.0) hi = sigma; else lo = sigma;  // keep root in [lo, hi]
+    double vega = v.greeks.vega;
+    double next = vega > 1e-12 ? sigma - diff / vega : 0.5 * (lo + hi);
+    if (!(next > lo && next < hi)) next = 0.5 * (lo + hi);  // fall back to bisection
+    sigma = next;
+  }
+  return sigma;  // best estimate if tol not reached within max_iter
 }
 
 double price_binary(BinaryOption const& opt, BsmInputs const& mkt) {
@@ -79,9 +128,9 @@ double price_binary(BinaryOption const& opt, BsmInputs const& mkt) {
   const double fwd = forward_price(mkt, T);
   const double sigT = mkt.volatility * std::sqrt(T);
 
-  if (sigT <= 0.0) {  // deterministic terminal forward
-    bool in_money = sign * (fwd - K) > 0.0;
-    if (!in_money) return 0.0;
+  // Degenerate case: zero variance -> discounted payoff on the deterministic forward.
+  if (sigT <= 0.0) {
+    if (sign * (fwd - K) <= 0.0) return 0.0;
     return opt.payoff == BinaryPayoff::CashOrNothing ? df * opt.cash : df * fwd;
   }
 
@@ -89,10 +138,10 @@ double price_binary(BinaryOption const& opt, BsmInputs const& mkt) {
   const double d2 = d1 - sigT;
 
   if (opt.payoff == BinaryPayoff::CashOrNothing) {
-    // pays `cash` if it expires in the money
+    // cash-or-nothing: pays fixed amount cash if it expires in the money
     return opt.cash * df * normal_cdf(sign * d2);
   }
-  // asset-or-nothing: pays S_T if in the money
+  // asset-or-nothing: pays S_T if it expires in the money
   return mkt.spot_price * qf * normal_cdf(sign * d1);
 }
 
@@ -193,4 +242,4 @@ double price_barrier(BarrierOption const& opt, BsmInputs const& mkt) {
   return 0.0;  // unreachable
 }
 
-}  // namespace ap::analytic
+}  // namespace asset_pricer::bsm

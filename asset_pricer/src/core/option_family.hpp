@@ -1,13 +1,14 @@
 /**
- * @file  instruments.hpp
- * @brief Option flavour and all option contract descriptions.
+ * @file  option_family.hpp
+ * @brief Option families (vanilla, binary, barrier, American) as contract structs.
  *
- * Contracts are plain strongly-typed data structs with no pricing logic.
+ * Each family is a plain strongly-typed data struct describing the contract
+ * terms, with no pricing logic.
  */
-#ifndef AP_CORE_INSTRUMENTS_HPP
-#define AP_CORE_INSTRUMENTS_HPP
+#ifndef ASSET_PRICER_CORE_OPTION_FAMILY_HPP
+#define ASSET_PRICER_CORE_OPTION_FAMILY_HPP
 
-namespace ap {
+namespace asset_pricer {
 
 /// Call or put. Replaces the legacy magic-number convention (1 = call, -1 = put).
 enum class OptionType { Call, Put };
@@ -91,6 +92,6 @@ struct AmericanOption {
   double time_to_expiry;  ///< T, in years
 };
 
-}  // namespace ap
+}  // namespace asset_pricer
 
-#endif  // AP_CORE_INSTRUMENTS_HPP
+#endif  // ASSET_PRICER_CORE_OPTION_FAMILY_HPP

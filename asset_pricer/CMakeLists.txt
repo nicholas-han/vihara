@@ -10,17 +10,24 @@ if(NOT CMAKE_BUILD_TYPE)
 endif()
 
 # ---- core library ----
-add_library(ap
-  src/pricing/analytic/bsm.cpp
-  src/pricing/montecarlo/mc.cpp
-  src/pricing/pde/fd1d.cpp
+add_library(asset_pricer
+  src/pricing/black_scholes_merton.cpp
+  src/pricing/monte_carlo_simulation.cpp
+  src/pricing/partial_differential_equations.cpp
 )
-target_include_directories(ap PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)
-target_compile_options(ap PRIVATE -Wall -Wextra)
+target_include_directories(asset_pricer PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/src)
+target_compile_options(asset_pricer PRIVATE -Wall -Wextra)
+
+# ---- example / demo executable ----
+option(ASSET_PRICER_BUILD_EXAMPLES "Build the example programs" ON)
+if(ASSET_PRICER_BUILD_EXAMPLES)
+  add_executable(demo examples/demo.cpp)
+  target_link_libraries(demo PRIVATE asset_pricer)
+endif()
 
 # ---- tests (Google Test, fetched at configure time) ----
-option(AP_BUILD_TESTS "Build the test suite" ON)
-if(AP_BUILD_TESTS)
+option(ASSET_PRICER_BUILD_TESTS "Build the test suite" ON)
+if(ASSET_PRICER_BUILD_TESTS)
   include(FetchContent)
   FetchContent_Declare(
     googletest
@@ -37,17 +44,17 @@ if(AP_BUILD_TESTS)
 
   # Register one test executable per file; gtest_discover_tests turns every
   # TEST()/TEST_P() into an individually-reportable ctest case.
-  function(ap_add_test name)
+  function(asset_pricer_add_test name)
     add_executable(${name} tests/${name}.cpp)
-    target_link_libraries(${name} PRIVATE ap GTest::gtest_main)
+    target_link_libraries(${name} PRIVATE asset_pricer GTest::gtest_main)
     target_include_directories(${name} PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/tests)
     gtest_discover_tests(${name})
   endfunction()
 
-  ap_add_test(test_math)
-  ap_add_test(test_vanilla)
-  ap_add_test(test_binary)
-  ap_add_test(test_barrier)
-  ap_add_test(test_mc)
-  ap_add_test(test_pde)
+  asset_pricer_add_test(test_math)
+  asset_pricer_add_test(test_vanilla)
+  asset_pricer_add_test(test_binary)
+  asset_pricer_add_test(test_barrier)
+  asset_pricer_add_test(test_mc)
+  asset_pricer_add_test(test_pde)
 endif()

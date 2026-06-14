@@ -2,10 +2,10 @@
  * @file  valuation.hpp
  * @brief Black-Scholes pricing inputs and outputs (Greeks + valuation result).
  */
-#ifndef AP_CORE_VALUATION_HPP
-#define AP_CORE_VALUATION_HPP
+#ifndef ASSET_PRICER_CORE_VALUATION_HPP
+#define ASSET_PRICER_CORE_VALUATION_HPP
 
-namespace ap {
+namespace asset_pricer {
 
 /// Black-Scholes inputs for a single underlying.
 /// Rates and dividend yield are continuously compounded.
@@ -20,9 +20,9 @@ struct BsmInputs {
 struct BsmGreeks {
   double delta = 0.0;  ///< dV/dS
   double gamma = 0.0;  ///< d2V/dS2
-  double theta = 0.0;  ///< dV/dt (per year)
-  double vega = 0.0;   ///< dV/dsigma (per unit vol, i.e. per 1.00)
-  double rho = 0.0;    ///< dV/dr
+  double theta = 0.0;  ///< dV/dt, per calendar year (NOT per day; e.g. divide by 365 for per-day)
+  double vega = 0.0;   ///< dV/dsigma, per 1.00 of vol (absolute, NOT per 1%; e.g. divide by 100 for per-1%)
+  double rho = 0.0;    ///< dV/dr, per 1.00 of rate (absolute, NOT per 1%/bp; e.g. divide by 100 for per-1%)
 };
 
 /// Result of a pricing call: present value plus optional Greeks.
@@ -31,6 +31,6 @@ struct BsmValuation {
   BsmGreeks greeks{};
 };
 
-}  // namespace ap
+}  // namespace asset_pricer
 
-#endif  // AP_CORE_VALUATION_HPP
+#endif  // ASSET_PRICER_CORE_VALUATION_HPP

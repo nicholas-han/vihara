@@ -1,15 +1,15 @@
 /**
- * @file  fd1d.cpp
+ * @file  partial_differential_equations.cpp
  * @brief Implementation of the 1D Black-Scholes finite-difference solver.
  */
-#include <ap/pricing/pde/fd1d.hpp>
+#include <pricing/partial_differential_equations.hpp>
 
 #include <algorithm>
 #include <cmath>
 #include <stdexcept>
 #include <vector>
 
-namespace ap::pde {
+namespace asset_pricer::pde {
 
 namespace {
 
@@ -148,4 +148,4 @@ double price_american(AmericanOption const& opt, BsmInputs const& mkt,
   return solve(s, cfg);
 }
 
-}  // namespace ap::pde
+}  // namespace asset_pricer::pde

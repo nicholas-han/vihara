@@ -1,5 +1,5 @@
 /**
- * @file  fd1d.hpp
+ * @file  partial_differential_equations.hpp
  * @brief One-dimensional finite-difference PDE pricing (Black-Scholes).
  *
  * Solves the Black-Scholes PDE on a log-spot grid by backward induction in
@@ -8,13 +8,13 @@
  * projection after each time step. Dependency-free; ported from the legacy
  * orflib PDE solver (which was Armadillo-based).
  */
-#ifndef AP_PRICING_PDE_FD1D_HPP
-#define AP_PRICING_PDE_FD1D_HPP
+#ifndef ASSET_PRICER_PRICING_PARTIAL_DIFFERENTIAL_EQUATIONS_HPP
+#define ASSET_PRICER_PRICING_PARTIAL_DIFFERENTIAL_EQUATIONS_HPP
 
-#include <ap/core/instruments.hpp>
-#include <ap/core/valuation.hpp>
+#include <core/option_family.hpp>
+#include <core/valuation.hpp>
 
-namespace ap::pde {
+namespace asset_pricer::pde {
 
 /// Finite-difference grid / scheme configuration.
 struct PdeConfig {
@@ -33,6 +33,6 @@ double price_vanilla(VanillaOption const& opt, BsmInputs const& mkt,
 double price_american(AmericanOption const& opt, BsmInputs const& mkt,
                       PdeConfig const& cfg = {});
 
-}  // namespace ap::pde
+}  // namespace asset_pricer::pde
 
-#endif  // AP_PRICING_PDE_FD1D_HPP
+#endif  // ASSET_PRICER_PRICING_PARTIAL_DIFFERENTIAL_EQUATIONS_HPP

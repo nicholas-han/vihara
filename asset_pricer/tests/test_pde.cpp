@@ -3,8 +3,8 @@
  * @brief Finite-difference PDE prices validated against closed form and an
  *        independent CRR binomial tree.
  */
-#include <ap/pricing/analytic/bsm.hpp>
-#include <ap/pricing/pde/fd1d.hpp>
+#include <pricing/black_scholes_merton.hpp>
+#include <pricing/partial_differential_equations.hpp>
 
 #include <gtest/gtest.h>
 
@@ -12,7 +12,7 @@
 #include <cmath>
 #include <vector>
 
-using namespace ap;
+using namespace asset_pricer;
 
 namespace {
 const double kK = 100.0, kT = 1.0;
@@ -42,14 +42,14 @@ double crr(OptionType type, bool american, double S0, double K, double r,
 TEST(Pde, EuropeanCallMatchesAnalytic) {
   BsmInputs mkt{100.0, 0.05, 0.0, 0.20};
   double pde = pde::price_vanilla({OptionType::Call, kK, kT}, mkt);
-  double bsm = analytic::price_vanilla({OptionType::Call, kK, kT}, mkt).price;
+  double bsm = bsm::price_vanilla({OptionType::Call, kK, kT}, mkt).price;
   EXPECT_NEAR(pde, bsm, 2e-3);
 }
 
 TEST(Pde, EuropeanPutMatchesAnalytic) {
   BsmInputs mkt{100.0, 0.05, 0.0, 0.20};
   double pde = pde::price_vanilla({OptionType::Put, kK, kT}, mkt);
-  double bsm = analytic::price_vanilla({OptionType::Put, kK, kT}, mkt).price;
+  double bsm = bsm::price_vanilla({OptionType::Put, kK, kT}, mkt).price;
   EXPECT_NEAR(pde, bsm, 2e-3);
 }
 
@@ -57,7 +57,7 @@ TEST(Pde, AmericanCallNoDividendEqualsEuropean) {
   // With no dividend, early exercise of a call is never optimal.
   BsmInputs mkt{100.0, 0.05, 0.0, 0.20};
   double am = pde::price_american({OptionType::Call, kK, kT}, mkt);
-  double eu = analytic::price_vanilla({OptionType::Call, kK, kT}, mkt).price;
+  double eu = bsm::price_vanilla({OptionType::Call, kK, kT}, mkt).price;
   EXPECT_NEAR(am, eu, 2e-3);
 }
 
@@ -66,7 +66,7 @@ TEST(Pde, AmericanPutMatchesBinomialAndCarriesPremium) {
   double pde = pde::price_american({OptionType::Put, kK, kT}, mkt);
   double tree = crr(OptionType::Put, true, mkt.spot_price, kK, mkt.risk_free_rate, mkt.dividend_yield,
                     mkt.volatility, kT, 4000);
-  double euro = analytic::price_vanilla({OptionType::Put, kK, kT}, mkt).price;
+  double euro = bsm::price_vanilla({OptionType::Put, kK, kT}, mkt).price;
 
   EXPECT_NEAR(pde, tree, 1.5e-2);
   EXPECT_GT(pde, euro);                                  // early-exercise premium
@@ -78,7 +78,7 @@ TEST(Pde, AmericanCallWithDividendExercisesEarly) {
   double pde = pde::price_american({OptionType::Call, kK, kT}, mkt);
   double tree = crr(OptionType::Call, true, mkt.spot_price, kK, mkt.risk_free_rate, mkt.dividend_yield,
                     mkt.volatility, kT, 4000);
-  double euro = analytic::price_vanilla({OptionType::Call, kK, kT}, mkt).price;
+  double euro = bsm::price_vanilla({OptionType::Call, kK, kT}, mkt).price;
 
   EXPECT_NEAR(pde, tree, 1.5e-2);
   EXPECT_GT(pde, euro);

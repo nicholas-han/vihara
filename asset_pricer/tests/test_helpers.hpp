@@ -2,15 +2,15 @@
  * @file  test_helpers.hpp
  * @brief Shared helpers for the Google Test suites.
  */
-#ifndef AP_TESTS_TEST_HELPERS_HPP
-#define AP_TESTS_TEST_HELPERS_HPP
+#ifndef ASSET_PRICER_TESTS_TEST_HELPERS_HPP
+#define ASSET_PRICER_TESTS_TEST_HELPERS_HPP
 
 #include <gtest/gtest.h>
 
 #include <cmath>
 
 /// Assert a Monte Carlo estimate lies within `k` standard errors of `expected`.
-/// `mc_result` must expose `.price` and `.std_error` (i.e. ap::mc::McResult).
+/// `mc_result` must expose `.price` and `.std_error` (i.e. asset_pricer::mcs::McsResult).
 #define EXPECT_WITHIN_SE(mc_result, expected, k)                            \
   do {                                                                      \
     const auto& _r = (mc_result);                                           \
@@ -19,4 +19,4 @@
         << " diff=" << (_r.price - (expected)) << " se=" << _r.std_error;   \
   } while (0)
 
-#endif  // AP_TESTS_TEST_HELPERS_HPP
+#endif  // ASSET_PRICER_TESTS_TEST_HELPERS_HPP
