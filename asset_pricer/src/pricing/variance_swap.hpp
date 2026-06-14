@@ -89,6 +89,40 @@ double fair_variance(VarianceSwap const& swap, BsmInputs const& mkt, SmileFn con
                      ContinuousConfig const& cfg = {});
 
 // ---------------------------------------------------------------------------
+// Semi-analytic replication from total variance (SVI / SSVI)
+// ---------------------------------------------------------------------------
+
+/// Total implied variance w(k) = sigma(k)^2 * T as a function of log-forward
+/// moneyness k = ln(K / F). This is the native output of the SVI/SSVI smiles, so
+/// pricing directly from it avoids the vol -> variance round trip.
+using TotalVarianceFn = std::function<double(double /*k*/)>;
+
+/// Fair annualized variance computed intrinsically from the total-variance smile,
+/// without pricing options through black_price. The OTM strip integrand reduces,
+/// in log-moneyness, to a closed form in w(k) alone:
+///
+///   K_var = (2/T) int [ e^{-k} N(d1) - N(d2) ] dk   (k >= 0, calls)
+///         + (2/T) int [ N(-d2) - e^{-k} N(-d1) ] dk (k <  0, puts)
+///
+/// with d1 = (-k + w/2)/sqrt(w), d2 = d1 - sqrt(w), w = w(k). Note the forward has
+/// cancelled: fair variance depends only on the smile in log-moneyness. This is an
+/// independent route to the same number as fair_variance_continuous and is used to
+/// cross-validate it. Throws std::invalid_argument for non-positive expiry or a
+/// non-positive ATM total variance w(0).
+double fair_variance_from_total_variance(double time_to_expiry, TotalVarianceFn const& w,
+                                         ContinuousConfig const& cfg = {});
+
+/// Fair annualized variance of a variance swap whose smile is a raw-SVI slice,
+/// via the semi-analytic total-variance integral. The slice carries its own
+/// expiry.
+double fair_variance_svi(volatility::SviSlice const& slice, ContinuousConfig const& cfg = {});
+
+/// Fair annualized variance of a variance swap whose smile is an SSVI surface at
+/// `expiry`, via the semi-analytic total-variance integral.
+double fair_variance_ssvi(volatility::Ssvi const& surface, double expiry,
+                          ContinuousConfig const& cfg = {});
+
+// ---------------------------------------------------------------------------
 // Discrete replication (VIX-style strip and moneyness grid)
 // ---------------------------------------------------------------------------
 

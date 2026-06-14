@@ -192,3 +192,126 @@ TEST(VarianceSwapDiscrete, RejectsBadInputs) {
   EXPECT_THROW(vs::make_moneyness_grid(100.0, 0.2, 1.0, 2.0, -2.0, 0.1),
                std::invalid_argument);
 }
+
+// ---------------------------------------------------------------------------
+// Phase 3: semi-analytic (SVI / SSVI) and Appendix-A bracketing
+// ---------------------------------------------------------------------------
+
+// The total-variance form collapses to sigma^2 under a flat smile (constant w).
+TEST(VarianceSwapSemiAnalytic, FlatTotalVarianceEqualsSigmaSquared) {
+  const double sigma = 0.27, T = 1.5;
+  const double kvar =
+      vs::fair_variance_from_total_variance(T, [&](double) { return sigma * sigma * T; });
+  EXPECT_NEAR(kvar, sigma * sigma, 1e-6);
+}
+
+// The semi-analytic SVI route (intrinsic in total variance, forward-free) agrees
+// with pricing the same slice through the option-strip integral.
+TEST(VarianceSwapSemiAnalytic, SviMatchesContinuous) {
+  const volatility::SviSlice slice({0.04, 0.4, -0.3, 0.0, 0.1}, 1.0);
+  const double forward = 100.0;
+  const double semi = vs::fair_variance_svi(slice);
+  const double strip =
+      vs::fair_variance_continuous(forward, slice.expiry(), vs::smile_from_svi(slice, forward));
+  EXPECT_NEAR(semi, strip, 1e-7);
+}
+
+// SSVI likewise, and the value is independent of the forward used to map strikes
+// (the smile lives in log-moneyness).
+TEST(VarianceSwapSemiAnalytic, SsviMatchesContinuousAndIsForwardFree) {
+  const volatility::Ssvi surface(-0.3, 0.5, 0.5, {0.5, 1.0, 2.0}, {0.02, 0.04, 0.09});
+  const double T = 1.0;
+  const double semi = vs::fair_variance_ssvi(surface, T);
+  const double strip_a =
+      vs::fair_variance_continuous(100.0, T, vs::smile_from_ssvi(surface, T, 100.0));
+  const double strip_b =
+      vs::fair_variance_continuous(2500.0, T, vs::smile_from_ssvi(surface, T, 2500.0));
+  EXPECT_NEAR(semi, strip_a, 1e-7);
+  EXPECT_NEAR(strip_a, strip_b, 1e-7);  // forward-invariant
+}
+
+// --- GS Appendix-A piecewise-linear over-replication (test-only upper bracket) ---
+//
+// Reproduces the DDKZ section-III example: the discrete log-payoff replication of
+// EQ A4-A8 always over-estimates fair variance, converging down to the continuous
+// value as the strike spacing shrinks. K_var = (2/T)[rT - (S0/S* e^{rT} - 1) -
+// log(S*/S0)] + e^{rT} * sum_i w_i Q_i, S* = S0.
+static double gs_appendix_a(double S0, double r, double T, double Sstar,
+                            std::vector<double> const& calls,  // ascending, above S*
+                            std::vector<double> const& puts,   // descending, below S*
+                            vs::SmileFn const& smile) {
+  const double F = S0 * std::exp(r * T), disc = std::exp(-r * T);
+  auto f = [&](double S) { return (2.0 / T) * ((S - Sstar) / Sstar - std::log(S / Sstar)); };
+  auto call = [&](double K) { const double v = smile(K); return black_price(F, K, v * v * T, disc, +1.0); };
+  auto put = [&](double K) { const double v = smile(K); return black_price(F, K, v * v * T, disc, -1.0); };
+
+  std::vector<double> kc{Sstar};
+  kc.insert(kc.end(), calls.begin(), calls.end());
+  std::vector<double> kp{Sstar};
+  kp.insert(kp.end(), puts.begin(), puts.end());
+
+  double portfolio = 0.0, sumw = 0.0;
+  for (std::size_t n = 0; n + 1 < kc.size(); ++n) {
+    const double w = (f(kc[n + 1]) - f(kc[n])) / (kc[n + 1] - kc[n]) - sumw;
+    sumw += w;
+    portfolio += w * call(kc[n]);
+  }
+  sumw = 0.0;
+  for (std::size_t n = 0; n + 1 < kp.size(); ++n) {
+    const double w = (f(kp[n + 1]) - f(kp[n])) / (kp[n] - kp[n + 1]) - sumw;
+    sumw += w;
+    portfolio += w * put(kp[n]);
+  }
+  const double linear = (2.0 / T) * (r * T - (S0 / Sstar * std::exp(r * T) - 1.0) - std::log(Sstar / S0));
+  return linear + std::exp(r * T) * portfolio;
+}
+
+static std::vector<double> ladder(double start, double stop, double step) {
+  std::vector<double> v;
+  for (double k = start; (step > 0 ? k <= stop + 1e-9 : k >= stop - 1e-9); k += step) v.push_back(k);
+  return v;
+}
+
+// The headline external regression: GS section III, K_var = (20.467%)^2 ~ 0.04187.
+TEST(VarianceSwapBracketing, GsAppendixAReproducesPaper) {
+  const double S0 = 100.0, r = 0.05, T = 0.25;
+  auto smile = gs_linear_skew();
+  const double kvar = gs_appendix_a(S0, r, T, S0, ladder(105, 150, 5), ladder(95, 50, -5), smile);
+  EXPECT_NEAR(std::sqrt(kvar), 0.20467, 5e-4);  // GS quote 20.467%
+}
+
+// VIX strip (under) < continuous truth < Appendix-A (over), all on the same skew
+// and the same coarse dK = 5 strike range.
+TEST(VarianceSwapBracketing, StripBelowTruthBelowAppendixA) {
+  const double S0 = 100.0, r = 0.05, T = 0.25;
+  const double forward = S0 * std::exp(r * T);
+  auto smile = gs_linear_skew();
+  auto strikes = ladder(50, 150, 5);
+
+  vs::ContinuousConfig wide;
+  wide.num_std = 8.0;
+  const double truth = vs::fair_variance_continuous(forward, T, smile, wide);
+  const double strip = vs::fair_variance_discrete(forward, T, strikes, smile);
+  const double appA = gs_appendix_a(S0, r, T, S0, ladder(105, 150, 5), ladder(95, 50, -5), smile);
+
+  EXPECT_LT(strip, truth);   // VIX strip under-replicates the coarse log payoff
+  EXPECT_LT(truth, appA);    // Appendix-A over-replicates
+  EXPECT_NEAR(truth, 0.040190, 1e-4);  // == GS's continuous-limit 402
+}
+
+// Appendix-A converges DOWN to the continuous fair value as the spacing shrinks.
+TEST(VarianceSwapBracketing, AppendixAConvergesDownToContinuous) {
+  const double S0 = 100.0, r = 0.05, T = 0.25;
+  const double forward = S0 * std::exp(r * T);
+  auto smile = gs_linear_skew();
+  vs::ContinuousConfig wide;
+  wide.num_std = 8.0;
+  const double truth = vs::fair_variance_continuous(forward, T, smile, wide);
+
+  const double coarse = gs_appendix_a(S0, r, T, S0, ladder(105, 150, 5), ladder(95, 50, -5), smile);
+  const double fine = gs_appendix_a(S0, r, T, S0, ladder(101, 160, 1), ladder(99, 40, -1), smile);
+
+  EXPECT_GT(coarse, fine);            // refining lowers the over-estimate
+  EXPECT_GT(fine, truth);             // still an upper bound
+  EXPECT_NEAR(fine, truth, 1e-3);     // and close
+}

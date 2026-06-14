@@ -5,6 +5,7 @@
 #include <pricing/variance_swap.hpp>
 
 #include <core/black.hpp>
+#include <core/distributions.hpp>
 #include <core/integration.hpp>
 #include <pricing/black_scholes_merton.hpp>
 
@@ -88,6 +89,56 @@ double fair_variance(VarianceSwap const& swap, BsmInputs const& mkt, SmileFn con
                      ContinuousConfig const& cfg) {
   const double forward = bsm::forward_price(mkt, swap.time_to_expiry);
   return fair_variance_continuous(forward, swap.time_to_expiry, smile, cfg);
+}
+
+// ---------------------------------------------------------------------------
+// Semi-analytic replication from total variance
+// ---------------------------------------------------------------------------
+
+double fair_variance_from_total_variance(double time_to_expiry, TotalVarianceFn const& w,
+                                         ContinuousConfig const& cfg) {
+  if (!(time_to_expiry > 0.0))
+    throw std::invalid_argument("fair_variance_from_total_variance: expiry must be positive");
+
+  const double T = time_to_expiry;
+  const double w0 = w(0.0);  // ATM total variance
+  if (!(w0 > 0.0))
+    throw std::invalid_argument(
+        "fair_variance_from_total_variance: ATM total variance w(0) must be positive");
+
+  // Strikes out to +- num_std standard deviations: k_max = num_std * sigma_atm *
+  // sqrt(T) = num_std * sqrt(w0).
+  const double k_max = cfg.num_std * std::sqrt(w0);
+
+  // The OTM-strip integrand in pure total-variance form (forward cancels):
+  //   k >= 0 (call): e^{-k} N(d1) - N(d2)
+  //   k <  0 (put):  N(-d2) - e^{-k} N(-d1)
+  auto integrand = [&w](double k) {
+    const double wk = w(k);
+    if (!(wk > 0.0))
+      return 0.0;
+    const double sw = std::sqrt(wk);
+    const double d1 = (-k + 0.5 * wk) / sw;
+    const double d2 = d1 - sw;
+    if (k >= 0.0)
+      return std::exp(-k) * normal_cdf(d1) - normal_cdf(d2);
+    return normal_cdf(-d2) - std::exp(-k) * normal_cdf(-d1);
+  };
+
+  const auto puts = integrate(integrand, -k_max, 0.0, cfg.tol);
+  const auto calls = integrate(integrand, 0.0, k_max, cfg.tol);
+  return (2.0 / T) * (puts.value + calls.value);
+}
+
+double fair_variance_svi(volatility::SviSlice const& slice, ContinuousConfig const& cfg) {
+  return fair_variance_from_total_variance(
+      slice.expiry(), [&slice](double k) { return slice.total_variance(k); }, cfg);
+}
+
+double fair_variance_ssvi(volatility::Ssvi const& surface, double expiry,
+                          ContinuousConfig const& cfg) {
+  return fair_variance_from_total_variance(
+      expiry, [&surface, expiry](double k) { return surface.total_variance(k, expiry); }, cfg);
 }
 
 // ---------------------------------------------------------------------------
