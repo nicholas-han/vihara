@@ -60,6 +60,34 @@ TEST_P(PutCallParity, HoldsAcrossStrikes) {
 INSTANTIATE_TEST_SUITE_P(Strikes, PutCallParity,
                          ::testing::Values(60.0, 80.0, 100.0, 120.0, 150.0));
 
+// ---- Second-order vol Greeks: Vanna and Volga ----
+TEST(VanillaAnalytic, VannaVolgaMatchFiniteDifference) {
+  BsmInputs mkt{100.0, 0.05, 0.02, 0.25};
+  VanillaOption opt{OptionType::Call, 105.0, 1.0};
+  const double h = 1e-4;
+  BsmInputs up = mkt, dn = mkt;
+  up.volatility += h;
+  dn.volatility -= h;
+
+  auto g = bsm::price_vanilla(opt, mkt).greeks;
+  // vanna = d(delta)/d(sigma)
+  double fd_vanna = (bsm::price_vanilla(opt, up).greeks.delta -
+                     bsm::price_vanilla(opt, dn).greeks.delta) / (2.0 * h);
+  // volga = d(vega)/d(sigma)
+  double fd_volga = (bsm::price_vanilla(opt, up).greeks.vega -
+                     bsm::price_vanilla(opt, dn).greeks.vega) / (2.0 * h);
+  EXPECT_NEAR(g.vanna, fd_vanna, 1e-4);
+  EXPECT_NEAR(g.volga, fd_volga, 1e-4);
+}
+
+TEST(VanillaAnalytic, VannaVolgaSameForCallAndPut) {
+  BsmInputs mkt{100.0, 0.05, 0.02, 0.25};
+  auto c = bsm::price_vanilla({OptionType::Call, 105.0, 1.0}, mkt).greeks;
+  auto p = bsm::price_vanilla({OptionType::Put, 105.0, 1.0}, mkt).greeks;
+  EXPECT_NEAR(c.vanna, p.vanna, 1e-12);
+  EXPECT_NEAR(c.volga, p.volga, 1e-12);
+}
+
 // ---- Implied volatility: invert price_vanilla and recover the input vol. ----
 TEST(ImpliedVol, RecoversInputVolAcrossCases) {
   const BsmInputs base{100.0, 0.05, 0.02, 0.0};  // vol field is ignored on input

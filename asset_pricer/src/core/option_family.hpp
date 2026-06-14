@@ -18,6 +18,17 @@ inline constexpr double phi(OptionType t) {
   return t == OptionType::Call ? 1.0 : -1.0;
 }
 
+/// How an average is taken. A cross-product concept: used by Asian options today
+/// and by geometric/arithmetic baskets later (the geometric case is the one that
+/// stays lognormal and admits a closed form).
+enum class AveragingType { Arithmetic, Geometric };
+
+/// Whether the strike is fixed (a path statistic vs K) or floating (S_T vs a path
+/// statistic). Shared by Asian (statistic = average) and Lookback (statistic =
+/// extremum). For lookback the relevant extremum (max/min) is derived from the
+/// option type and this kind, so it is never stored separately.
+enum class StrikeKind { Fixed, Floating };
+
 // ---------------------------------------------------------------------------
 // Vanilla
 // ---------------------------------------------------------------------------
@@ -90,6 +101,55 @@ struct AmericanOption {
   OptionType type;
   double strike;          ///< K
   double time_to_expiry;  ///< T, in years
+};
+
+// ---------------------------------------------------------------------------
+// Bermudan
+// ---------------------------------------------------------------------------
+
+/// A Bermudan vanilla option: may be exercised only on a discrete set of dates
+/// t_j = j*T/num_exercise_dates (j = 1..num_exercise_dates). num_exercise_dates
+/// == 1 places the sole date at expiry (i.e. European); as the count grows the
+/// value approaches the American option. Always European <= Bermudan <= American.
+struct BermudanOption {
+  OptionType type;
+  double strike;              ///< K
+  double time_to_expiry;      ///< T, in years
+  unsigned num_exercise_dates;  ///< number of equally-spaced exercise dates (>= 1)
+};
+
+// ---------------------------------------------------------------------------
+// Asian (average price)
+// ---------------------------------------------------------------------------
+
+/// A discretely-monitored Asian option. The average A is taken over the spots
+/// at fixings t_i = i*T/n (i = 1..num_fixings). Fixed-strike payoff is
+/// max(phi * (A - K), 0); floating-strike is max(phi * (S_T - A), 0). The
+/// geometric closed form covers fixed-strike only; everything else is Monte Carlo.
+struct AsianOption {
+  OptionType type;
+  StrikeKind strike_kind;      ///< Fixed (K vs average) / Floating (S_T vs average)
+  AveragingType averaging;     ///< arithmetic or geometric average
+  double strike;               ///< K (used when strike_kind == Fixed)
+  unsigned num_fixings;        ///< number of equally-spaced fixings n (>= 1)
+  double time_to_expiry;       ///< T, in years
+};
+
+// ---------------------------------------------------------------------------
+// Lookback
+// ---------------------------------------------------------------------------
+
+/// A discretely-monitored lookback option over fixings t_i = i*T/n (plus the
+/// inception spot S0). The path statistic is the running max M or min m, chosen
+/// by type and strike_kind:
+///   fixed-strike  call max(M-K,0)   put max(K-m,0)
+///   floating      call S_T - m      put M - S_T   (always >= 0)
+struct LookbackOption {
+  OptionType type;
+  StrikeKind strike_kind;      ///< Fixed (extremum vs K) / Floating (S_T vs extremum)
+  double strike;               ///< K (used when strike_kind == Fixed)
+  unsigned num_fixings;        ///< number of equally-spaced fixings n (>= 1)
+  double time_to_expiry;       ///< T, in years
 };
 
 }  // namespace asset_pricer

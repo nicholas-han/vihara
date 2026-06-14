@@ -12,6 +12,7 @@
  *      formula is right" down to "the numbers are right".
  */
 #include <pricing/black_scholes_merton.hpp>
+#include <pricing/monte_carlo_simulation.hpp>
 
 #include <gtest/gtest.h>
 
@@ -152,4 +153,35 @@ TEST(BarrierAnalytic, RejectsBreachedBarrier) {
       bsm::price_barrier(
           {OptionType::Call, BarrierType::UpAndOut, 100.0, 90.0, 0.0, kT}, kMkt),
       std::invalid_argument);
+}
+
+// ---- Discrete monitoring + Broadie-Glasserman-Kou continuity correction ----
+
+// Less frequent monitoring -> less likely to knock out -> a knock-out is worth
+// more. The BGK shift moves the barrier away from the spot, capturing this.
+TEST(BarrierDiscrete, DiscreteKnockOutWorthMoreThanContinuous) {
+  BarrierOption o{OptionType::Call, BarrierType::UpAndOut, 100.0, 120.0, 0.0, kT};
+  double cont = bsm::price_barrier(o, kMkt);
+  double disc = bsm::price_barrier_discrete(o, kMkt, 12);  // monthly
+  EXPECT_GT(disc, cont);
+}
+
+// As the monitoring grows dense, the discrete price converges to the continuous.
+TEST(BarrierDiscrete, ManyMonitorsApproachContinuous) {
+  BarrierOption o{OptionType::Call, BarrierType::UpAndOut, 100.0, 120.0, 0.0, kT};
+  double cont = bsm::price_barrier(o, kMkt);
+  double disc = bsm::price_barrier_discrete(o, kMkt, 100000);
+  EXPECT_NEAR(disc, cont, 1e-2);
+}
+
+// The BGK-corrected closed form agrees with the discretely-monitored Monte Carlo.
+TEST(BarrierDiscrete, BgkMatchesDiscreteMc) {
+  BarrierOption o{OptionType::Call, BarrierType::UpAndOut, 100.0, 120.0, 0.0, kT};
+  const unsigned m = 50;
+  double bgk = bsm::price_barrier_discrete(o, kMkt, m);
+  mcs::McsConfig c;
+  c.num_paths = 400000;
+  c.seed = 99;
+  auto mc = mcs::price_barrier_discrete(o, kMkt, m, c);
+  EXPECT_NEAR(bgk, mc.price, 0.05 + 4.0 * mc.std_error);
 }
