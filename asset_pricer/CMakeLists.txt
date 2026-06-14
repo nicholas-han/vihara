@@ -14,6 +14,7 @@ add_library(asset_pricer
   src/pricing/black_scholes_merton.cpp
   src/pricing/monte_carlo_simulation.cpp
   src/pricing/partial_differential_equations.cpp
+  src/analytics/pnl_attribution.cpp
 )
 target_include_directories(asset_pricer PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/src)
 target_compile_options(asset_pricer PRIVATE -Wall -Wextra)
@@ -59,4 +60,5 @@ if(ASSET_PRICER_BUILD_TESTS)
   asset_pricer_add_test(test_pde)
   asset_pricer_add_test(test_asian)
   asset_pricer_add_test(test_lookback)
+  asset_pricer_add_test(test_pnl)
 endif()

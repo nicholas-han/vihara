@@ -39,6 +39,10 @@ closed form with a shifted barrier, cross-checked against the discrete Monte Car
 Beyond pricing, `bsm::implied_volatility` inverts the closed-form vanilla price
 to back out the Black-Scholes volatility implied by a quoted option price, using
 safeguarded Newton-Raphson (vega-driven, with a bracketed bisection fallback).
+And `analytics::explain_vanilla` / `explain_binary` give a Greeks-based P&L explain
+— decomposing a holding-period change in option value into delta / gamma / theta /
+vega / rho contributions plus the residual the second-order Taylor expansion misses
+(both wrap one engine-agnostic `explain` via a per-product repricer).
 
 ## Layout
 
@@ -53,6 +57,7 @@ src/
   pricing/black_scholes_merton.{hpp,cpp}           closed-form BSM engine   (asset_pricer::bsm)
   pricing/monte_carlo_simulation.{hpp,cpp}         Monte Carlo engine       (asset_pricer::mcs)
   pricing/partial_differential_equations.{hpp,cpp} 1D finite-diff PDE engine (asset_pricer::pde)
+  analytics/pnl_attribution.{hpp,cpp}              Greeks-based P&L explain (asset_pricer::analytics)
 examples/
   demo.cpp                  runnable tour of the API (all three engines + implied vol)
 tests/                      Google Test suites (incl. MC/PDE ↔ analytic cross-checks)
@@ -65,6 +70,7 @@ tests/                      Google Test suites (incl. MC/PDE ↔ analytic cross-
   test_lookback.cpp         lookback structural identities (fixed/floating strike)
   test_mc.cpp               Monte Carlo ↔ analytic convergence
   test_pde.cpp              PDE ↔ analytic + American ↔ binomial tree + Bermudan squeeze
+  test_pnl.cpp              Greeks P&L explain reconstructs realized P&L
 ```
 
 ## Build & test
