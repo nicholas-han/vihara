@@ -15,6 +15,9 @@ add_library(asset_pricer
   src/pricing/monte_carlo_simulation.cpp
   src/pricing/partial_differential_equations.cpp
   src/analytics/pnl_attribution.cpp
+  src/volatility/volatility_surface.cpp
+  src/volatility/svi.cpp
+  src/volatility/calibration.cpp
 )
 target_include_directories(asset_pricer PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/src)
 target_compile_options(asset_pricer PRIVATE -Wall -Wextra)
@@ -61,4 +64,8 @@ if(ASSET_PRICER_BUILD_TESTS)
   asset_pricer_add_test(test_asian)
   asset_pricer_add_test(test_lookback)
   asset_pricer_add_test(test_pnl)
+  asset_pricer_add_test(test_volatility_surface)
+  asset_pricer_add_test(test_svi)
+  asset_pricer_add_test(test_optimization)
+  asset_pricer_add_test(test_svi_calibration)
 endif()
