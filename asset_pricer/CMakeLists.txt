@@ -14,6 +14,7 @@ add_library(asset_pricer
   src/pricing/black_scholes_merton.cpp
   src/pricing/monte_carlo_simulation.cpp
   src/pricing/partial_differential_equations.cpp
+  src/pricing/variance_swap.cpp
   src/analytics/pnl_attribution.cpp
   src/volatility/volatility_surface.cpp
   src/volatility/svi.cpp
@@ -56,6 +57,8 @@ if(ASSET_PRICER_BUILD_TESTS)
   endfunction()
 
   asset_pricer_add_test(test_math)
+  asset_pricer_add_test(test_integration)
+  asset_pricer_add_test(test_variance_swap)
   asset_pricer_add_test(test_vanilla)
   asset_pricer_add_test(test_binary)
   asset_pricer_add_test(test_barrier)
