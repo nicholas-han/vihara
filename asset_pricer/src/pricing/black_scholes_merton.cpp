@@ -4,6 +4,7 @@
  */
 #include <pricing/black_scholes_merton.hpp>
 
+#include <core/black.hpp>
 #include <core/distributions.hpp>
 
 #include <algorithm>
@@ -47,14 +48,15 @@ BsmValuation price_vanilla(VanillaOption const& opt, BsmInputs const& mkt) {
     return res;
   }
 
-  const double d1 = std::log(fwd / K) / sigT + 0.5 * sigT;
-  const double d2 = d1 - sigT;
+  const double variance = sigT * sigT;  // sigma^2 * T
+  const BlackDeltas bd = black_d1d2(fwd, K, variance);
+  const double d1 = bd.d1, d2 = bd.d2;
   const double Nd1 = normal_cdf(sign * d1);
   const double Nd2 = normal_cdf(sign * d2);
   const double npd1 = normal_pdf(d1);
   const double sqrtT = std::sqrt(T);
 
-  res.price = sign * df * (fwd * Nd1 - K * Nd2);
+  res.price = black_price(fwd, K, variance, df, sign);
   res.greeks.delta = sign * qf * Nd1;
   res.greeks.gamma = qf * npd1 / (S * mkt.volatility * sqrtT);
   // Greek units (see BsmGreeks): theta per calendar year, vega per 1.00 of vol,
@@ -175,8 +177,8 @@ BsmValuation price_binary(BinaryOption const& opt, BsmInputs const& mkt) {
     return res;
   }
 
-  const double d1 = std::log(fwd / K) / sigT + 0.5 * sigT;
-  const double d2 = d1 - sigT;
+  const BlackDeltas bd = black_d1d2(fwd, K, sigT * sigT);
+  const double d1 = bd.d1, d2 = bd.d2;
   const BsmGreeks unit = cash_or_nothing_unit_greeks(mkt, K, T, sign, d1, d2);
 
   if (cash_or_nothing) {
@@ -333,10 +335,7 @@ double price_asian_geometric(AsianOption const& opt, BsmInputs const& mkt) {
   if (V <= 0.0) return df * std::max(sign * (FG - K), 0.0);
 
   // Forward-form Black formula on the average's effective forward FG and variance V.
-  const double sd = std::sqrt(V);
-  const double d1 = (std::log(FG / K) + 0.5 * V) / sd;
-  const double d2 = d1 - sd;
-  return df * sign * (FG * normal_cdf(sign * d1) - K * normal_cdf(sign * d2));
+  return black_price(FG, K, V, df, sign);
 }
 
 double price_barrier_discrete(BarrierOption const& opt, BsmInputs const& mkt,
