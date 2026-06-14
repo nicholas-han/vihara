@@ -90,4 +90,111 @@ double fair_variance(VarianceSwap const& swap, BsmInputs const& mkt, SmileFn con
   return fair_variance_continuous(forward, swap.time_to_expiry, smile, cfg);
 }
 
+// ---------------------------------------------------------------------------
+// Discrete replication
+// ---------------------------------------------------------------------------
+
+namespace {
+
+// The shared VIX-style strip sum: forward_values[i] is the undiscounted value of
+// the OTM option at strikes[i]. Strikes must be ascending and positive.
+double strip_sum(double forward, double T, std::vector<double> const& strikes,
+                 std::vector<double> const& forward_values, bool vix_correction) {
+  const std::size_t n = strikes.size();
+  if (n == 0)
+    throw std::invalid_argument("variance swap strip: no strikes");
+  if (forward_values.size() != n)
+    throw std::invalid_argument("variance swap strip: forward_values size mismatch");
+
+  double sum = 0.0;
+  double k0 = 0.0;  // largest strike strictly below the forward
+  for (std::size_t i = 0; i < n; ++i) {
+    const double K = strikes[i];
+    if (!(K > 0.0))
+      throw std::invalid_argument("variance swap strip: strikes must be positive");
+    if (i > 0 && !(K > strikes[i - 1]))
+      throw std::invalid_argument("variance swap strip: strikes must be strictly ascending");
+
+    double dK;
+    if (n == 1)
+      dK = K;  // degenerate single-strike strip
+    else if (i == 0)
+      dK = strikes[1] - strikes[0];
+    else if (i == n - 1)
+      dK = strikes[n - 1] - strikes[n - 2];
+    else
+      dK = 0.5 * (strikes[i + 1] - strikes[i - 1]);
+
+    sum += dK / (K * K) * forward_values[i];
+    if (K < forward)
+      k0 = K;
+  }
+
+  double kvar = (2.0 / T) * sum;
+  if (vix_correction && k0 > 0.0) {
+    const double ratio = forward / k0 - 1.0;
+    kvar -= (1.0 / T) * ratio * ratio;
+  }
+  return kvar;
+}
+
+}  // namespace
+
+std::vector<double> make_moneyness_grid(double forward, double atm_vol, double time_to_expiry,
+                                        double x_lo, double x_hi, double step) {
+  if (!(forward > 0.0) || !(atm_vol > 0.0) || !(time_to_expiry > 0.0))
+    throw std::invalid_argument("make_moneyness_grid: forward, atm_vol, T must be positive");
+  if (!(step > 0.0) || !(x_hi >= x_lo))
+    throw std::invalid_argument("make_moneyness_grid: need step > 0 and x_hi >= x_lo");
+
+  const double scale = atm_vol * std::sqrt(time_to_expiry);
+  std::vector<double> strikes;
+  const int count = static_cast<int>(std::floor((x_hi - x_lo) / step + 1e-9));
+  strikes.reserve(count + 1);
+  for (int i = 0; i <= count; ++i) {
+    const double x = x_lo + i * step;
+    strikes.push_back(forward * std::exp(x * scale));
+  }
+  return strikes;
+}
+
+double fair_variance_discrete(double forward, double time_to_expiry,
+                              std::vector<double> const& strikes, SmileFn const& smile,
+                              DiscreteConfig const& cfg) {
+  if (!(forward > 0.0))
+    throw std::invalid_argument("fair_variance_discrete: forward must be positive");
+  if (!(time_to_expiry > 0.0))
+    throw std::invalid_argument("fair_variance_discrete: time_to_expiry must be positive");
+
+  const double T = time_to_expiry;
+  std::vector<double> forward_values(strikes.size());
+  for (std::size_t i = 0; i < strikes.size(); ++i) {
+    const double K = strikes[i];
+    const double vol = smile(K);
+    const double variance = vol * vol * T;
+    const double sign = (K < forward) ? -1.0 : 1.0;  // OTM: put below F, call at/above F
+    forward_values[i] = black_price(forward, K, variance, /*discount=*/1.0, sign);
+  }
+  return strip_sum(forward, T, strikes, forward_values, cfg.vix_correction);
+}
+
+double fair_variance_discrete_quotes(double forward, double time_to_expiry,
+                                     std::vector<double> const& strikes,
+                                     std::vector<double> const& otm_prices,
+                                     double discount_factor, DiscreteConfig const& cfg) {
+  if (!(forward > 0.0))
+    throw std::invalid_argument("fair_variance_discrete_quotes: forward must be positive");
+  if (!(time_to_expiry > 0.0))
+    throw std::invalid_argument("fair_variance_discrete_quotes: time_to_expiry must be positive");
+  if (!(discount_factor > 0.0))
+    throw std::invalid_argument("fair_variance_discrete_quotes: discount_factor must be positive");
+  if (otm_prices.size() != strikes.size())
+    throw std::invalid_argument("fair_variance_discrete_quotes: prices/strikes size mismatch");
+
+  std::vector<double> forward_values(otm_prices.size());
+  for (std::size_t i = 0; i < otm_prices.size(); ++i)
+    forward_values[i] = otm_prices[i] / discount_factor;  // discounted -> forward value
+  return strip_sum(forward, time_to_expiry, strikes, forward_values, cfg.vix_correction);
+}
+
 }  // namespace asset_pricer::vs

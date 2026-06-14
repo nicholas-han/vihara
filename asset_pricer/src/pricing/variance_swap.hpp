@@ -29,6 +29,7 @@
 #include <volatility/volatility_surface.hpp>
 
 #include <functional>
+#include <vector>
 
 namespace asset_pricer::vs {
 
@@ -86,6 +87,49 @@ double fair_variance_continuous(double forward, double time_to_expiry,
 /// smile supplies vols).
 double fair_variance(VarianceSwap const& swap, BsmInputs const& mkt, SmileFn const& smile,
                      ContinuousConfig const& cfg = {});
+
+// ---------------------------------------------------------------------------
+// Discrete replication (VIX-style strip and moneyness grid)
+// ---------------------------------------------------------------------------
+
+/// Controls the discrete strip sum.
+struct DiscreteConfig {
+  bool vix_correction = true;  ///< subtract (1/T)(F/K0 - 1)^2, with K0 the strike just below F.
+                               ///< Corrects the strip's reference level toward the forward
+                               ///< (the term in the CBOE VIX formula); harmless as the grid
+                               ///< refines (K0 -> F) but improves coarse-grid accuracy.
+};
+
+/// Build an ascending strike ladder spaced uniformly in standardized log-moneyness
+/// x = ln(K / F) / (atm_vol * sqrt(T)), from x_lo to x_hi inclusive in steps of
+/// `step`. This is the surface-integration grid practitioners use (e.g. 40 strikes
+/// on [-2, 2]); it decouples replication accuracy from the sparse real strike
+/// ladder. Throws std::invalid_argument on non-positive inputs or x_hi < x_lo.
+std::vector<double> make_moneyness_grid(double forward, double atm_vol, double time_to_expiry,
+                                        double x_lo = -2.0, double x_hi = 2.0, double step = 0.1);
+
+/// Fair annualized variance from the discrete VIX-style strip over `strikes`
+/// (ascending, positive), pricing each out-of-the-money option from the smile:
+///
+///   K_var = (2/T) sum_i (dK_i / K_i^2) Qfwd(K_i)  [ - (1/T)(F/K0 - 1)^2 ],
+///
+/// where dK_i is the centered strike spacing (one-sided at the ends) and Qfwd is
+/// the undiscounted Black value of the OTM option (put below F, call at/above F).
+/// With a fine grid this converges to fair_variance_continuous. Throws
+/// std::invalid_argument for a bad forward/expiry or non-ascending strikes.
+double fair_variance_discrete(double forward, double time_to_expiry,
+                              std::vector<double> const& strikes, SmileFn const& smile,
+                              DiscreteConfig const& cfg = {});
+
+/// Fair annualized variance from raw OTM option quotes -- no volatility model at
+/// all. `otm_prices[i]` is the discounted market price of the out-of-the-money
+/// option at strikes[i] (a put below F, a call at/above F); `discount_factor` =
+/// exp(-rT) lifts the prices to forward values. Same strip formula as above.
+/// Throws std::invalid_argument on size mismatch or bad inputs.
+double fair_variance_discrete_quotes(double forward, double time_to_expiry,
+                                     std::vector<double> const& strikes,
+                                     std::vector<double> const& otm_prices,
+                                     double discount_factor, DiscreteConfig const& cfg = {});
 
 }  // namespace asset_pricer::vs
 
