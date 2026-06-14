@@ -89,6 +89,41 @@ double fair_variance(VarianceSwap const& swap, BsmInputs const& mkt, SmileFn con
                      ContinuousConfig const& cfg = {});
 
 // ---------------------------------------------------------------------------
+// Realized variance (the floating leg)
+// ---------------------------------------------------------------------------
+
+/// Annualized realized variance of an observed price path -- the floating leg of
+/// the swap:
+///
+///   sigma_R^2 = (A / m) sum_{i=1}^m r_i^2,   r_i = ln(S_i / S_{i-1}),
+///
+/// with annualization factor A (252 by default) and the zero-mean convention
+/// (returns are NOT de-meaned -- the choice that matches the option-replicated
+/// contract; DDKZ). `prices` are the observed fixings S_0..S_m (need >= 2). Set
+/// zero_mean = false to subtract the sample mean of returns instead. Throws
+/// std::invalid_argument for fewer than two prices or a non-positive price.
+double realized_variance(std::vector<double> const& prices, double annualization = 252.0,
+                         bool zero_mean = true);
+
+/// Accumulated (un-annualized) variance sum_i r_i^2 over the observed path -- the
+/// additive-across-time quantity used when marking a seasoned swap. Same return
+/// and mean conventions as realized_variance.
+double accumulated_variance(std::vector<double> const& prices, bool zero_mean = true);
+
+/// GS section-V single-jump replication P&L (EQ 40): the profit/loss, per unit
+/// variance notional, of a SHORT variance swap hedged by the discrete variance-
+/// replication strategy when the underlying makes one jump S -> S(1 - J)
+/// (J > 0 a downward jump, J < 0 upward):
+///
+///   pnl = (2/T)[ -J - ln(1 - J) ] - J^2 / T.
+///
+/// The quadratic term J^2/T is the jump's true variance contribution (which the
+/// swap pays); the bracket is what the replication captures. The leading residual
+/// is cubic, ~ (2/3) J^3 / T, so down-jumps profit the short and up-jumps lose.
+/// In annualized variance units; multiply by 1e4 for the paper's vol-points^2.
+double jump_replication_pnl(double jump_fraction, double time_to_expiry);
+
+// ---------------------------------------------------------------------------
 // Semi-analytic replication from total variance (SVI / SSVI)
 // ---------------------------------------------------------------------------
 

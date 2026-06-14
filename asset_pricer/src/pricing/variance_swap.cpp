@@ -10,7 +10,9 @@
 #include <pricing/black_scholes_merton.hpp>
 
 #include <cmath>
+#include <cstddef>
 #include <stdexcept>
+#include <utility>
 
 namespace asset_pricer::vs {
 
@@ -89,6 +91,59 @@ double fair_variance(VarianceSwap const& swap, BsmInputs const& mkt, SmileFn con
                      ContinuousConfig const& cfg) {
   const double forward = bsm::forward_price(mkt, swap.time_to_expiry);
   return fair_variance_continuous(forward, swap.time_to_expiry, smile, cfg);
+}
+
+// ---------------------------------------------------------------------------
+// Realized variance
+// ---------------------------------------------------------------------------
+
+namespace {
+
+// Sum of squared log returns over the path, optionally de-meaned. Validates the
+// prices. Returns {sum_of_squares, num_returns}.
+std::pair<double, std::size_t> sum_squared_returns(std::vector<double> const& prices,
+                                                   bool zero_mean) {
+  if (prices.size() < 2)
+    throw std::invalid_argument("realized variance: need at least two prices");
+  const std::size_t m = prices.size() - 1;
+
+  double mean = 0.0;
+  if (!zero_mean) {
+    if (!(prices.front() > 0.0) || !(prices.back() > 0.0))
+      throw std::invalid_argument("realized variance: prices must be positive");
+    mean = std::log(prices.back() / prices.front()) / static_cast<double>(m);
+  }
+
+  double sumsq = 0.0;
+  for (std::size_t i = 1; i <= m; ++i) {
+    if (!(prices[i] > 0.0) || !(prices[i - 1] > 0.0))
+      throw std::invalid_argument("realized variance: prices must be positive");
+    const double r = std::log(prices[i] / prices[i - 1]) - mean;
+    sumsq += r * r;
+  }
+  return {sumsq, m};
+}
+
+}  // namespace
+
+double accumulated_variance(std::vector<double> const& prices, bool zero_mean) {
+  return sum_squared_returns(prices, zero_mean).first;
+}
+
+double realized_variance(std::vector<double> const& prices, double annualization, bool zero_mean) {
+  if (!(annualization > 0.0))
+    throw std::invalid_argument("realized_variance: annualization must be positive");
+  const auto [sumsq, m] = sum_squared_returns(prices, zero_mean);
+  return annualization / static_cast<double>(m) * sumsq;
+}
+
+double jump_replication_pnl(double jump_fraction, double time_to_expiry) {
+  if (!(time_to_expiry > 0.0))
+    throw std::invalid_argument("jump_replication_pnl: time_to_expiry must be positive");
+  if (!(jump_fraction < 1.0))
+    throw std::invalid_argument("jump_replication_pnl: jump_fraction must be < 1");
+  const double J = jump_fraction;
+  return (2.0 / time_to_expiry) * (-J - std::log(1.0 - J)) - J * J / time_to_expiry;
 }
 
 // ---------------------------------------------------------------------------

@@ -9,6 +9,7 @@
 #include <core/black.hpp>
 #include <core/option_family.hpp>
 #include <core/valuation.hpp>
+#include <pricing/variance_swap_mc.hpp>
 #include <volatility/svi.hpp>
 
 #include <gtest/gtest.h>
@@ -314,4 +315,97 @@ TEST(VarianceSwapBracketing, AppendixAConvergesDownToContinuous) {
   EXPECT_GT(coarse, fine);            // refining lowers the over-estimate
   EXPECT_GT(fine, truth);             // still an upper bound
   EXPECT_NEAR(fine, truth, 1e-3);     // and close
+}
+
+// ---------------------------------------------------------------------------
+// Phase 4: realized variance, jump P&L, and Monte Carlo
+// ---------------------------------------------------------------------------
+
+// A constant log-step path: every return equals ln(g), so the annualized,
+// zero-mean realized variance is exactly A * ln(g)^2.
+TEST(RealizedVariance, ConstantStepIsExact) {
+  const double g = 1.01;  // +1% per step
+  std::vector<double> prices{100.0};
+  for (int i = 0; i < 20; ++i) prices.push_back(prices.back() * g);
+
+  const double rv = vs::realized_variance(prices, /*A*/ 252.0);
+  EXPECT_NEAR(rv, 252.0 * std::log(g) * std::log(g), 1e-12);
+  // accumulated (un-annualized) variance is m * ln(g)^2 over m = 20 returns.
+  EXPECT_NEAR(vs::accumulated_variance(prices), 20.0 * std::log(g) * std::log(g), 1e-12);
+}
+
+// Zero-mean vs sample-mean: for a pure trend the de-meaned variance is ~zero,
+// while the zero-mean (contract) convention keeps the full trend variance.
+TEST(RealizedVariance, ZeroMeanVsSampleMean) {
+  std::vector<double> prices{100.0};
+  for (int i = 0; i < 50; ++i) prices.push_back(prices.back() * 1.005);  // steady drift
+  EXPECT_GT(vs::realized_variance(prices, 252.0, /*zero_mean*/ true), 1e-3);
+  EXPECT_NEAR(vs::realized_variance(prices, 252.0, /*zero_mean*/ false), 0.0, 1e-12);
+}
+
+TEST(RealizedVariance, RejectsBadInput) {
+  EXPECT_THROW(vs::realized_variance({100.0}), std::invalid_argument);
+  EXPECT_THROW(vs::realized_variance({100.0, -5.0}), std::invalid_argument);
+}
+
+// GS Table 5: single-jump replication P&L for a one-year swap, in vol-points^2
+// (the formula's annualized variance value times 1e4).
+//
+// Note: the paper's "-20% (up)" cell reads -20.2, but solving EQ 40 for the jump
+// that yields -20.2 gives J = -0.15, not -0.20 (and the three-month/one-year
+// column ratio is a clean 4x = 1/T throughout). The -20% row is mislabelled in
+// the paper; the formula here is EQ 40 verbatim and matches every other cell.
+TEST(JumpReplication, ReproducesGsTable5) {
+  const double T = 1.0;
+  EXPECT_NEAR(vs::jump_replication_pnl(0.15, T) * 1e4, 25.4, 0.1);   // 15% down
+  EXPECT_NEAR(vs::jump_replication_pnl(0.10, T) * 1e4, 7.2, 0.1);    // 10% down
+  EXPECT_NEAR(vs::jump_replication_pnl(0.05, T) * 1e4, 0.9, 0.1);    // 5% down
+  EXPECT_NEAR(vs::jump_replication_pnl(-0.05, T) * 1e4, -0.8, 0.1);  // 5% up
+  EXPECT_NEAR(vs::jump_replication_pnl(-0.10, T) * 1e4, -6.2, 0.1);  // 10% up
+  EXPECT_NEAR(vs::jump_replication_pnl(-0.15, T) * 1e4, -20.2, 0.1); // the paper's "-20%" cell
+
+  // P&L scales as 1/T: the three-month figure is 4x the one-year figure.
+  EXPECT_NEAR(vs::jump_replication_pnl(0.10, 0.25) * 1e4, 28.8, 0.1);
+  EXPECT_NEAR(vs::jump_replication_pnl(0.10, 0.25), 4.0 * vs::jump_replication_pnl(0.10, 1.0), 1e-12);
+
+  // Leading residual is cubic, (2/3) J^3 / T: down-jumps profit the short variance
+  // position, up-jumps lose, and the cubic approximation tracks for small jumps.
+  EXPECT_GT(vs::jump_replication_pnl(0.10, T), 0.0);
+  EXPECT_LT(vs::jump_replication_pnl(-0.10, T), 0.0);
+  EXPECT_NEAR(vs::jump_replication_pnl(0.02, T), (2.0 / 3.0) * std::pow(0.02, 3) / T, 1e-6);
+}
+
+// MC fair variance under GBM converges to sigma^2 == the analytic continuous
+// fair variance, within a few standard errors.
+TEST(VarianceSwapMc, GbmConvergesToSigmaSquared) {
+  const BsmInputs mkt{100.0, 0.03, 0.01, 0.20};
+  const double T = 1.0;
+  vs::VarianceMcConfig cfg;
+  cfg.num_paths = 200000;
+  cfg.seed = 20240615;
+
+  const auto mc = vs::mc_fair_variance_gbm(T, mkt, 252.0, cfg);
+  const double analytic = vs::fair_variance_continuous(
+      100.0 * std::exp((0.03 - 0.01) * T), T, vs::constant_smile(0.20));
+
+  EXPECT_EQ(mc.num_steps, 252u);  // daily monitoring inferred from A * T
+  EXPECT_NEAR(mc.fair_variance, 0.04, 3.0 * mc.std_error);
+  EXPECT_NEAR(mc.fair_variance, analytic, 3.0 * mc.std_error);
+}
+
+// Merton jumps add lambda * (mu_j^2 + sigma_j^2) of annualized variance on top of
+// the diffusion -- the variance risk premium a jump carries.
+TEST(VarianceSwapMc, MertonAddsJumpVariance) {
+  const BsmInputs mkt{100.0, 0.03, 0.0, 0.20};
+  const double T = 1.0;
+  const vs::MertonParams jumps{/*lambda*/ 1.0, /*mu_j*/ -0.05, /*sigma_j*/ 0.10};
+  vs::VarianceMcConfig cfg;
+  cfg.num_paths = 400000;
+  cfg.seed = 7;
+
+  const auto mc = vs::mc_fair_variance_merton(T, mkt, jumps, 252.0, cfg);
+  const double expected =
+      0.20 * 0.20 + jumps.lambda * (jumps.mu_j * jumps.mu_j + jumps.sigma_j * jumps.sigma_j);
+  EXPECT_NEAR(mc.fair_variance, expected, 4.0 * mc.std_error);
+  EXPECT_GT(mc.fair_variance, 0.04);  // strictly above the diffusion-only level
 }
