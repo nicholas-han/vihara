@@ -33,6 +33,13 @@ double price_vanilla(VanillaOption const& opt, BsmInputs const& mkt,
 double price_american(AmericanOption const& opt, BsmInputs const& mkt,
                       PdeConfig const& cfg = {});
 
+/// Price a Bermudan vanilla option by finite differences: the early-exercise
+/// projection is applied only at the grid steps nearest the exercise dates
+/// (snapped to the time grid). Reduces to European for one date and approaches
+/// American as the date count grows.
+double price_bermudan(BermudanOption const& opt, BsmInputs const& mkt,
+                      PdeConfig const& cfg = {});
+
 }  // namespace asset_pricer::pde
 
 #endif  // ASSET_PRICER_PRICING_PARTIAL_DIFFERENTIAL_EQUATIONS_HPP

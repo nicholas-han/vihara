@@ -83,3 +83,35 @@ TEST(Pde, AmericanCallWithDividendExercisesEarly) {
   EXPECT_NEAR(pde, tree, 1.5e-2);
   EXPECT_GT(pde, euro);
 }
+
+// The defining property of a Bermudan: European <= Bermudan <= American.
+// Compared within the same PDE engine so the bound is numerically clean.
+TEST(Pde, BermudanBetweenEuropeanAndAmerican) {
+  BsmInputs mkt{100.0, 0.05, 0.0, 0.20};  // American put has early-exercise value
+  double euro = pde::price_vanilla({OptionType::Put, kK, kT}, mkt);
+  double amer = pde::price_american({OptionType::Put, kK, kT}, mkt);
+  double berm = pde::price_bermudan({OptionType::Put, kK, kT, 12}, mkt);
+
+  EXPECT_LE(euro, berm + 1e-6);
+  EXPECT_LE(berm, amer + 1e-6);
+  EXPECT_GT(berm, euro);  // 12 exercise dates capture real early-exercise value
+}
+
+// A single exercise date sits at expiry -> exactly the European value.
+TEST(Pde, BermudanSingleDateEqualsEuropean) {
+  BsmInputs mkt{100.0, 0.05, 0.0, 0.20};
+  double berm = pde::price_bermudan({OptionType::Put, kK, kT, 1}, mkt);
+  double euro = pde::price_vanilla({OptionType::Put, kK, kT}, mkt);
+  EXPECT_NEAR(berm, euro, 1e-10);
+}
+
+// More exercise dates -> more value, converging to the American option.
+TEST(Pde, BermudanManyDatesApproachesAmerican) {
+  BsmInputs mkt{100.0, 0.05, 0.0, 0.20};
+  double amer = pde::price_american({OptionType::Put, kK, kT}, mkt);
+  double berm_few = pde::price_bermudan({OptionType::Put, kK, kT, 4}, mkt);
+  double berm_many = pde::price_bermudan({OptionType::Put, kK, kT, 400}, mkt);
+
+  EXPECT_GT(berm_many, berm_few);
+  EXPECT_NEAR(berm_many, amer, 5e-3);
+}

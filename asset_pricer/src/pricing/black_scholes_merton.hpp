@@ -25,12 +25,29 @@ BsmValuation price_vanilla(VanillaOption const& opt, BsmInputs const& mkt);
 double implied_volatility(double target_price, VanillaOption const& opt,
                           BsmInputs const& mkt, double tol = 1e-8, int max_iter = 100);
 
-/// Price of a European binary (digital) option. Greeks not yet populated.
-double price_binary(BinaryOption const& opt, BsmInputs const& mkt);
+/// Price and full Greeks of a European binary (digital) option, cash-or-nothing
+/// or asset-or-nothing. Greeks are sharply peaked near the strike; they are left
+/// zero in the degenerate zero-variance case (where they are singular).
+BsmValuation price_binary(BinaryOption const& opt, BsmInputs const& mkt);
 
 /// Price of a European single-barrier option with continuous monitoring
 /// (Reiner-Rubinstein closed form). Greeks not yet populated.
 double price_barrier(BarrierOption const& opt, BsmInputs const& mkt);
+
+/// Price of a discretely-monitored single-barrier option, via the Broadie-
+/// Glasserman-Kou continuity correction: the continuous-monitoring closed form
+/// is reused with the barrier shifted away from the spot by
+/// exp(+-0.5826 * sigma * sqrt(T/m)) (+ for up barriers, - for down), where m is
+/// the number of monitoring points. Converges to the continuous price as m grows.
+double price_barrier_discrete(BarrierOption const& opt, BsmInputs const& mkt,
+                              unsigned num_monitoring);
+
+/// Exact closed form for a fixed-strike, discretely-monitored GEOMETRIC-average
+/// Asian option. The geometric average of lognormals is itself lognormal, so the
+/// price is a forward-form Black formula on the average's effective forward and
+/// total variance. Requires opt.averaging == Geometric and opt.strike_kind ==
+/// Fixed (throws otherwise); arithmetic averaging has no exact closed form.
+double price_asian_geometric(AsianOption const& opt, BsmInputs const& mkt);
 
 }  // namespace asset_pricer::bsm
 

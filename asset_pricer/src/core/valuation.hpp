@@ -23,6 +23,8 @@ struct BsmGreeks {
   double theta = 0.0;  ///< dV/dt, per calendar year (NOT per day; e.g. divide by 365 for per-day)
   double vega = 0.0;   ///< dV/dsigma, per 1.00 of vol (absolute, NOT per 1%; e.g. divide by 100 for per-1%)
   double rho = 0.0;    ///< dV/dr, per 1.00 of rate (absolute, NOT per 1%/bp; e.g. divide by 100 for per-1%)
+  double vanna = 0.0;  ///< d2V/dS dsigma (= dDelta/dsigma = dVega/dS)
+  double volga = 0.0;  ///< d2V/dsigma2 (= dVega/dsigma; a.k.a. vomma)
 };
 
 /// Result of a pricing call: present value plus optional Greeks.

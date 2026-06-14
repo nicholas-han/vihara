@@ -13,12 +13,16 @@ namespace asset_pricer::pde {
 
 namespace {
 
-// Internal pricing specification shared by the European and American entry
-// points; `american` toggles the early-exercise projection.
+enum class Exercise { European, American, Bermudan };
+
+// Internal pricing specification shared by all entry points. `exercise` selects
+// the early-exercise rule; for Bermudan, `ex_steps` holds the (sorted) time-step
+// indices at which the early-exercise projection is applied.
 struct Spec {
   double K, T, r, q, sigma, S0;
   OptionType type;
-  bool american;
+  Exercise exercise;
+  std::vector<unsigned> ex_steps;
 };
 
 // Solve a tridiagonal system with constant sub/diag/super coefficients
@@ -54,7 +58,9 @@ double solve(Spec const& s, PdeConfig const& cfg) {
   if (s.sigma * sqrtT <= 0.0) {
     double fwd = s.S0 * std::exp((s.r - s.q) * s.T);
     double euro = std::exp(-s.r * s.T) * payoff(fwd);
-    return s.american ? std::max(euro, payoff(s.S0)) : euro;
+    const bool can_exercise = s.exercise == Exercise::American ||
+                              (s.exercise == Exercise::Bermudan && !s.ex_steps.empty());
+    return can_exercise ? std::max(euro, payoff(s.S0)) : euro;
   }
 
   // ---- build the log-spot grid, centred so S0 sits on the middle node ----
@@ -82,17 +88,24 @@ double solve(Spec const& s, PdeConfig const& cfg) {
   const double Slo = S[0], Shi = S[M];
 
   // Dirichlet boundary values as a function of time-to-maturity tau.
-  auto boundary = [&](double tau, double& lo, double& hi) {
+  auto boundary = [&](double tau, bool ex, double& lo, double& hi) {
     double df = std::exp(-s.r * tau), qf = std::exp(-s.q * tau);
     if (s.type == OptionType::Call) {
       lo = 0.0;
       hi = Shi * qf - s.K * df;                 // deep ITM call asymptotic
-      if (s.american) hi = std::max(hi, Shi - s.K);
+      if (ex) hi = std::max(hi, Shi - s.K);
     } else {
       hi = 0.0;
       lo = s.K * df - Slo * qf;                 // deep ITM put asymptotic
-      if (s.american) lo = std::max(lo, s.K - Slo);
+      if (ex) lo = std::max(lo, s.K - Slo);
     }
+  };
+
+  // Whether the early-exercise projection applies at backward-induction step n.
+  auto exercise_at = [&](unsigned n) -> bool {
+    if (s.exercise == Exercise::American) return true;
+    if (s.exercise == Exercise::European) return false;
+    return std::binary_search(s.ex_steps.begin(), s.ex_steps.end(), n);
   };
 
   const std::size_t nu = M - 1;  // number of interior unknowns (i = 1..M-1)
@@ -114,8 +127,9 @@ double solve(Spec const& s, PdeConfig const& cfg) {
       unsigned i = k + 1;
       rhs[k] = ra * V[i - 1] + rb * V[i] + rc * V[i + 1];  // uses old (level n-1) values
     }
+    const bool ex = exercise_at(n);
     double lo, hi;
-    boundary(tau, lo, hi);            // new-level boundary values
+    boundary(tau, ex, lo, hi);        // new-level boundary values
     rhs[0] -= sub * lo;               // fold known boundary into the system
     rhs[nu - 1] -= sup * hi;
 
@@ -125,7 +139,7 @@ double solve(Spec const& s, PdeConfig const& cfg) {
     V[0] = lo;
     V[M] = hi;
 
-    if (s.american)
+    if (ex)
       for (unsigned i = 0; i <= M; ++i) V[i] = std::max(V[i], payoff(S[i]));
   }
 
@@ -136,15 +150,40 @@ double solve(Spec const& s, PdeConfig const& cfg) {
 
 double price_vanilla(VanillaOption const& opt, BsmInputs const& mkt,
                      PdeConfig const& cfg) {
-  Spec s{opt.strike, opt.time_to_expiry, mkt.risk_free_rate, mkt.dividend_yield,
-         mkt.volatility,    mkt.spot_price,           opt.type,  /*american=*/false};
+  Spec s{opt.strike,     opt.time_to_expiry, mkt.risk_free_rate, mkt.dividend_yield,
+         mkt.volatility, mkt.spot_price,     opt.type,           Exercise::European, {}};
   return solve(s, cfg);
 }
 
 double price_american(AmericanOption const& opt, BsmInputs const& mkt,
                       PdeConfig const& cfg) {
-  Spec s{opt.strike, opt.time_to_expiry, mkt.risk_free_rate, mkt.dividend_yield,
-         mkt.volatility,    mkt.spot_price,           opt.type,  /*american=*/true};
+  Spec s{opt.strike,     opt.time_to_expiry, mkt.risk_free_rate, mkt.dividend_yield,
+         mkt.volatility, mkt.spot_price,     opt.type,           Exercise::American, {}};
+  return solve(s, cfg);
+}
+
+double price_bermudan(BermudanOption const& opt, BsmInputs const& mkt,
+                      PdeConfig const& cfg) {
+  if (opt.num_exercise_dates < 1)
+    throw std::invalid_argument("price_bermudan: need at least one exercise date");
+
+  const unsigned N = std::max(1u, cfg.num_time_steps);
+  const unsigned m = opt.num_exercise_dates;
+  // Exercise dates t_j = j*T/m (j = 1..m). In tau = T - t time, a date maps to
+  // step n_j = round((m-j)/m * N). j = m is expiry (tau = 0, the terminal
+  // condition); the interior dates j = 1..m-1 become the projection steps.
+  std::vector<unsigned> steps;
+  for (unsigned j = 1; j < m; ++j) {
+    const double frac = static_cast<double>(m - j) / m;  // tau_j / T
+    const unsigned n = static_cast<unsigned>(std::lround(frac * N));
+    if (n >= 1 && n <= N) steps.push_back(n);
+  }
+  std::sort(steps.begin(), steps.end());
+  steps.erase(std::unique(steps.begin(), steps.end()), steps.end());
+
+  Spec s{opt.strike,     opt.time_to_expiry, mkt.risk_free_rate, mkt.dividend_yield,
+         mkt.volatility, mkt.spot_price,     opt.type,           Exercise::Bermudan,
+         std::move(steps)};
   return solve(s, cfg);
 }
 

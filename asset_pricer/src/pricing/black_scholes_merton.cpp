@@ -64,6 +64,9 @@ BsmValuation price_vanilla(VanillaOption const& opt, BsmInputs const& mkt) {
                      - sign * mkt.risk_free_rate * df * K * Nd2;
   res.greeks.vega = qf * sqrtT * S * npd1;
   res.greeks.rho = sign * K * T * df * Nd2;
+  // Second-order vol sensitivities (same for call and put; use the raw d1, d2).
+  res.greeks.vanna = -qf * npd1 * d2 / mkt.volatility;
+  res.greeks.volga = res.greeks.vega * d1 * d2 / mkt.volatility;
   return res;
 }
 
@@ -114,7 +117,40 @@ double implied_volatility(double target_price, VanillaOption const& opt,
   return sigma;  // best estimate if tol not reached within max_iter
 }
 
-double price_binary(BinaryOption const& opt, BsmInputs const& mkt) {
+namespace {
+// Greeks of a UNIT cash-or-nothing binary (pays 1 if in the money), forward form.
+// Asset-or-nothing and cash != 1 follow by linearity; see price_binary.
+BsmGreeks cash_or_nothing_unit_greeks(BsmInputs const& mkt, double K, double T,
+                                      double sign, double d1, double d2) {
+  const double S = mkt.spot_price, sigma = mkt.volatility, r = mkt.risk_free_rate;
+  const double df = std::exp(-r * T);
+  const double sqrtT = std::sqrt(T), sigT = sigma * sqrtT;
+  const double npd2 = normal_pdf(d2), Nsd2 = normal_cdf(sign * d2);
+  const double b = r - mkt.dividend_yield;
+
+  BsmGreeks g{};
+  g.delta = sign * df * npd2 / (S * sigT);
+  g.gamma = -sign * df * npd2 * d1 / (S * S * sigT * sigT);
+  // theta = dV/dt = -dV/dT, with d(d2)/dT below.
+  const double ddT_d2 = ((b - 0.5 * sigma * sigma) - std::log(S / K) / T) / (2.0 * sigT);
+  g.theta = r * df * Nsd2 - sign * df * npd2 * ddT_d2;
+  g.vega = -sign * df * npd2 * d1 / sigma;
+  g.rho = -T * df * Nsd2 + sign * df * npd2 * sqrtT / sigma;
+  g.vanna = sign * df * npd2 * (d1 * d2 - 1.0) / (S * sigma * sigma * sqrtT);
+  g.volga = -sign * df * npd2 * (d2 * (d1 * d1 - 1.0) - d1) / (sigma * sigma);
+  return g;
+}
+
+// a*x + b*y per Greek field.
+BsmGreeks axpy(double a, BsmGreeks const& x, double bb, BsmGreeks const& y) {
+  return {a * x.delta + bb * y.delta, a * x.gamma + bb * y.gamma,
+          a * x.theta + bb * y.theta, a * x.vega + bb * y.vega,
+          a * x.rho + bb * y.rho,     a * x.vanna + bb * y.vanna,
+          a * x.volga + bb * y.volga};
+}
+}  // namespace
+
+BsmValuation price_binary(BinaryOption const& opt, BsmInputs const& mkt) {
   if (opt.strike <= 0.0)
     throw std::invalid_argument("price_binary: strike must be positive");
   if (opt.time_to_expiry < 0.0)
@@ -122,27 +158,38 @@ double price_binary(BinaryOption const& opt, BsmInputs const& mkt) {
 
   const double T = opt.time_to_expiry;
   const double K = opt.strike;
+  const double S = mkt.spot_price;
   const double sign = phi(opt.type);
   const double df = std::exp(-mkt.risk_free_rate * T);
   const double qf = std::exp(-mkt.dividend_yield * T);
   const double fwd = forward_price(mkt, T);
   const double sigT = mkt.volatility * std::sqrt(T);
+  const bool cash_or_nothing = opt.payoff == BinaryPayoff::CashOrNothing;
 
-  // Degenerate case: zero variance -> discounted payoff on the deterministic forward.
+  BsmValuation res{};
+
+  // Degenerate case: zero variance -> price only (Greeks are singular here).
   if (sigT <= 0.0) {
-    if (sign * (fwd - K) <= 0.0) return 0.0;
-    return opt.payoff == BinaryPayoff::CashOrNothing ? df * opt.cash : df * fwd;
+    if (sign * (fwd - K) > 0.0)
+      res.price = cash_or_nothing ? df * opt.cash : df * fwd;
+    return res;
   }
 
   const double d1 = std::log(fwd / K) / sigT + 0.5 * sigT;
   const double d2 = d1 - sigT;
+  const BsmGreeks unit = cash_or_nothing_unit_greeks(mkt, K, T, sign, d1, d2);
 
-  if (opt.payoff == BinaryPayoff::CashOrNothing) {
-    // cash-or-nothing: pays fixed amount cash if it expires in the money
-    return opt.cash * df * normal_cdf(sign * d2);
+  if (cash_or_nothing) {
+    res.price = opt.cash * df * normal_cdf(sign * d2);
+    res.greeks = axpy(opt.cash, unit, 0.0, unit);  // cash * unit Greeks
+  } else {
+    // asset-or-nothing = sign * vanilla + K * (unit cash-or-nothing), for the
+    // price and (by linearity in S, sigma, r, t) every Greek.
+    res.price = S * qf * normal_cdf(sign * d1);
+    const BsmGreeks vanilla = price_vanilla({opt.type, K, T}, mkt).greeks;
+    res.greeks = axpy(sign, vanilla, K, unit);
   }
-  // asset-or-nothing: pays S_T if it expires in the money
-  return mkt.spot_price * qf * normal_cdf(sign * d1);
+  return res;
 }
 
 namespace {
@@ -240,6 +287,72 @@ double price_barrier(BarrierOption const& opt, BsmInputs const& mkt) {
       else      return K_gt_H ? (t.B - t.D + t.F) : (t.A - t.C + t.F);
   }
   return 0.0;  // unreachable
+}
+
+double price_asian_geometric(AsianOption const& opt, BsmInputs const& mkt) {
+  if (opt.strike_kind != StrikeKind::Fixed)
+    throw std::invalid_argument("price_asian_geometric: floating-strike not yet implemented");
+  if (opt.averaging != AveragingType::Geometric)
+    throw std::invalid_argument("price_asian_geometric: closed form is geometric-average only");
+  if (opt.strike <= 0.0)
+    throw std::invalid_argument("price_asian_geometric: strike must be positive");
+  if (opt.time_to_expiry < 0.0)
+    throw std::invalid_argument("price_asian_geometric: time to expiry must be non-negative");
+  if (mkt.volatility < 0.0)
+    throw std::invalid_argument("price_asian_geometric: volatility must be non-negative");
+  if (opt.num_fixings < 1)
+    throw std::invalid_argument("price_asian_geometric: need at least one fixing");
+
+  const double T = opt.time_to_expiry;
+  const double K = opt.strike;
+  const double S = mkt.spot_price;
+  const double r = mkt.risk_free_rate;
+  const double q = mkt.dividend_yield;
+  const double sigma = mkt.volatility;
+  const double sign = phi(opt.type);
+  const double df = std::exp(-r * T);
+  const unsigned n = opt.num_fixings;
+  const double dn = static_cast<double>(n);
+
+  // Discrete geometric average G = (prod_i S_{t_i})^{1/n}, fixings t_i = i*T/n.
+  // ln G is a sum of normals -> G is lognormal, with (risk-neutral):
+  //   E[ln G]   = ln S + (r - q - sigma^2/2) * tbar,   tbar = mean(t_i)
+  //   Var[ln G] = (sigma^2 / n^2) * sum_{i,j} min(t_i, t_j)
+  //             = (sigma^2 / n^2) * sum_i (2(n-i)+1) * t_i   (t_i ascending)
+  double tbar = 0.0, var_sum = 0.0;
+  for (unsigned i = 1; i <= n; ++i) {
+    const double ti = i * T / dn;
+    tbar += ti;
+    var_sum += (2.0 * (n - i) + 1.0) * ti;
+  }
+  tbar /= dn;
+  const double V = sigma * sigma / (dn * dn) * var_sum;                    // Var[ln G]
+  const double FG = S * std::exp((r - q - 0.5 * sigma * sigma) * tbar + 0.5 * V);  // E[G]
+
+  // Degenerate (zero variance): discounted intrinsic on the deterministic average.
+  if (V <= 0.0) return df * std::max(sign * (FG - K), 0.0);
+
+  // Forward-form Black formula on the average's effective forward FG and variance V.
+  const double sd = std::sqrt(V);
+  const double d1 = (std::log(FG / K) + 0.5 * V) / sd;
+  const double d2 = d1 - sd;
+  return df * sign * (FG * normal_cdf(sign * d1) - K * normal_cdf(sign * d2));
+}
+
+double price_barrier_discrete(BarrierOption const& opt, BsmInputs const& mkt,
+                              unsigned num_monitoring) {
+  if (num_monitoring < 1)
+    throw std::invalid_argument("price_barrier_discrete: need at least one monitoring point");
+  // Broadie-Glasserman-Kou continuity correction: a barrier monitored at m
+  // discrete points behaves like a continuous barrier shifted away from the spot
+  // by exp(+-beta * sigma * sqrt(dt)), beta = -zeta(1/2)/sqrt(2*pi) ~ 0.5826.
+  constexpr double kBeta = 0.5826;
+  const double dt = opt.time_to_expiry / num_monitoring;
+  const double shift = kBeta * mkt.volatility * std::sqrt(dt);
+  const double dir = is_up(opt.barrier_type) ? 1.0 : -1.0;  // up -> shift up, down -> down
+  BarrierOption adj = opt;
+  adj.barrier = opt.barrier * std::exp(dir * shift);
+  return price_barrier(adj, mkt);
 }
 
 }  // namespace asset_pricer::bsm

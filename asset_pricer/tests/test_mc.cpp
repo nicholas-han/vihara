@@ -49,13 +49,13 @@ TEST(MonteCarlo, VanillaPutMatchesAnalytic) {
 TEST(MonteCarlo, BinaryCashOrNothingMatchesAnalytic) {
   BinaryOption b{OptionType::Call, BinaryPayoff::CashOrNothing, 105.0, 1.0, kT};
   EXPECT_WITHIN_SE(mcs::price_binary(b, kMkt, terminal_cfg()),
-                   bsm::price_binary(b, kMkt), 4.0);
+                   bsm::price_binary(b, kMkt).price, 4.0);
 }
 
 TEST(MonteCarlo, BinaryAssetOrNothingMatchesAnalytic) {
   BinaryOption b{OptionType::Call, BinaryPayoff::AssetOrNothing, 105.0, 0.0, kT};
   EXPECT_WITHIN_SE(mcs::price_binary(b, kMkt, terminal_cfg()),
-                   bsm::price_binary(b, kMkt), 4.0);
+                   bsm::price_binary(b, kMkt).price, 4.0);
 }
 
 TEST(MonteCarlo, BarrierDownAndOutMatchesAnalytic) {

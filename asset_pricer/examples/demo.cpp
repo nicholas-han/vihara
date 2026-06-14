@@ -56,7 +56,7 @@ int main() {
   ap::BarrierOption up_out{ap::OptionType::Call, ap::BarrierType::UpAndOut,
                            /*strike=*/100.0, /*barrier=*/130.0, /*rebate=*/0.0, /*T=*/1.0};
   std::cout << "== Exotics (closed form) ==\n"
-            << "  cash-or-nothing call (K=105) = " << ap::bsm::price_binary(digital, mkt) << "\n"
+            << "  cash-or-nothing call (K=105) = " << ap::bsm::price_binary(digital, mkt).price << "\n"
             << "  up-and-out call (H=130)      = " << ap::bsm::price_barrier(up_out, mkt) << "\n\n";
 
   // ---------------------------------------------------------------------------
