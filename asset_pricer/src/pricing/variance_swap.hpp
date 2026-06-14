@@ -190,6 +190,23 @@ double fair_variance_discrete(double forward, double time_to_expiry,
                               std::vector<double> const& strikes, SmileFn const& smile,
                               DiscreteConfig const& cfg = {});
 
+/// One option's row in the replication portfolio (GS Table 1).
+struct ReplicationLeg {
+  double strike;        ///< K_i
+  double vol;           ///< implied vol used at K_i
+  bool is_call;         ///< true = OTM call (K >= F), false = OTM put
+  double weight;        ///< strip weight dK_i / K_i^2
+  double option_value;  ///< undiscounted (forward) value of the OTM option
+  double contribution;  ///< (2/T) * weight * option_value, this strike's share of K_var
+};
+
+/// The replication portfolio behind the discrete strip: per-strike weight, OTM
+/// option value, and contribution to fair variance (GS Table 1). The
+/// contributions sum to fair_variance_discrete with vix_correction = false.
+std::vector<ReplicationLeg> replication_breakdown(double forward, double time_to_expiry,
+                                                  std::vector<double> const& strikes,
+                                                  SmileFn const& smile);
+
 /// Fair annualized variance from raw OTM option quotes -- no volatility model at
 /// all. `otm_prices[i]` is the discounted market price of the out-of-the-money
 /// option at strikes[i] (a put below F, a call at/above F); `discount_factor` =

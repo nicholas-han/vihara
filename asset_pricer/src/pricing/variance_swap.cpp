@@ -284,6 +284,40 @@ double fair_variance_discrete(double forward, double time_to_expiry,
   return strip_sum(forward, T, strikes, forward_values, cfg.vix_correction);
 }
 
+std::vector<ReplicationLeg> replication_breakdown(double forward, double time_to_expiry,
+                                                  std::vector<double> const& strikes,
+                                                  SmileFn const& smile) {
+  if (!(forward > 0.0) || !(time_to_expiry > 0.0))
+    throw std::invalid_argument("replication_breakdown: forward and expiry must be positive");
+
+  const double T = time_to_expiry;
+  const std::size_t n = strikes.size();
+  std::vector<ReplicationLeg> legs(n);
+  for (std::size_t i = 0; i < n; ++i) {
+    const double K = strikes[i];
+    if (!(K > 0.0) || (i > 0 && !(K > strikes[i - 1])))
+      throw std::invalid_argument("replication_breakdown: strikes must be positive and ascending");
+
+    double dK;
+    if (n == 1)
+      dK = K;
+    else if (i == 0)
+      dK = strikes[1] - strikes[0];
+    else if (i == n - 1)
+      dK = strikes[n - 1] - strikes[n - 2];
+    else
+      dK = 0.5 * (strikes[i + 1] - strikes[i - 1]);
+
+    const double vol = smile(K);
+    const bool is_call = K >= forward;
+    const double fwd_value =
+        black_price(forward, K, vol * vol * T, /*discount=*/1.0, is_call ? 1.0 : -1.0);
+    const double weight = dK / (K * K);
+    legs[i] = {K, vol, is_call, weight, fwd_value, (2.0 / T) * weight * fwd_value};
+  }
+  return legs;
+}
+
 double fair_variance_discrete_quotes(double forward, double time_to_expiry,
                                      std::vector<double> const& strikes,
                                      std::vector<double> const& otm_prices,

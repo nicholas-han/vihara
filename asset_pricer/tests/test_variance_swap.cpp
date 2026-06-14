@@ -182,6 +182,28 @@ TEST(VarianceSwapDiscrete, RawQuotesMatchSmilePath) {
   EXPECT_NEAR(from_quotes, sigma * sigma, 5e-4);
 }
 
+// The replication-portfolio breakdown (GS Table 1): per-strike contributions sum
+// to the discrete fair variance (with the VIX correction switched off), OTM type
+// flips at the forward, and the strip weight is dK/K^2.
+TEST(VarianceSwapDiscrete, BreakdownContributionsSumToStrip) {
+  const double T = 0.25, forward = 100.0;
+  auto smile = gs_linear_skew();
+  auto strikes = vs::make_moneyness_grid(forward, 0.20, T, -3.0, 3.0, 0.25);
+
+  const auto legs = vs::replication_breakdown(forward, T, strikes, smile);
+  ASSERT_EQ(legs.size(), strikes.size());
+
+  double total = 0.0;
+  for (auto const& leg : legs) {
+    total += leg.contribution;
+    EXPECT_EQ(leg.is_call, leg.strike >= forward);
+    EXPECT_NEAR(leg.contribution, (2.0 / T) * leg.weight * leg.option_value, 1e-12);
+  }
+  vs::DiscreteConfig no_corr;
+  no_corr.vix_correction = false;
+  EXPECT_NEAR(total, vs::fair_variance_discrete(forward, T, strikes, smile, no_corr), 1e-12);
+}
+
 TEST(VarianceSwapDiscrete, RejectsBadInputs) {
   std::vector<double> strikes{90.0, 100.0, 110.0};
   std::vector<double> two{1.0, 2.0};
