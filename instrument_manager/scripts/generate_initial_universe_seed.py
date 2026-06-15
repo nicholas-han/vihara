@@ -1,5 +1,11 @@
 #!/usr/bin/env python3
-"""Generate initial market universe seed data from downloaded public files."""
+"""Generate initial market universe seed data from downloaded public files.
+
+STALE: this generator targets the pre-redesign schema (old instrument_type
+values, no Route A underlying/settlement columns, no lifecycle_type/instrument
+groups). It must be updated to the new model in instrument_manager/db/schema.sql
+before regenerating. See instrument_manager/data_sources.md.
+"""
 
 from __future__ import annotations
 

@@ -11,9 +11,9 @@ services:
       - "5432:5432"
     volumes:
       - vihara_postgres_data:/var/lib/postgresql/data
-      - ../../instrument_manager/schema.sql:/docker-entrypoint-initdb.d/001_schema.sql:ro
-      - ../../instrument_manager/seed_v0.sql:/docker-entrypoint-initdb.d/002_seed_v0.sql:ro
-      - ../../instrument_manager/seed_initial_universe.sql:/docker-entrypoint-initdb.d/003_seed_initial_universe.sql:ro
+      - ../../instrument_manager/db/schema.sql:/docker-entrypoint-initdb.d/001_schema.sql:ro
+      - ../../instrument_manager/db/seeds/seed_v0.sql:/docker-entrypoint-initdb.d/002_seed_v0.sql:ro
+      - ../../instrument_manager/db/seeds/seed_examples.sql:/docker-entrypoint-initdb.d/003_seed_examples.sql:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U vihara -d vihara"]
       interval: 5s

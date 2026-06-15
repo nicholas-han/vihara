@@ -9,12 +9,17 @@ erDiagram
     INSTRUMENT_FAMILIES ||--o{ INSTRUMENT_FAMILIES : underlying_family
     INSTRUMENT_FAMILIES ||--o{ INSTRUMENTS : generates
     ASSETS ||--o{ INSTRUMENT_FAMILIES : underlying_asset
-    ASSETS ||--o{ INSTRUMENTS : base_quote_settlement
+    ASSETS ||--o{ INSTRUMENTS : base_quote_underlying_settlement
     INSTRUMENTS ||--o{ INSTRUMENT_FAMILIES : underlying_instrument
+    INSTRUMENTS ||--o{ INSTRUMENTS : underlying_instrument
+    INSTRUMENTS ||--o{ INSTRUMENTS : settlement_instrument
     INSTRUMENTS ||--o{ INSTRUMENT_RELATIONSHIPS : from_instrument
     INSTRUMENTS ||--o{ INSTRUMENT_RELATIONSHIPS : to_instrument
     VENUES ||--o{ VENUE_INSTRUMENTS : lists
     INSTRUMENTS ||--o{ VENUE_INSTRUMENTS : maps_to
+    INSTRUMENT_GROUPS ||--o{ INSTRUMENT_GROUP_MEMBERS : contains
+    INSTRUMENTS ||--o{ INSTRUMENT_GROUP_MEMBERS : member_instrument
+    ASSETS ||--o{ INSTRUMENT_GROUPS : event_underlying
     ASSETS ||--o{ RISK_UNDERLYING_GROUPS : primary_asset
     INSTRUMENTS ||--o{ RISK_UNDERLYING_GROUPS : primary_instrument
     RISK_UNDERLYING_GROUPS ||--o{ RISK_UNDERLYING_GROUP_MEMBERS : contains
@@ -50,7 +55,10 @@ erDiagram
         text underlying_asset_id FK
         text underlying_instrument_id FK
         text underlying_instrument_family_id FK
+        text quote_asset_id FK
         text settlement_asset_id FK
+        text settlement_instrument_family_id FK
+        text lifecycle_type
     }
 
     INSTRUMENTS {
@@ -60,8 +68,11 @@ erDiagram
         text asset_class_id FK
         text base_asset_id FK
         text quote_asset_id FK
+        text underlying_asset_id FK
+        text underlying_instrument_id FK
         text settlement_asset_id FK
-        text symbol
+        text settlement_instrument_id FK
+        text lifecycle_type
         boolean is_tradable
     }
 
@@ -70,6 +81,7 @@ erDiagram
         text from_instrument_id FK
         text to_instrument_id FK
         text relationship_type
+        boolean is_derived
     }
 
     VENUES {
@@ -86,6 +98,21 @@ erDiagram
         text status
     }
 
+    INSTRUMENT_GROUPS {
+        text instrument_group_id PK
+        text group_type
+        text underlying_asset_id FK
+        text resolution_source
+    }
+
+    INSTRUMENT_GROUP_MEMBERS {
+        bigint instrument_group_member_id PK
+        text instrument_group_id FK
+        text instrument_id FK
+        text member_role
+        text outcome_value
+    }
+
     RISK_UNDERLYING_GROUPS {
         text risk_underlying_group_id PK
         text primary_asset_id FK
@@ -100,3 +127,12 @@ erDiagram
         text exposure_type
     }
 ```
+
+Notes:
+
+- Direct underlying lives on `INSTRUMENTS` as `underlying_asset_id` **or**
+  `underlying_instrument_id` (Route A, at most one). `UNDERLYING` /
+  `DERIVATIVE_OF` / `SETTLES_TO` rows in `INSTRUMENT_RELATIONSHIPS` are derived
+  projections (`is_derived = true`), not authored.
+- `INSTRUMENT_GROUPS` (product structure, e.g. `OUTCOME_PARTITION`) is distinct
+  from `RISK_UNDERLYING_GROUPS` (risk aggregation).

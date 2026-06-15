@@ -1,0 +1,98 @@
+<svg width="100%" viewBox="0 0 680 520" role="img" xmlns="http://www.w3.org/2000/svg">
+<title>Instrument Manager full framework</title>
+<desc>The orthogonal axes that compose an asset and an instrument, plus the responsibility split across three layers: Postgres as system of record at the bottom, the C++ in-memory domain core in the middle, and services on top. Data loads up from Postgres into the core, services query the core on the hot path, and the write path validates and persists down to Postgres.</desc>
+<defs>
+<marker id="ah" markerWidth="9" markerHeight="9" refX="4.5" refY="4.5" orient="auto"><path d="M0,0 L9,4.5 L0,9 z" fill="#2F80ED"/></marker>
+<marker id="ahw" markerWidth="9" markerHeight="9" refX="4.5" refY="4.5" orient="auto"><path d="M0,0 L9,4.5 L0,9 z" fill="#7C3AED"/></marker>
+</defs>
+<style>
+.box{fill:var(--bg2,#f4f4f5);stroke:var(--color-border-secondary,#d4d4d8);stroke-width:1;}
+.ti{font-size:13px;font-weight:600;fill:var(--color-text-primary,#1a1a1a);}
+.su{font-size:10.5px;fill:var(--color-text-secondary,#6b7280);}
+.hd{font-size:11px;font-weight:700;fill:var(--color-text-secondary,#6b7280);letter-spacing:.06em;}
+.big{font-size:16px;font-weight:700;fill:var(--color-text-primary,#1a1a1a);}
+.lab{font-size:10px;font-weight:600;}
+.lg{font-size:10px;fill:var(--color-text-secondary,#6b7280);}
+</style>
+
+<text x="40" y="26" class="big">Instrument Manager — Full Framework</text>
+
+<!-- Composition / axes -->
+<text x="40" y="50" class="hd">THE COMPOSITION (ORTHOGONAL AXES)</text>
+<rect class="box" x="40" y="58" width="280" height="58" rx="8"/>
+<rect x="40" y="58" width="5" height="58" rx="2" fill="#6b7280"/>
+<text x="56" y="82" class="ti">An Instrument =</text>
+<text x="56" y="100" class="su">payoff × underlying × lifecycle × conventions</text>
+<rect class="box" x="332" y="58" width="286" height="58" rx="8"/>
+<rect x="332" y="58" width="5" height="58" rx="2" fill="#6b7280"/>
+<text x="348" y="82" class="ti">An Asset =</text>
+<text x="348" y="100" class="su">class × kind</text>
+
+<!-- Services -->
+<text x="40" y="142" class="hd">SERVICES</text>
+<rect class="box" x="40" y="150" width="280" height="52" rx="8"/>
+<rect x="40" y="150" width="5" height="52" rx="2" fill="#7c3aed"/>
+<text x="56" y="172" class="ti">Hot path</text>
+<text x="56" y="189" class="su">pricing · risk · gateway</text>
+<rect class="box" x="332" y="150" width="286" height="52" rx="8"/>
+<rect x="332" y="150" width="5" height="52" rx="2" fill="#7c3aed"/>
+<text x="348" y="172" class="ti">Write path</text>
+<text x="348" y="189" class="su">admin · onboarding · edits</text>
+
+<!-- Core -->
+<text x="40" y="232" class="hd">C++ DOMAIN CORE — IN-MEMORY</text>
+<rect class="box" x="40" y="240" width="179" height="60" rx="8"/>
+<rect x="40" y="240" width="5" height="60" rx="2" fill="#2f80ed"/>
+<text x="56" y="266" class="ti">Composed Instrument</text>
+<text x="56" y="284" class="su">one type, axes combined</text>
+<rect class="box" x="239" y="240" width="179" height="60" rx="8"/>
+<rect x="239" y="240" width="5" height="60" rx="2" fill="#2f80ed"/>
+<text x="255" y="266" class="ti">PayoffForm behavior</text>
+<text x="255" y="284" class="su">dispatch on closed set</text>
+<rect class="box" x="438" y="240" width="179" height="60" rx="8"/>
+<rect x="438" y="240" width="5" height="60" rx="2" fill="#2f80ed"/>
+<text x="454" y="266" class="ti">Graph resolver</text>
+<text x="454" y="284" class="su">ultimate underlying</text>
+<rect class="box" x="40" y="308" width="179" height="60" rx="8"/>
+<rect x="40" y="308" width="5" height="60" rx="2" fill="#2f80ed"/>
+<text x="56" y="334" class="ti">Validation</text>
+<text x="56" y="352" class="su">conditional · cross-row</text>
+<rect class="box" x="239" y="308" width="179" height="60" rx="8"/>
+<rect x="239" y="308" width="5" height="60" rx="2" fill="#2f80ed"/>
+<text x="255" y="334" class="ti">Symbology</text>
+<text x="255" y="352" class="su">venue symbol ↔ id</text>
+<rect class="box" x="438" y="308" width="179" height="60" rx="8"/>
+<rect x="438" y="308" width="5" height="60" rx="2" fill="#2f80ed"/>
+<text x="454" y="334" class="ti">Indexes</text>
+<text x="454" y="352" class="su">id · symbol · family</text>
+
+<!-- DB -->
+<text x="40" y="398" class="hd">POSTGRES — SYSTEM OF RECORD</text>
+<rect class="box" x="40" y="406" width="179" height="60" rx="8"/>
+<rect x="40" y="406" width="5" height="60" rx="2" fill="#0d9488"/>
+<text x="56" y="432" class="ti">Classification</text>
+<text x="56" y="450" class="su">asset_classes · assets</text>
+<rect class="box" x="239" y="406" width="179" height="60" rx="8"/>
+<rect x="239" y="406" width="5" height="60" rx="2" fill="#0d9488"/>
+<text x="255" y="432" class="ti">Spine</text>
+<text x="255" y="450" class="su">types · families · instruments</text>
+<rect class="box" x="438" y="406" width="179" height="60" rx="8"/>
+<rect x="438" y="406" width="5" height="60" rx="2" fill="#0d9488"/>
+<text x="454" y="432" class="ti">Connective</text>
+<text x="454" y="450" class="su">graph · groups · risk · venues</text>
+
+<!-- flow arrows -->
+<line x1="345" y1="240" x2="345" y2="210" stroke="#2f80ed" stroke-width="2" marker-end="url(#ah)"/>
+<text x="352" y="226" class="lab" fill="#2f80ed">query</text>
+<line x1="345" y1="406" x2="345" y2="376" stroke="#2f80ed" stroke-width="2" marker-end="url(#ah)"/>
+<text x="352" y="392" class="lab" fill="#2f80ed">load snapshot</text>
+<line x1="630" y1="180" x2="630" y2="404" stroke="#7c3aed" stroke-width="2" stroke-dasharray="5 4" marker-end="url(#ahw)"/>
+<text x="630" y="150" class="lab" fill="#7c3aed" text-anchor="middle">write</text>
+
+<!-- legend -->
+<line x1="40" y1="494" x2="62" y2="494" stroke="#2f80ed" stroke-width="2"/>
+<text x="68" y="498" class="lg">read: load → query (hot path)</text>
+<line x1="270" y1="494" x2="292" y2="494" stroke="#7c3aed" stroke-width="2" stroke-dasharray="5 4"/>
+<text x="298" y="498" class="lg">write: validate → persist</text>
+<text x="617" y="498" class="lg" text-anchor="end">pricing → asset_pricer (downstream)</text>
+</svg>

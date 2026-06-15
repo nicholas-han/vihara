@@ -15,6 +15,9 @@ values
     ('ETH', 'CRYPTO', 'ETH', 'Ether', 'TRANSFERABLE')
 on conflict do nothing;
 
+-- instrument_type = payoff form only (how money moves). Curated, closed set.
+-- Variants (call/put, exercise style, cash/physical, dated/perpetual) are
+-- parameters on families/instruments, NOT separate types.
 insert into instrument_types (
     instrument_type_id,
     name,
@@ -23,13 +26,13 @@ insert into instrument_types (
     is_tradable_by_default
 )
 values
-    ('SPOT', 'Spot', 'Immediate exchange of base and quote assets', false, true),
-    ('INDEX', 'Index', 'Reference index or benchmark', false, false),
-    ('PERPETUAL', 'Perpetual', 'Perpetual derivative contract', true, true),
-    ('FUTURE', 'Future', 'Dated futures contract', true, true),
-    ('OPTION', 'Option', 'Option contract', true, true),
-    ('VAULT_SHARE', 'Vault Share', 'Share or unit in an investment vault', true, true),
-    ('PREDICTION_OUTCOME', 'Prediction Outcome', 'Outcome token or contract for an event market', true, true)
+    ('HOLDING', 'Holding', 'Direct holding of an asset (spot, cash position)', false, true),
+    ('LINEAR', 'Linear', 'Delta-one linear exposure (forward, future, perpetual)', true, true),
+    ('OPTION', 'Option', 'Convex payoff with exercise (call/put, any style)', true, true),
+    ('SWAP', 'Swap', 'Exchange of cash flows', true, true),
+    ('DIGITAL', 'Digital', 'Fixed payout on a condition (binary option, prediction outcome)', true, true),
+    ('CLAIM', 'Claim', 'Pro-rata claim on a pool or NAV (ETF, fund share, vault share)', true, true),
+    ('DEBT', 'Debt', 'Principal plus coupon (bond, note)', false, true)
 on conflict do nothing;
 
 insert into venues (venue_id, name, venue_type)
