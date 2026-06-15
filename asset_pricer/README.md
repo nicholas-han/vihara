@@ -16,6 +16,7 @@ instrument × engine design.
 | Lookback — fixed / floating strike | — | ✅ | — |
 | American call/put (early exercise) | — | — | ✅ |
 | Bermudan call/put (discrete exercise) | — | — | ✅ |
+| Variance swap (fair strike + seasoned MTM) | ✅ (replication) | ✅ | — |
 
 The Monte Carlo engine uses a single-factor GBM with antithetic variates, and a
 Brownian-bridge survival estimator for continuously-monitored barriers so a
@@ -51,6 +52,39 @@ analytic **SVI** smiles and **SSVI** surfaces with exact derivatives; calendar- 
 butterfly-arbitrage checks; and least-squares calibration of SVI (per expiry) and
 SSVI (whole surface) to market quotes via a dependency-free Nelder-Mead optimizer.
 
+**Variance swaps** (`asset_pricer::variance_swap`) are priced by static replication of the log
+contract (Demeterfi-Derman-Kamal-Zou 1999 / Carr-Madan), reading directly off the
+vol surface. The fair (annualized) variance is available four agreeing ways: a
+continuous Carr-Madan integral of the out-of-the-money option strip; a discrete
+VIX-style strip over either real market strikes (with the CBOE `(F/K₀−1)²`
+correction) or a standardized log-moneyness grid; a semi-analytic form intrinsic
+to the SVI/SSVI total-variance smile; and an independent Monte Carlo of realized
+variance (GBM, and Merton jump-diffusion to capture the jump variance the strip
+mis-hedges). The engines depend only on a `SmileFn` (strike → vol) seam, so any
+vol source plugs in via a small adapter, and a raw-quotes entry point prices with
+no vol model at all. Also provided: the realized-variance estimator (252, zero-mean,
+log returns), seasoned mark-to-market (fed either the price path or the accrued
+realized variance), bump-and-reval vega/skew risk, the replication-portfolio
+breakdown (GS Table 1), the DDKZ skew rules of thumb, and the single-jump
+replication P&L (GS EQ 40). The regression suite reproduces the DDKZ section-III
+example, including the VIX-strip ≤ fair value ≤ Appendix-A over-replication
+bracket.
+
+A few conventions are worth knowing when using the variance-swap module. The
+realized leg follows the standard **actual/expected** rule when
+`VarianceSwap::num_observations` (the scheduled return count N) is set: the
+price-path `variance_swap_value` then annualizes by the fixed N, so missed fixings
+don't inflate realized variance and settlement pays `(A/N)·Σrᵢ²`. Leave it 0 and the
+mark uses the observed return count with a uniform-spacing `t/T` split instead. Two
+simplifications remain. (1) The generic `realized_variance` estimator always annualizes
+by the *observed* return count — the actual/expected denominator is applied by the
+swap-aware mark-to-market, not the raw estimator — and the `variance_swap_value`
+overload fed a precomputed realized *number* (rather than the price path) can likewise
+only use the `t/T` time split. (2) The Monte Carlo standard error pools every path (and
+every antithetic partner) as if independent, so under antithetic sampling — on by
+default — the reported `std_error` ignores within-pair correlation and is an
+approximate (conservative) band, not an exact one.
+
 ## Layout
 
 Headers and their implementations sit side by side; the C++ namespace for each
@@ -60,12 +94,15 @@ pricing engine is shown in parentheses.
 src/
   core/distributions.hpp    normal pdf / cdf / inverse-cdf + seeded standard-normal generator
   core/black.hpp            Black-76 (lognormal-forward) price/d1d2 primitive (shared)
+  core/integration.hpp      adaptive Gauss-Kronrod quadrature (shared, dependency-free)
   core/optimization.hpp     Nelder-Mead minimizer (calibration / nonlinear LS)
-  core/option_family.hpp    OptionType, phi, AveragingType, option contract structs
+  core/option_family.hpp    OptionType, phi, AveragingType, option contract structs (incl. VarianceSwap)
   core/valuation.hpp        BsmInputs, BsmGreeks, BsmValuation
   pricing/black_scholes_merton.{hpp,cpp}           closed-form BSM engine   (asset_pricer::bsm)
   pricing/monte_carlo_simulation.{hpp,cpp}         Monte Carlo engine       (asset_pricer::mcs)
   pricing/partial_differential_equations.{hpp,cpp} 1D finite-diff PDE engine (asset_pricer::pde)
+  variance_swap/variance_swap.{hpp,cpp}            variance swap replication (asset_pricer::variance_swap)
+  variance_swap/variance_swap_mc.{hpp,cpp}         variance swap Monte Carlo (asset_pricer::variance_swap)
   analytics/pnl_attribution.{hpp,cpp}              Greeks-based P&L explain (asset_pricer::analytics)
   volatility/volatility_surface.{hpp,cpp}          implied-vol surface      (asset_pricer::volatility)
   volatility/svi.{hpp,cpp}                         SVI smile + SSVI surface (asset_pricer::volatility)
@@ -75,6 +112,7 @@ examples/
 tests/                      Google Test suites (incl. MC/PDE ↔ analytic cross-checks)
   test_helpers.hpp          shared helpers (e.g. EXPECT_WITHIN_SE for MC bands)
   test_math.cpp             normal distribution
+  test_integration.cpp      adaptive Gauss-Kronrod accuracy / error estimate
   test_vanilla.cpp          closed-form vanilla + implied vol + put-call parity + Vanna/Volga
   test_binary.cpp           digital-option identities + full Greeks (FD-checked)
   test_barrier.cpp          in/out parity + Haug reference values + discrete/BGK
@@ -87,6 +125,7 @@ tests/                      Google Test suites (incl. MC/PDE ↔ analytic cross-
   test_volatility_surface.cpp  surface interpolation + delta round-trip + no-arb checks
   test_svi.cpp              SVI/SSVI derivatives + Gatheral/G-J no-arbitrage conditions
   test_svi_calibration.cpp  SVI & SSVI refit a known smile/surface
+  test_variance_swap.cpp    replication engines agree + DDKZ §III bracket + realized var + MC + MTM
 ```
 
 ## Build & test
@@ -135,8 +174,11 @@ v1.15.2). To build without tests: `cmake -S . -B build -DASSET_PRICER_BUILD_TEST
 ## Roadmap
 
 - **Dupire local volatility** from the calibrated surface (the SVI/SSVI analytic
-  derivatives are already there), fed back into the PDE engine.
-- **Variance swaps** (static replication from the volatility surface's option strip).
+  derivatives are already there), fed back into the PDE engine — which would also
+  let the variance swap Monte Carlo simulate the skew directly (today it validates
+  the flat-vol and jump legs).
+- **Volatility swaps** (the convexity correction K_vol < √K_var) and capped
+  variance swaps, building on the variance swap core.
 - Closed forms for the exotics still priced only by MC: floating-strike Asian
   (Margrabe-style exchange formula) and lookbacks (Goldman-Sosin-Gatto).
 - Barrier Greeks (price only today); pathwise/bump Greeks in MC; read Greeks off
