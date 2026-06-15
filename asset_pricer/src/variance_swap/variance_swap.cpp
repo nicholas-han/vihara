@@ -2,7 +2,7 @@
  * @file  variance_swap.cpp
  * @brief Continuous (Carr-Madan) variance swap replication. See the header.
  */
-#include <pricing/variance_swap.hpp>
+#include <variance_swap/variance_swap.hpp>
 
 #include <core/black.hpp>
 #include <core/distributions.hpp>
@@ -14,7 +14,7 @@
 #include <stdexcept>
 #include <utility>
 
-namespace asset_pricer::vs {
+namespace asset_pricer::variance_swap {
 
 // ---------------------------------------------------------------------------
 // Smile adapters
@@ -341,6 +341,34 @@ double fair_variance_discrete_quotes(double forward, double time_to_expiry,
 // Seasoned mark-to-market
 // ---------------------------------------------------------------------------
 
+namespace {
+
+// Core seasoned-MTM assembly. `realized_share` is the realized leg's already-weighted
+// contribution to the full-life E_t[sigma_R^2]; `forward_weight` multiplies the fair
+// variance over the remaining period. The two callers differ only in how they form
+// those two weights (time fractions vs an observation schedule).
+VarianceSwapValue assemble_mtm(VarianceSwap const& swap, BsmInputs const& mkt,
+                               SmileFn const& smile_remaining, double time_elapsed,
+                               double realized_share, double forward_weight,
+                               ContinuousConfig const& cfg) {
+  const double T = swap.time_to_expiry;
+  const double tau = T - time_elapsed;  // remaining maturity
+  const double k_strike = swap.vol_strike * swap.vol_strike;
+
+  VarianceSwapValue out;
+  if (tau > 0.0) {
+    const double forward = bsm::forward_price(mkt, tau);
+    out.fair_variance_remaining = fair_variance_continuous(forward, tau, smile_remaining, cfg);
+  }
+  out.expected_variance = realized_share + forward_weight * out.fair_variance_remaining;
+
+  const double discount = std::exp(-mkt.risk_free_rate * tau);
+  out.value = variance_notional(swap) * discount * (out.expected_variance - k_strike);
+  return out;
+}
+
+}  // namespace
+
 VarianceSwapValue variance_swap_value(VarianceSwap const& swap, BsmInputs const& mkt,
                                       SmileFn const& smile_remaining, double time_elapsed,
                                       double realized_variance_so_far,
@@ -351,31 +379,43 @@ VarianceSwapValue variance_swap_value(VarianceSwap const& swap, BsmInputs const&
   if (!(realized_variance_so_far >= 0.0))
     throw std::invalid_argument("variance_swap_value: realized variance must be non-negative");
 
-  const double tau = T - time_elapsed;  // remaining maturity
-  const double k_strike = swap.vol_strike * swap.vol_strike;
-
-  VarianceSwapValue out;
-  if (tau > 0.0) {
-    const double forward = bsm::forward_price(mkt, tau);
-    out.fair_variance_remaining = fair_variance_continuous(forward, tau, smile_remaining, cfg);
-  }
-  // E_t[sigma_R^2] over the full life: realized part weighted by elapsed fraction,
-  // forward part by the remaining fraction.
-  out.expected_variance =
-      (time_elapsed / T) * realized_variance_so_far + (tau / T) * out.fair_variance_remaining;
-
-  const double discount = std::exp(-mkt.risk_free_rate * tau);
-  out.value = variance_notional(swap) * discount * (out.expected_variance - k_strike);
-  return out;
+  // Only an annualized realized number and the elapsed time are known here, so split
+  // the full-life expected variance by the elapsed time fraction t/T -- the uniform-
+  // observation-spacing approximation. The price-path overload below refines this to
+  // the exact actual/expected split when swap.num_observations is set.
+  const double tau = T - time_elapsed;
+  return assemble_mtm(swap, mkt, smile_remaining, time_elapsed,
+                      (time_elapsed / T) * realized_variance_so_far, tau / T, cfg);
 }
 
 VarianceSwapValue variance_swap_value(VarianceSwap const& swap, BsmInputs const& mkt,
                                       SmileFn const& smile_remaining, double time_elapsed,
                                       std::vector<double> const& observed_prices,
                                       ContinuousConfig const& cfg) {
-  const double realized = observed_prices.size() >= 2
-                              ? realized_variance(observed_prices, swap.annualization_factor)
-                              : 0.0;
+  const double T = swap.time_to_expiry;
+  const std::size_t n = observed_prices.size() >= 2 ? observed_prices.size() - 1 : 0;
+
+  // With a scheduled observation count N, annualize the realized leg by the FIXED
+  // actual/expected denominator (the standard variance-swap confirmation): missed
+  // fixings do not inflate it, and at settlement E_t[sigma_R^2] = (A / N) sum r_i^2.
+  // The realized leg contributes n/N of its elapsed-annualized value, and the forward
+  // leg carries the expected-remaining-observation weight A*tau/N. Both reduce to the
+  // time-fraction split when the schedule is uniform (N = A*T, n = A*t). Falls back to
+  // that split when no schedule is set (N == 0) or no returns are in yet.
+  if (swap.num_observations > 0 && n > 0) {
+    if (!(time_elapsed >= 0.0) || time_elapsed > T)
+      throw std::invalid_argument("variance_swap_value: time_elapsed must be in [0, T]");
+    const double N = static_cast<double>(swap.num_observations);
+    const double tau = T - time_elapsed;
+    const double realized_elapsed = realized_variance(observed_prices, swap.annualization_factor);
+    const double realized_share = (static_cast<double>(n) / N) * realized_elapsed;
+    const double forward_weight = swap.annualization_factor * tau / N;
+    return assemble_mtm(swap, mkt, smile_remaining, time_elapsed, realized_share, forward_weight,
+                        cfg);
+  }
+
+  const double realized =
+      n > 0 ? realized_variance(observed_prices, swap.annualization_factor) : 0.0;
   return variance_swap_value(swap, mkt, smile_remaining, time_elapsed, realized, cfg);
 }
 
@@ -428,4 +468,4 @@ double fair_variance_skew_linear_delta(double atm_vol, double skew_slope_b, doub
           (1.0 / 12.0) * b * b / (atm_vol * atm_vol));
 }
 
-}  // namespace asset_pricer::vs
+}  // namespace asset_pricer::variance_swap

@@ -14,14 +14,14 @@
  * Kept separate from the analytic pricer so the replication math and the
  * simulation harness stay decoupled.
  */
-#ifndef ASSET_PRICER_PRICING_VARIANCE_SWAP_MC_HPP
-#define ASSET_PRICER_PRICING_VARIANCE_SWAP_MC_HPP
+#ifndef ASSET_PRICER_VARIANCE_SWAP_VARIANCE_SWAP_MC_HPP
+#define ASSET_PRICER_VARIANCE_SWAP_VARIANCE_SWAP_MC_HPP
 
 #include <core/valuation.hpp>
 
 #include <cstdint>
 
-namespace asset_pricer::vs {
+namespace asset_pricer::variance_swap {
 
 /// Monte Carlo run configuration for variance swap simulation.
 struct VarianceMcConfig {
@@ -66,6 +66,6 @@ VarianceMcResult mc_fair_variance_merton(double time_to_expiry, BsmInputs const&
                                          MertonParams const& jumps, double annualization = 252.0,
                                          VarianceMcConfig const& cfg = {});
 
-}  // namespace asset_pricer::vs
+}  // namespace asset_pricer::variance_swap
 
-#endif  // ASSET_PRICER_PRICING_VARIANCE_SWAP_MC_HPP
+#endif  // ASSET_PRICER_VARIANCE_SWAP_VARIANCE_SWAP_MC_HPP

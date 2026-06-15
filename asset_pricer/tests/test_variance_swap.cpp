@@ -4,12 +4,12 @@
  *        (fair variance == sigma^2), the contract/adapter path, and that a
  *        skewed SVI smile lifts fair variance above the ATM level.
  */
-#include <pricing/variance_swap.hpp>
+#include <variance_swap/variance_swap.hpp>
 
 #include <core/black.hpp>
 #include <core/option_family.hpp>
 #include <core/valuation.hpp>
-#include <pricing/variance_swap_mc.hpp>
+#include <variance_swap/variance_swap_mc.hpp>
 #include <volatility/svi.hpp>
 
 #include <gtest/gtest.h>
@@ -19,7 +19,8 @@
 #include <vector>
 
 using namespace asset_pricer;
-using asset_pricer::vs::ContinuousConfig;
+namespace vs = asset_pricer::variance_swap;  // local brevity alias for the engine namespace
+using asset_pricer::variance_swap::ContinuousConfig;
 
 // The headline sanity check: in a flat-vol (Black-Scholes) world the log-contract
 // replication is exact, so fair variance collapses to sigma^2 at every maturity.
@@ -487,6 +488,39 @@ TEST(VarianceSwapMtm, PricePathMatchesRealizedInput) {
   const auto from_path = vs::variance_swap_value(swap, mkt, smile, t, path);
   const auto from_rv = vs::variance_swap_value(swap, mkt, smile, t, rv);
   EXPECT_NEAR(from_path.value, from_rv.value, 1e-9);
+}
+// A scheduled observation count fixes the realized-leg denominator (actual/expected):
+// missed fixings do not inflate realized variance, and settlement pays (A/N) sum r^2.
+TEST(VarianceSwapMtm, ExpectedObservationsSetsDenominator) {
+  const double A = 252.0, T = 1.0;
+  const BsmInputs mkt{100.0, 0.0, 0.0, 0.0};  // r = 0 -> no discount
+  auto smile = vs::constant_smile(0.20);
+
+  // 200 observed returns but 252 scheduled (52 missed fixings).
+  std::vector<double> path{100.0};
+  for (int i = 0; i < 200; ++i) path.push_back(path.back() * (i % 2 ? 1.01 : 0.992));
+  const std::size_t n = path.size() - 1;
+  const unsigned N = 252;
+
+  double sumsq = 0.0;
+  for (std::size_t i = 1; i <= n; ++i) {
+    const double r = std::log(path[i] / path[i - 1]);
+    sumsq += r * r;
+  }
+
+  // With the schedule set, settlement (t = T) annualizes by the fixed N.
+  VarianceSwap swap{/*K_vol*/ 0.20, /*vega*/ 1.0e6, T, /*annualization*/ A, /*num_observations*/ N};
+  const double settled = A / static_cast<double>(N) * sumsq;
+  const auto v = vs::variance_swap_value(swap, mkt, smile, /*t=*/T, path);
+  EXPECT_NEAR(v.expected_variance, settled, 1e-12);
+  EXPECT_NEAR(v.value, variance_notional(swap) * (settled - 0.20 * 0.20), 1e-3);
+
+  // Without a schedule (num_observations = 0) it annualizes by the 200 observed
+  // returns instead -- a strictly larger number (fewer in the denominator).
+  VarianceSwap no_schedule{0.20, 1.0e6, T, A, /*num_observations*/ 0};
+  const auto v0 = vs::variance_swap_value(no_schedule, mkt, smile, /*t=*/T, path);
+  EXPECT_NEAR(v0.expected_variance, A / static_cast<double>(n) * sumsq, 1e-12);
+  EXPECT_GT(v0.expected_variance, v.expected_variance);
 }
 
 TEST(VarianceSwapMtm, RejectsBadElapsed) {

@@ -165,15 +165,21 @@ struct LookbackOption {
 /// fixed leg K_var and receives the floating leg (realized variance):
 ///   payoff = variance_notional * (realized_variance - K_var).
 /// Realized variance is annualized, zero-mean, from log returns (see
-/// pricing/variance_swap.hpp for the estimator and conventions).
+/// variance_swap/variance_swap.hpp for the estimator and conventions).
 struct VarianceSwap {
   double vol_strike;       ///< K_vol, delivery vol in decimals (e.g. 0.20). K_var = K_vol^2.
   double vega_notional;    ///< size in currency per vol point (decimal vol units).
   double time_to_expiry;   ///< T, in years
   double annualization_factor = 252.0;  ///< trading days/year for realized variance
-  unsigned num_observations = 0;        ///< scheduled return observations over the life
-                                        ///< (the actual/expected denominator); 0 = use the
-                                        ///< observed count when settling/marking.
+  unsigned num_observations = 0;        ///< scheduled return observations over the life N (the
+                                        ///< actual/expected denominator). When > 0, the price-path
+                                        ///< variance_swap_value annualizes the realized leg by this
+                                        ///< fixed N, so missed fixings don't inflate it and settlement
+                                        ///< pays (A/N) sum r_i^2. 0 = use the observed return count
+                                        ///< (the uniform-spacing t/T approximation). Note the generic
+                                        ///< realized_variance() estimator always uses the observed
+                                        ///< count; the actual/expected convention is applied by the
+                                        ///< swap-aware mark-to-market, not the raw estimator.
 };
 
 /// Variance notional implied by a vega-notional quote: N_var = N_vega / (2 K_vol).

@@ -10,8 +10,8 @@
 #include <pricing/black_scholes_merton.hpp>
 #include <pricing/monte_carlo_simulation.hpp>
 #include <pricing/partial_differential_equations.hpp>
-#include <pricing/variance_swap.hpp>
-#include <pricing/variance_swap_mc.hpp>
+#include <variance_swap/variance_swap.hpp>
+#include <variance_swap/variance_swap_mc.hpp>
 
 #include <core/option_family.hpp>
 #include <core/valuation.hpp>
@@ -83,7 +83,7 @@ int main() {
   //    Four engines on a skewed (SVI) smile should agree, and the Monte Carlo of
   //    realized variance confirms the analytic fair variance.
   // ---------------------------------------------------------------------------
-  namespace vs = ap::vs;
+  namespace vs = ap::variance_swap;
   ap::BsmInputs vmkt{/*spot=*/100.0, /*r=*/0.05, /*q=*/0.0, /*vol=*/0.0 /*unused*/};
   const double T = 0.25;
   const double fwd = ap::bsm::forward_price(vmkt, T);
@@ -98,7 +98,7 @@ int main() {
   const double k_disc = vs::fair_variance_discrete(fwd, T, grid, smile);
   const double k_svi = vs::fair_variance_svi(smile_slice);
 
-  ap::vs::VarianceMcConfig mccfg;
+  ap::variance_swap::VarianceMcConfig mccfg;
   mccfg.num_paths = 200000;
   ap::BsmInputs mc_mkt{100.0, 0.05, 0.0, atm_vol};  // flat-ATM MC sanity leg -> sigma^2
   const auto k_mc = vs::mc_fair_variance_gbm(T, mc_mkt, 252.0, mccfg);
@@ -113,7 +113,7 @@ int main() {
 
   // Replication portfolio (GS Table 1): a handful of strikes near the money carry
   // almost all the cost.
-  auto legs = vs::replication_breakdown(fwd, T, ap::vs::make_moneyness_grid(fwd, 0.20, T, -2.0, 2.0, 0.5),
+  auto legs = vs::replication_breakdown(fwd, T, ap::variance_swap::make_moneyness_grid(fwd, 0.20, T, -2.0, 2.0, 0.5),
                                         smile);
   std::cout << "  replication strip (strike / type / vol / contribution):\n";
   for (auto const& leg : legs)

@@ -20,8 +20,8 @@
  * root is the fair vol. Realized-variance conventions (annualized, zero-mean,
  * log returns) live with the realized_variance estimator.
  */
-#ifndef ASSET_PRICER_PRICING_VARIANCE_SWAP_HPP
-#define ASSET_PRICER_PRICING_VARIANCE_SWAP_HPP
+#ifndef ASSET_PRICER_VARIANCE_SWAP_VARIANCE_SWAP_HPP
+#define ASSET_PRICER_VARIANCE_SWAP_VARIANCE_SWAP_HPP
 
 #include <core/option_family.hpp>
 #include <core/valuation.hpp>
@@ -31,7 +31,7 @@
 #include <functional>
 #include <vector>
 
-namespace asset_pricer::vs {
+namespace asset_pricer::variance_swap {
 
 // ---------------------------------------------------------------------------
 // The smile seam and its adapters
@@ -238,16 +238,29 @@ struct VarianceSwapValue {
 /// remaining maturity tau) and `mkt` (current spot, rates). The MTM to the long is
 ///   value = variance_notional * exp(-r tau) * (E_t[sigma_R^2] - K_vol^2).
 /// At t = 0 this is the fresh-swap value; at t = T it is the settlement amount.
-/// Assumes uniform observation spacing (t/T = fraction of fixings done). Throws
-/// std::invalid_argument for time_elapsed outside [0, T].
+/// This overload knows only the elapsed time, so it uses the time fraction t/T,
+/// which assumes uniform observation spacing; swap.num_observations is not consulted.
+/// The price-path overload below refines this to the exact actual/expected split when
+/// a schedule is set. Throws std::invalid_argument for time_elapsed outside [0, T].
 VarianceSwapValue variance_swap_value(VarianceSwap const& swap, BsmInputs const& mkt,
                                       SmileFn const& smile_remaining, double time_elapsed,
                                       double realized_variance_so_far,
                                       ContinuousConfig const& cfg = {});
 
-/// Same, with the realized leg given by the observed fixings S_0..S_n so far
-/// (annualized with the swap's own convention). Equivalent to calling the overload
-/// above with realized_variance(observed_prices, swap.annualization_factor).
+/// Same, with the realized leg given by the observed fixings S_0..S_n so far.
+///
+/// When swap.num_observations = N is set (> 0), the realized leg is annualized by the
+/// FIXED actual/expected denominator N rather than the observed return count -- the
+/// standard variance-swap confirmation convention, under which missed fixings do not
+/// inflate realized variance and settlement (t = T) returns (A / N) * sum r_i^2. The
+/// full-life expectation becomes
+///
+///   E_t[sigma_R^2] = (n / N) * realized_elapsed + (A * tau / N) * K_var(t, T),
+///
+/// with n the observed returns and A the annualization factor; this reduces to the
+/// t/T split when the schedule is uniform (N = A*T). When num_observations = 0 it is
+/// exactly the overload above with realized_variance(observed_prices,
+/// swap.annualization_factor).
 VarianceSwapValue variance_swap_value(VarianceSwap const& swap, BsmInputs const& mkt,
                                       SmileFn const& smile_remaining, double time_elapsed,
                                       std::vector<double> const& observed_prices,
@@ -290,6 +303,6 @@ double fair_variance_skew_linear_strike(double atmf_vol, double skew_slope_b, do
 ///   K_var ~ Sigma0^2 (1 + (1/sqrt(pi)) b sqrt(T) + (1/12) b^2 / Sigma0^2).
 double fair_variance_skew_linear_delta(double atm_vol, double skew_slope_b, double T);
 
-}  // namespace asset_pricer::vs
+}  // namespace asset_pricer::variance_swap
 
-#endif  // ASSET_PRICER_PRICING_VARIANCE_SWAP_HPP
+#endif  // ASSET_PRICER_VARIANCE_SWAP_VARIANCE_SWAP_HPP

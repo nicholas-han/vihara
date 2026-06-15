@@ -2,19 +2,25 @@
  * @file  variance_swap_mc.cpp
  * @brief Monte Carlo fair variance under GBM and Merton jump-diffusion.
  */
-#include <pricing/variance_swap_mc.hpp>
+#include <variance_swap/variance_swap_mc.hpp>
 
 #include <cmath>
 #include <random>
 #include <stdexcept>
 #include <vector>
 
-namespace asset_pricer::vs {
+namespace asset_pricer::variance_swap {
 
 namespace {
 
 // Welford online accumulator for the mean and standard error of per-path
 // realized variance.
+//
+// Caveat: std_error() treats every added sample as independent. With antithetic
+// sampling on (the default), a path and its negated partner are negatively
+// correlated, so the true standard error of the mean is smaller than this pooled
+// estimate -- the reported band is approximate (conservative), not exact. The
+// mean itself is unbiased regardless.
 struct Accumulator {
   double mean = 0.0;
   double m2 = 0.0;
@@ -133,4 +139,4 @@ VarianceMcResult mc_fair_variance_merton(double time_to_expiry, BsmInputs const&
   return {acc.mean, acc.std_error(), m};
 }
 
-}  // namespace asset_pricer::vs
+}  // namespace asset_pricer::variance_swap

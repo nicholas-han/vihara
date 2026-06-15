@@ -52,7 +52,7 @@ analytic **SVI** smiles and **SSVI** surfaces with exact derivatives; calendar- 
 butterfly-arbitrage checks; and least-squares calibration of SVI (per expiry) and
 SSVI (whole surface) to market quotes via a dependency-free Nelder-Mead optimizer.
 
-**Variance swaps** (`asset_pricer::vs`) are priced by static replication of the log
+**Variance swaps** (`asset_pricer::variance_swap`) are priced by static replication of the log
 contract (Demeterfi-Derman-Kamal-Zou 1999 / Carr-Madan), reading directly off the
 vol surface. The fair (annualized) variance is available four agreeing ways: a
 continuous Carr-Madan integral of the out-of-the-money option strip; a discrete
@@ -70,6 +70,21 @@ replication P&L (GS EQ 40). The regression suite reproduces the DDKZ section-III
 example, including the VIX-strip ≤ fair value ≤ Appendix-A over-replication
 bracket.
 
+A few conventions are worth knowing when using the variance-swap module. The
+realized leg follows the standard **actual/expected** rule when
+`VarianceSwap::num_observations` (the scheduled return count N) is set: the
+price-path `variance_swap_value` then annualizes by the fixed N, so missed fixings
+don't inflate realized variance and settlement pays `(A/N)·Σrᵢ²`. Leave it 0 and the
+mark uses the observed return count with a uniform-spacing `t/T` split instead. Two
+simplifications remain. (1) The generic `realized_variance` estimator always annualizes
+by the *observed* return count — the actual/expected denominator is applied by the
+swap-aware mark-to-market, not the raw estimator — and the `variance_swap_value`
+overload fed a precomputed realized *number* (rather than the price path) can likewise
+only use the `t/T` time split. (2) The Monte Carlo standard error pools every path (and
+every antithetic partner) as if independent, so under antithetic sampling — on by
+default — the reported `std_error` ignores within-pair correlation and is an
+approximate (conservative) band, not an exact one.
+
 ## Layout
 
 Headers and their implementations sit side by side; the C++ namespace for each
@@ -86,8 +101,8 @@ src/
   pricing/black_scholes_merton.{hpp,cpp}           closed-form BSM engine   (asset_pricer::bsm)
   pricing/monte_carlo_simulation.{hpp,cpp}         Monte Carlo engine       (asset_pricer::mcs)
   pricing/partial_differential_equations.{hpp,cpp} 1D finite-diff PDE engine (asset_pricer::pde)
-  pricing/variance_swap.{hpp,cpp}                  variance swap replication (asset_pricer::vs)
-  pricing/variance_swap_mc.{hpp,cpp}               variance swap Monte Carlo (asset_pricer::vs)
+  variance_swap/variance_swap.{hpp,cpp}            variance swap replication (asset_pricer::variance_swap)
+  variance_swap/variance_swap_mc.{hpp,cpp}         variance swap Monte Carlo (asset_pricer::variance_swap)
   analytics/pnl_attribution.{hpp,cpp}              Greeks-based P&L explain (asset_pricer::analytics)
   volatility/volatility_surface.{hpp,cpp}          implied-vol surface      (asset_pricer::volatility)
   volatility/svi.{hpp,cpp}                         SVI smile + SSVI surface (asset_pricer::volatility)

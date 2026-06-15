@@ -12,7 +12,7 @@
  * estimate and the embedded 7-point Gauss estimate share nodes, so their
  * difference is a cheap, reliable error indicator. This is the same rule used by
  * QUADPACK's QAG and is well suited to the option-strip integrals the variance
- * swap pricer builds on top of it (see pricing/variance_swap).
+ * swap pricer builds on top of it (see variance_swap/variance_swap).
  */
 #ifndef ASSET_PRICER_CORE_INTEGRATION_HPP
 #define ASSET_PRICER_CORE_INTEGRATION_HPP

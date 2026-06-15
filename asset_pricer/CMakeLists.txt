@@ -14,8 +14,8 @@ add_library(asset_pricer
   src/pricing/black_scholes_merton.cpp
   src/pricing/monte_carlo_simulation.cpp
   src/pricing/partial_differential_equations.cpp
-  src/pricing/variance_swap.cpp
-  src/pricing/variance_swap_mc.cpp
+  src/variance_swap/variance_swap.cpp
+  src/variance_swap/variance_swap_mc.cpp
   src/analytics/pnl_attribution.cpp
   src/volatility/volatility_surface.cpp
   src/volatility/svi.cpp
