@@ -21,3 +21,14 @@ historical data, with risk, performance, and factor analytics.
 ### barometer
 The web-facing backend: dashboards and views over the other modules, plus the
 administration system that ties them together.
+
+
+## License  
+  
+This project is source-available under the Business Source License (BSL) 1.1.  
+  
+Non-commercial use is permitted.  
+  
+Commercial use (including trading systems, exchanges, market-making, brokerages, financial infrastructure, and hosted services) requires explicit permission.  
+  
+See LICENSE for details.
