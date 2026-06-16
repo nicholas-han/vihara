@@ -54,13 +54,17 @@ if(ASSET_PRICER_BUILD_TESTS)
     add_executable(${name} tests/${name}.cpp)
     target_link_libraries(${name} PRIVATE asset_pricer GTest::gtest_main)
     target_include_directories(${name} PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/tests)
-    gtest_discover_tests(${name})
+    # Discover at test time, not build time, and allow a generous launch budget:
+    # on macOS a freshly-linked binary's first exec can stall past the 5s default
+    # while Gatekeeper/codesign verifies it, which would otherwise fail the build.
+    gtest_discover_tests(${name} DISCOVERY_MODE PRE_TEST DISCOVERY_TIMEOUT 120)
   endfunction()
 
   asset_pricer_add_test(test_math)
   asset_pricer_add_test(test_integration)
   asset_pricer_add_test(test_variance_swap)
   asset_pricer_add_test(test_vanilla)
+  asset_pricer_add_test(test_forward)
   asset_pricer_add_test(test_binary)
   asset_pricer_add_test(test_barrier)
   asset_pricer_add_test(test_mc)

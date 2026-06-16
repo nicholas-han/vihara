@@ -187,6 +187,28 @@ inline constexpr double variance_notional(VarianceSwap const& s) {
   return s.vega_notional / (2.0 * s.vol_strike);
 }
 
+// ---------------------------------------------------------------------------
+// Forward / future (delta-one)
+// ---------------------------------------------------------------------------
+
+/// A delta-one contract on the underlying: long the underlying forward at a fixed
+/// contract level K, settled in time_to_expiry years, scaled by a contract
+/// multiplier. Its value is linear in the spot, so gamma and vega are exactly
+/// zero. The lognormal core only enters through the carry that builds the forward
+/// F = S * e^{(r-q)T}; the payoff itself has no optionality.
+///
+/// Covers the linear product class: spot (T = 0, K = 0, multiplier = 1), dated
+/// futures and FX forwards (T from expiry), index futures (multiplier = 50, 250,
+/// ...), and the perpetual / future limit T = 0 (the contract is a pure mark of
+/// the prevailing forward, which at T = 0 is the spot). Inverse (coin-margined)
+/// quote conventions are NOT modeled here -- AP prices the linear forward and the
+/// caller applies any 1/S transform. This is the first non-option contract in AP.
+struct ForwardContract {
+  double strike;          ///< K, the contract/entry level (0 for a pure mark)
+  double time_to_expiry;  ///< T, in years (0 for a perpetual or a fresh future)
+  double multiplier = 1.0;  ///< contract multiplier (ES = 50, SP = 250, 1.0 for spot)
+};
+
 }  // namespace asset_pricer
 
 #endif  // ASSET_PRICER_CORE_OPTION_FAMILY_HPP
