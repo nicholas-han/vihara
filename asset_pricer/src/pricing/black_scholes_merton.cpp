@@ -20,6 +20,30 @@ double forward_price(BsmInputs const& mkt, double time_to_expiry) {
   return mkt.spot_price * std::exp((mkt.risk_free_rate - mkt.dividend_yield) * time_to_expiry);
 }
 
+BsmValuation price_forward(ForwardContract const& fwd, BsmInputs const& mkt) {
+  if (fwd.time_to_expiry < 0.0)
+    throw std::invalid_argument("price_forward: time to expiry must be non-negative");
+
+  const double T = fwd.time_to_expiry;
+  const double m = fwd.multiplier;
+  const double df = std::exp(-mkt.risk_free_rate * T);   // discount factor e^{-rT}
+  const double qf = std::exp(-mkt.dividend_yield * T);   // dividend factor e^{-qT}
+  const double F = forward_price(mkt, T);                // S * e^{(r-q)T}
+
+  BsmValuation res{};
+  // value = m * (F - K) * e^{-rT}; at T = 0 this is m * (S - K).
+  res.price = m * (F - fwd.strike) * df;
+  // delta = d(value)/dS = m * e^{(r-q)T} * e^{-rT} = m * e^{-qT}.
+  res.greeks.delta = m * qf;
+  // theta = d(value)/dt = -d(value)/dT. With value = m*(S*e^{-qT} - K*e^{-rT}):
+  //   d(value)/dT = m*(-q*S*e^{-qT} + r*K*e^{-rT}), so theta is its negation.
+  res.greeks.theta = m * (mkt.dividend_yield * mkt.spot_price * qf
+                          - mkt.risk_free_rate * fwd.strike * df);
+  // gamma, vega, rho, vanna, volga remain zero: the payoff is linear in S and
+  // carries no volatility dependence.
+  return res;
+}
+
 BsmValuation price_vanilla(VanillaOption const& opt, BsmInputs const& mkt) {
   if (opt.strike <= 0.0)
     throw std::invalid_argument("price_vanilla: strike must be positive");

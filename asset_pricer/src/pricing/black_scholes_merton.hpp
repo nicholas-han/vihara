@@ -13,6 +13,15 @@ namespace asset_pricer::bsm {
 /// Forward price of the underlying: F = S0 * exp((r - q) * T).
 double forward_price(BsmInputs const& mkt, double time_to_expiry);
 
+/// Present value and Greeks of a delta-one forward/future contract:
+///   value = multiplier * (S * e^{(r-q)T} - K) * e^{-rT}
+///   delta = multiplier * e^{-qT}      (= d(value)/dS)
+///   gamma = vega = 0                  (the payoff is linear in S)
+/// At T = 0 this collapses to multiplier * (S - K): a pure mark of the spot. The
+/// payoff has no optionality, so theta is the pure carry/discount drift and rho,
+/// vanna, volga are left at zero (no vol enters). Negative T is rejected.
+BsmValuation price_forward(ForwardContract const& fwd, BsmInputs const& mkt);
+
 /// Price and Greeks of a European vanilla option under Black-Scholes-Merton.
 BsmValuation price_vanilla(VanillaOption const& opt, BsmInputs const& mkt);
 
