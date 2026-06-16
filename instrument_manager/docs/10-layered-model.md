@@ -1,4 +1,4 @@
-# Layered model
+# Layered Model
 
 This is the first document a new `instrument_manager` engineer should read. It explains the single most important idea in v2: **an instrument is not one thing — it is a stack of four layers**, plus two cross-cutting concerns that thread through all of them. Everything else in the module (the payout-leg catalog, the persistence shape, the projection to `asset_pricer`, the symbology generator, the lifecycle spine) is an elaboration of one of these layers or one of these cross-cutting lines. If you hold this model in your head, the rest of the design reads as detail.
 
@@ -86,16 +86,15 @@ The confirmed carrier is a **strongly-typed payout composition** (ADR-2): CDM-in
 
 ```cpp
 struct Product {
-  std::string id;                                  // opaque, stable; v1 instrument_id philosophy
+  std::string id;     // opaque, stable; v1 instrument_id philosophy
   std::string name;
-  Lifecycle lifecycle_class = Lifecycle::Dated;    // PRODUCT-level termination rule
-  std::string expiration;                          // ISO8601 when Dated
+  Lifecycle lifecycle_class = Lifecycle::Dated; // PRODUCT-level termination rule
+  std::string expiration;     // ISO8601 when Dated
   Ref quote_asset;
-  Ref settlement;                                  // Observable | Product (nesting) | None
-  std::vector<ProductLeg> legs;                    // >= 1
+  Ref settlement;     // Observable | Product (nesting) | None
+  std::vector<ProductLeg> legs;     // >= 1
   std::vector<CompositionConstraint> constraints;
-  std::map<std::string, std::string> metadata;
-  // classification is NOT stored here as input — it is derived (L3).
+  std::map<std::string, std::string> metadata;     // classification is NOT stored here as input — it is derived (L3).
 };
 ```
 
