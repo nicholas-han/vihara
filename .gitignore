@@ -3,6 +3,19 @@ build/
 *.o
 *.a
 
+# --- python ---
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.venv/
+venv/
+.ipynb_checkpoints/
+
+# --- raw data (keep out of VCS) ---
+strategies/iv_rv_arb/data/*.csv
+strategies/iv_rv_arb/data/chains/
+
 # --- editor / OS cruft ---
 .DS_Store
 .obsidian/

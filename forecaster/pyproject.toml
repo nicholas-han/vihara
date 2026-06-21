@@ -1,0 +1,21 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "forecaster"
+version = "0.0.1"
+description = "Quant-research model library: econometrics, time-series, ML/DL/RL behind one fit/predict interface, with leakage-safe validation."
+requires-python = ">=3.11"
+dependencies = ["numpy>=1.24"]
+
+[project.optional-dependencies]
+# Heavy deps are opt-in so econometrics/ml users never pull torch (ADR-6).
+econometrics = ["arch>=6.0", "statsmodels>=0.14"]
+ml = ["scikit-learn>=1.3"]
+dl = ["torch>=2.1"]
+rl = ["torch>=2.1", "gymnasium>=0.29"]
+dev = ["pytest>=7.4"]
+
+[tool.setuptools.packages.find]
+include = ["forecaster*"]
