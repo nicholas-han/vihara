@@ -14,7 +14,8 @@ The platform is organized into three layers.
 |---|---|---|
 | `asset_pricer` | State prices and derivatives pricing: closed-form (BSM), Monte Carlo, and PDE engines, with Greeks, implied volatility, and an implied-vol surface (SVI/SSVI). Dependency-free C++17. | built |
 | `instrument_manager` | Static / reference data and layered instrument definitions — the contracts, observables, and identifiers everything else prices, trades, and reports against. | in design (v2) |
-| `portfolio_manager` | Portfolio backtesting and financial econometrics: strategy simulation over historical data, with risk, performance, and factor analytics. | planned |
+| `portfolio_manager` | Backtesting and runtime: one engine drives a strategy over historical or live data via swappable clock / data / execution adapters (backtest-live parity), with portfolio accounting, risk, performance, and factor analytics. | in progress (`vol-arb-v1`) |
+| `forecaster` | Quant-research model library: econometrics, time-series, and ML / DL / RL behind one fit/predict interface, with leakage-safe validation (purged / embargoed CV). Feeds forecasts to strategies and the backtester. | in progress (`vol-arb-v1`) |
 | `plumber` | Infrastructure and data pipelines. | planned |
 | `ledger` | Accounting. | planned |
 | `matching_engine` | Order matching. | planned |
@@ -29,7 +30,7 @@ The packaged offerings exposed to end users (exchange / broker products). To be 
 
 ### Project layer — business initiatives on top of the stack
 
-- Trading strategy: implied-vs-realized volatility statistical arbitrage
+- Trading strategy: implied-vs-realized volatility statistical arbitrage (`strategies/iv_rv_arb`, in progress on `vol-arb-v1`)
 - Broker: Hyperliquid Builder
 - Fund: Hyperliquid Vault
 - TradFi
@@ -40,8 +41,9 @@ The packaged offerings exposed to end users (exchange / broker products). To be 
 ---
 
 This map merges the original system sketch with the modules as they stand today;
-`asset_pricer` is built and `instrument_manager` is in design (v2), the rest are
-planned. Adjust the module set and naming as the platform settles.
+`asset_pricer` is built, `instrument_manager` is in design (v2), and `portfolio_manager`
++ `forecaster` are under active build via the IV-vs-RV vertical slice (`vol-arb-v1`); the
+rest are planned. Adjust the module set and naming as the platform settles.
 
 ## License  
   
