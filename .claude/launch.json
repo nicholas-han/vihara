@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "records-web",
+      "runtimeExecutable": "python3",
+      "runtimeArgs": ["portfolio_manager/scripts/run_records_web.py", "--port", "8642"],
+      "port": 8642
+    }
+  ]
+}

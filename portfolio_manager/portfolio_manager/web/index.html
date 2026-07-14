@@ -1,0 +1,105 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Portfolio Manager</title>
+    <link rel="stylesheet" href="/static/styles.css" />
+  </head>
+  <body>
+    <main class="shell">
+      <header class="toolbar">
+        <div>
+          <h1>Portfolio Manager</h1>
+          <p>Multi-account equity holdings monitor</p>
+        </div>
+        <form id="filters" class="filters">
+          <div class="field">
+            <span>账户</span>
+            <details class="account-picker">
+              <summary id="account-summary">全部账户</summary>
+              <div class="account-menu">
+                <label class="account-option pinned">
+                  <input id="all-accounts" type="checkbox" checked />
+                  <span>全部账户</span>
+                </label>
+                <label class="account-option">
+                  <input id="exclude-accounts" type="checkbox" />
+                  <span>Excluding selected accounts</span>
+                </label>
+                <div id="account-options"></div>
+              </div>
+            </details>
+          </div>
+          <label class="field">
+            成本算法
+            <select id="cost-method">
+              <option value="average">均价</option>
+              <option value="fifo">FIFO</option>
+              <option value="lifo">LIFO</option>
+              <option value="lowest_cost_first">最低买入价优先卖出</option>
+            </select>
+          </label>
+          <label class="field">
+            导入交易 CSV
+            <input id="import-file" type="file" accept=".csv,text/csv" />
+          </label>
+        </form>
+      </header>
+
+      <div id="import-status" class="banner import-banner" hidden></div>
+      <div id="reconcile-banner" class="banner warn-banner" hidden></div>
+
+      <section class="metrics" aria-label="portfolio summary">
+        <div class="metric">
+          <span>Holdings</span>
+          <strong id="metric-holdings">-</strong>
+        </div>
+        <div class="metric">
+          <span>总成本 (USD)</span>
+          <strong id="metric-cost">-</strong>
+        </div>
+        <div class="metric">
+          <span>已实现盈亏 (USD)</span>
+          <strong id="metric-realized">-</strong>
+        </div>
+        <div class="metric">
+          <span>累计实收分红 (USD)</span>
+          <strong id="metric-dividends">-</strong>
+        </div>
+      </section>
+
+      <section class="table-panel">
+        <div class="panel-head">
+          <div>
+            <h2>Holdings</h2>
+            <p id="panel-subtitle">Loading portfolio records...</p>
+          </div>
+        </div>
+        <table>
+          <thead>
+            <tr>
+              <th>账户</th>
+              <th>市场</th>
+              <th>代码</th>
+              <th>名称</th>
+              <th>持仓数量</th>
+              <th>均价</th>
+              <th>已实现盈亏</th>
+              <th>实收分红</th>
+              <th>每股分红</th>
+              <th>EPS</th>
+              <th>来源</th>
+            </tr>
+          </thead>
+          <tbody id="holdings-body">
+            <tr>
+              <td colspan="11" class="empty">Loading...</td>
+            </tr>
+          </tbody>
+        </table>
+      </section>
+    </main>
+    <script src="/static/app.js"></script>
+  </body>
+</html>
