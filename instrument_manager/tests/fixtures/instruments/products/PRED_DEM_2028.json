@@ -1,0 +1,30 @@
+{
+  "id": "PRED_DEM_2028",
+  "legs": [
+    {
+      "kind": "DIGITAL",
+      "leg_id": "dig",
+      "params": {
+        "cash_amount": 1.0,
+        "outcome_code": "DEM",
+        "payoff": "CASH",
+        "quote_ccy": {
+          "observable": "USDC"
+        },
+        "trigger": "EVENT_RESOLVES",
+        "underlier": {
+          "observable": "EVT_US_PRES_2028"
+        }
+      }
+    }
+  ],
+  "lifecycle_class": "EVENT_RESOLVED",
+  "metadata": {
+    "partition_group_id": "PARTITION_US_PRES_2028"
+  },
+  "name": "Democratic win 2028 (prediction)",
+  "quote_asset": {
+    "observable": "USDC"
+  },
+  "schema_version": 1
+}

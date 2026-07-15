@@ -1,0 +1,8 @@
+{
+  "id": "BTC_SPOT.BINANCE",
+  "product_id": "BTC_SPOT",
+  "schema_version": 1,
+  "venue_id": "BINANCE",
+  "venue_segment": "SPOT",
+  "venue_symbol": "BTCUSDT"
+}

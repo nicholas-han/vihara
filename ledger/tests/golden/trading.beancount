@@ -1,0 +1,35 @@
+option "title" "Golden: securities at cost (STRICT/FIFO lots)"
+option "operating_currency" "USD"
+
+2026-01-01 open Equity:Opening
+2026-01-01 open Assets:Broker:IBKR:Cash USD
+2026-01-01 open Assets:Broker:IBKR:Positions "FIFO"
+2026-01-01 open Income:PnL:Realized:IBKR USD
+2026-01-01 open Income:Dividends:IBKR USD
+2026-01-01 open Expenses:Tax:Withholding USD
+
+2026-01-01 commodity US.AAPL
+  instrument_id: "AAPL.US"
+
+2026-03-01 * "fund the account"
+  Assets:Broker:IBKR:Cash  2000.00 USD
+  Equity:Opening  -2000.00 USD
+
+2026-03-02 * "buy 10 AAPL @ 175.00, fee 1.00" ^t.IBKR-1
+  trade_id: "IBKR-1"
+  Assets:Broker:IBKR:Positions  10 US.AAPL {{1751.00 USD, 2026-03-02, "t:IBKR-1"}}
+  Assets:Broker:IBKR:Cash  -1751.00 USD
+
+2026-03-20 * "AAPL dividend, net of withholding"
+  Assets:Broker:IBKR:Cash  8.50 USD
+  Expenses:Tax:Withholding  1.50 USD
+  Income:Dividends:IBKR  -10.00 USD
+
+2026-04-01 * "sell 4 AAPL @ 180.00, fee 1.00" ^t.IBKR-2
+  trade_id: "IBKR-2"
+  Assets:Broker:IBKR:Positions  -4 US.AAPL {2026-03-02, "t:IBKR-1"} @ 180.00 USD
+  Assets:Broker:IBKR:Cash  719.00 USD
+  Income:PnL:Realized:IBKR  -18.60 USD
+
+2026-05-01 balance Assets:Broker:IBKR:Positions 6 US.AAPL
+2026-05-01 balance Assets:Broker:IBKR:Cash 976.50 USD

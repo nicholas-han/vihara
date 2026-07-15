@@ -1,0 +1,7 @@
+{
+  "code": "SPX",
+  "id": "SPX_INDEX",
+  "kind": "REFERENCE",
+  "name": "S&P 500 Index",
+  "schema_version": 1
+}

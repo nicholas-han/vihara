@@ -1,0 +1,16 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "ledger"
+version = "0.0.1"
+description = "Double-entry bookkeeping over a beancount-compatible plain-text journal; text is the source of truth, SQLite is a derived index."
+requires-python = ">=3.11"
+dependencies = []
+
+[project.optional-dependencies]
+dev = ["pytest>=7.4", "beancount>=2.3,<3"]
+
+[tool.setuptools.packages.find]
+include = ["ledger*"]

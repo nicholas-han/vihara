@@ -1,0 +1,51 @@
+option "title" "Golden: everyday bookkeeping"
+option "operating_currency" "USD"
+option "operating_currency" "HKD"
+
+; Chart of accounts used by this file.
+2026-01-01 open Assets:Cash:Wallet HKD
+2026-01-01 open Assets:Bank:BOA:Checking USD
+2026-01-01 open Liabilities:CreditCard:Amex USD
+2026-01-01 open Equity:Opening
+2026-01-01 open Income:Salary:Acme USD
+2026-01-01 open Expenses:Food
+2026-01-01 open Expenses:Transport
+
+2026-01-01 commodity USD
+  name: "US Dollar"
+2026-01-01 commodity HKD
+
+2026-01-01 * "Opening balances"
+  Assets:Bank:BOA:Checking  2500.00 USD
+  Assets:Cash:Wallet  800.00 HKD
+  Equity:Opening  -2500.00 USD
+  Equity:Opening  -800.00 HKD
+
+2026-01-05 * "Acme Corp" "January salary" #salary
+  Assets:Bank:BOA:Checking  5000.00 USD
+  Income:Salary:Acme
+
+2026-01-07 * "Great Noodle" "dinner" #food ^trip-hk
+  note-to-self: "cash only place"
+  Expenses:Food  120.00 HKD
+  Assets:Cash:Wallet
+
+2026-01-12 ! "Amex" "groceries, pending confirmation"
+  Expenses:Food  86.40 USD
+  Liabilities:CreditCard:Amex  -86.40 USD
+
+2026-01-15 * "taxi to airport" #transport
+  Expenses:Transport  95.00 HKD
+  Assets:Cash:Wallet  -95.00 HKD
+
+2026-01-20 * "FX: bank converts USD to HKD"
+  Assets:Cash:Wallet  780.00 HKD @@ 100.00 USD
+  Assets:Bank:BOA:Checking  -100.00 USD
+
+2026-01-31 price HKD 0.1282 USD
+
+2026-02-01 balance Assets:Bank:BOA:Checking 7400.00 USD
+2026-02-01 balance Assets:Cash:Wallet 1365.00 HKD
+
+2026-02-02 note Assets:Bank:BOA:Checking "statement January reconciled"
+2026-02-02 document Assets:Bank:BOA:Checking "statements/boa/2026/2026-01.pdf"

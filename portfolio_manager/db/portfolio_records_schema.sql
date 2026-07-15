@@ -107,6 +107,7 @@ create table if not exists dividend_payments (
     currency text not null,
     withholding_tax text not null default '0',
     external_id text,              -- broker payment id; dedup key when present
+    row_hash text,                 -- canonical row hash; dedup key when no external id
     notes text,
     foreign key (account_id) references accounts(account_id)
 );
@@ -115,6 +116,45 @@ create index if not exists idx_dividend_payments_account
     on dividend_payments(account_id, instrument_id, pay_date);
 create unique index if not exists uq_dividend_payments_external_id
     on dividend_payments(account_id, external_id) where external_id is not null;
+create unique index if not exists uq_dividend_payments_row_hash
+    on dividend_payments(account_id, row_hash) where row_hash is not null;
+
+-- Cash movements that are not trades or dividends: deposits, withdrawals,
+-- transfers, standalone fees, interest. `amount` is SIGNED: positive means
+-- cash into the account. `counter_account` names the other double-entry leg
+-- (a ledger account) for the ledger bridge; defaults there to
+-- Equity:Uncategorized when absent.
+create table if not exists cashflows (
+    cashflow_id integer primary key autoincrement,
+    account_id text not null,
+    flow_date text not null,
+    type text not null check (type in
+        ('deposit','withdrawal','transfer','fee','interest','adjustment')),
+    amount text not null,
+    currency text not null,
+    counter_account text,
+    external_id text,              -- broker/bank id; dedup key when present
+    row_hash text,                 -- canonical row hash; dedup key when no external id
+    notes text,
+    foreign key (account_id) references accounts(account_id)
+);
+
+create index if not exists idx_cashflows_account on cashflows(account_id, flow_date);
+create unique index if not exists uq_cashflows_external_id
+    on cashflows(account_id, external_id) where external_id is not null;
+create unique index if not exists uq_cashflows_row_hash
+    on cashflows(account_id, row_hash) where row_hash is not null;
+
+-- Broker-statement cash balances; reconciliation input only (the cash
+-- analogue of 'checkpoint' position_snapshots), never a balance source.
+create table if not exists cash_checkpoints (
+    account_id text not null,
+    as_of text not null,
+    currency text not null,
+    balance text not null,
+    primary key (account_id, as_of, currency),
+    foreign key (account_id) references accounts(account_id)
+);
 
 create table if not exists fx_rates (
     base_currency text not null,

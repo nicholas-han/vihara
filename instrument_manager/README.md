@@ -2,7 +2,7 @@
 
 The static-data / reference-data core of an everything exchange / everything broker: one coherent model for every tradable financial product (securities and derivatives) and every priced-but-not-tradable observable (index, rate, event, volatility).
 
-**Status:** design phase. This branch (`instrument-manager-v2`) currently holds the design only — no implementation yet. v2 is a fresh build that carries over v1's good bones and reorganizes them; the `instrument-manager-v1` branch is archived.
+**Status:** v3 in progress. The P0 C++ core is implemented (core/classify/validation/registry/symbology/projection + pybind), and persistence has pivoted to per-entity JSON files + a derived SQLite index (ADR-24/25, `docs/75-file-persistence.md`); the PostgreSQL schema remains as documentation. v2 carried over v1's good bones; `instrument-manager-v1` is archived.
 
 ## The core idea
 

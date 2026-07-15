@@ -1,0 +1,24 @@
+{
+  "expiration": "2026-12-18",
+  "id": "SPX_CALL_20261218_6000",
+  "legs": [
+    {
+      "kind": "OPTION",
+      "leg_id": "opt",
+      "params": {
+        "contract_multiplier": 100.0,
+        "strike": 6000.0,
+        "type": "CALL",
+        "underlier": {
+          "observable": "SPX_INDEX"
+        }
+      }
+    }
+  ],
+  "lifecycle_class": "DATED",
+  "name": "SPX call 6000 Dec 2026",
+  "quote_asset": {
+    "observable": "USD"
+  },
+  "schema_version": 1
+}

@@ -1,0 +1,9 @@
+{
+  "code": "USDT",
+  "id": "USDT",
+  "is_quotable": true,
+  "is_settleable": true,
+  "kind": "TRANSFERABLE",
+  "name": "Tether USD",
+  "schema_version": 1
+}

@@ -13,11 +13,11 @@ The platform is organized into three layers.
 | Module | Role | Status |
 |---|---|---|
 | `asset_pricer` | State prices and derivatives pricing: closed-form (BSM), Monte Carlo, and PDE engines, with Greeks, implied volatility, and an implied-vol surface (SVI/SSVI). Dependency-free C++17. | built |
-| `instrument_manager` | Static / reference data and layered instrument definitions — the contracts, observables, and identifiers everything else prices, trades, and reports against. | in design (v2) |
+| `instrument_manager` | Static / reference data and layered instrument definitions — the contracts, observables, and identifiers everything else prices, trades, and reports against. C++17 core + Python serde over per-entity JSON files. | in progress (v3) |
 | `portfolio_manager` | Backtesting and runtime: one engine drives a strategy over historical or live data via swappable clock / data / execution adapters (backtest-live parity), with portfolio accounting, risk, performance, and factor analytics. | in progress (`vol-arb-v1`) |
 | `forecaster` | Quant-research model library: econometrics, time-series, and ML / DL / RL behind one fit/predict interface, with leakage-safe validation (purged / embargoed CV). Feeds forecasts to strategies and the backtester. | in progress (`vol-arb-v1`) |
 | `plumber` | Infrastructure and data pipelines. | planned |
-| `ledger` | Accounting. | planned |
+| `ledger` | Accounting: double-entry bookkeeping over a beancount-compatible plain-text journal (text is the source of truth, SQLite a derived index); portfolio_manager generates trade postings into it. | in progress (`ledger-v2`) |
 | `matching_engine` | Order matching. | planned |
 | `clearing_and_settlement` | Clearing and settlement. | planned |
 | `risk_engine` | Risk. | planned |
@@ -41,7 +41,7 @@ The packaged offerings exposed to end users (exchange / broker products). To be 
 ---
 
 This map merges the original system sketch with the modules as they stand today;
-`asset_pricer` is built, `instrument_manager` is in design (v2), and `portfolio_manager`
+`asset_pricer` is built, `instrument_manager` has its P0 core + file persistence (v3), and `portfolio_manager`
 + `forecaster` are under active build via the IV-vs-RV vertical slice (`vol-arb-v1`); the
 rest are planned. Adjust the module set and naming as the platform settles.
 

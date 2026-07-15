@@ -1,0 +1,23 @@
+{
+  "id": "SPY_SHARE",
+  "legs": [
+    {
+      "kind": "CLAIM",
+      "leg_id": "claim",
+      "params": {
+        "nav_ccy": {
+          "observable": "USD"
+        },
+        "pool": {
+          "observable": "SPY_NAV"
+        }
+      }
+    }
+  ],
+  "lifecycle_class": "OPEN_ENDED",
+  "name": "SPY fund share",
+  "quote_asset": {
+    "observable": "USD"
+  },
+  "schema_version": 1
+}

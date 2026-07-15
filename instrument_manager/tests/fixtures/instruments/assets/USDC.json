@@ -1,0 +1,9 @@
+{
+  "code": "USDC",
+  "id": "USDC",
+  "is_quotable": true,
+  "is_settleable": true,
+  "kind": "TRANSFERABLE",
+  "name": "USD Coin",
+  "schema_version": 1
+}

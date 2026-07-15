@@ -1,0 +1,1 @@
+"""Derived, rebuildable SQLite index."""

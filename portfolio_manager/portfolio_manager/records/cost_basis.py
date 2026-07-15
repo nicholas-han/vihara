@@ -17,13 +17,23 @@ from __future__ import annotations
 from dataclasses import dataclass
 from decimal import Decimal
 
-from .models import ZERO, CostMethod, OpeningPosition, PositionResult, RealizedTrade, Trade, TradeSide
+from .models import (
+    ZERO,
+    ConsumedLot,
+    CostMethod,
+    OpeningPosition,
+    PositionResult,
+    RealizedTrade,
+    Trade,
+    TradeSide,
+)
 
 
 @dataclass
 class _Lot:
     quantity: Decimal
     unit_cost: Decimal
+    source: Trade | None = None  # the buy that opened the lot; None = opening
 
 
 def calculate_position(
@@ -65,7 +75,8 @@ def _calculate_average(trades: list[Trade], opening: OpeningPosition | None) -> 
             raise ValueError(f"sell quantity exceeds open position for {trade.instrument_id}")
         unit_cost = total_cost / quantity if quantity else ZERO
         cost_consumed = trade.quantity * unit_cost
-        realized.append(_realized_trade(trade, cost_consumed))
+        consumed = (ConsumedLot(trade.quantity, cost_consumed, None),)
+        realized.append(_realized_trade(trade, cost_consumed, consumed))
         quantity -= trade.quantity
         total_cost -= cost_consumed
 
@@ -91,19 +102,24 @@ def _calculate_lot_method(
                 _Lot(
                     quantity=trade.quantity,
                     unit_cost=(trade.quantity * trade.price + trade.fee) / trade.quantity,
+                    source=trade,
                 )
             )
             continue
 
-        cost_consumed = _consume_lots(lots, trade.quantity, method, trade.instrument_id)
-        realized.append(_realized_trade(trade, cost_consumed))
+        cost_consumed, consumed = _consume_lots(lots, trade.quantity, method, trade.instrument_id)
+        realized.append(_realized_trade(trade, cost_consumed, consumed))
 
     quantity = sum((lot.quantity for lot in lots), ZERO)
     total_cost = sum((lot.quantity * lot.unit_cost for lot in lots), ZERO)
     return _result(quantity, total_cost, realized, currency)
 
 
-def _realized_trade(trade: Trade, cost_consumed: Decimal) -> RealizedTrade:
+def _realized_trade(
+    trade: Trade,
+    cost_consumed: Decimal,
+    consumed_lots: tuple[ConsumedLot, ...],
+) -> RealizedTrade:
     proceeds = trade.quantity * trade.price - trade.fee
     return RealizedTrade(
         trade_id=trade.trade_id,
@@ -113,6 +129,7 @@ def _realized_trade(trade: Trade, cost_consumed: Decimal) -> RealizedTrade:
         cost_consumed=cost_consumed,
         sell_fee=trade.fee,
         realized_pnl=proceeds - cost_consumed,
+        consumed_lots=consumed_lots,
     )
 
 
@@ -134,23 +151,31 @@ def _result(
     )
 
 
-def _consume_lots(lots: list[_Lot], quantity: Decimal, method: CostMethod, instrument_id: str) -> Decimal:
+def _consume_lots(
+    lots: list[_Lot],
+    quantity: Decimal,
+    method: CostMethod,
+    instrument_id: str,
+) -> tuple[Decimal, tuple[ConsumedLot, ...]]:
     open_quantity = sum((lot.quantity for lot in lots), ZERO)
     if quantity > open_quantity:
         raise ValueError(f"sell quantity exceeds open position for {instrument_id}")
 
     cost_consumed = ZERO
+    consumed: list[ConsumedLot] = []
     remaining = quantity
     while remaining > 0:
         lot_index = _select_lot_index(lots, method)
         lot = lots[lot_index]
-        consumed = min(lot.quantity, remaining)
-        cost_consumed += consumed * lot.unit_cost
-        lot.quantity -= consumed
-        remaining -= consumed
+        take = min(lot.quantity, remaining)
+        piece_cost = take * lot.unit_cost
+        cost_consumed += piece_cost
+        consumed.append(ConsumedLot(take, piece_cost, lot.source))
+        lot.quantity -= take
+        remaining -= take
         if lot.quantity == 0:
             lots.pop(lot_index)
-    return cost_consumed
+    return cost_consumed, tuple(consumed)
 
 
 def _select_lot_index(lots: list[_Lot], method: CostMethod) -> int:

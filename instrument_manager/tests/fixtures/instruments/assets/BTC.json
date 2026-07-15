@@ -1,0 +1,8 @@
+{
+  "code": "BTC",
+  "id": "BTC",
+  "is_settleable": true,
+  "kind": "TRANSFERABLE",
+  "name": "Bitcoin",
+  "schema_version": 1
+}

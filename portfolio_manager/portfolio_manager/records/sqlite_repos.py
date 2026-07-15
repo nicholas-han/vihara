@@ -12,6 +12,9 @@ from .config import PortfolioRecordsSettings
 from .imports import TradeImportRow
 from .models import (
     Account,
+    CashCheckpoint,
+    Cashflow,
+    CashflowType,
     CostMethod,
     DividendAnnual,
     DividendPayment,
@@ -80,6 +83,50 @@ class SQLiteRecordsStore:
             "select account_id, name, currency from accounts order by account_id",
         )
         return [Account(row["account_id"], row["name"], row["currency"]) for row in rows]
+
+    def upsert_accounts(self, accounts: list[Account]) -> None:
+        with self._lock:
+            conn = self._conn(self._portfolio_db)
+            try:
+                conn.executemany(
+                    "insert or ignore into accounts(account_id, name, currency) values (?, ?, ?)",
+                    [(a.account_id, a.name, a.currency) for a in accounts],
+                )
+                conn.commit()
+            except Exception:
+                conn.rollback()
+                raise
+
+    def upsert_snapshots(self, snapshots: list[PositionSnapshot]) -> int:
+        with self._lock:
+            conn = self._conn(self._portfolio_db)
+            try:
+                conn.executemany(
+                    """
+                    insert or replace into position_snapshots(
+                        account_id, instrument_id, as_of, quantity, average_cost,
+                        currency, cost_method, kind
+                    ) values (?, ?, ?, ?, ?, ?, ?, ?)
+                    """,
+                    [
+                        (
+                            s.account_id,
+                            s.instrument_id,
+                            s.as_of.isoformat(),
+                            _text(s.quantity),
+                            _text(s.average_cost),
+                            s.currency,
+                            s.cost_method.value if s.cost_method else None,
+                            s.kind.value,
+                        )
+                        for s in snapshots
+                    ],
+                )
+                conn.commit()
+            except Exception:
+                conn.rollback()
+                raise
+        return len(snapshots)
 
     def get_instruments(self, instrument_ids: list[str]) -> dict[str, InstrumentSummary]:
         if not instrument_ids:
@@ -386,8 +433,8 @@ class SQLiteRecordsStore:
                         """
                         insert or ignore into dividend_payments(
                             account_id, instrument_id, pay_date, amount, currency,
-                            withholding_tax, external_id, notes
-                        ) values (?, ?, ?, ?, ?, ?, ?, ?)
+                            withholding_tax, external_id, row_hash, notes
+                        ) values (?, ?, ?, ?, ?, ?, ?, ?, ?)
                         """,
                         (
                             payment.account_id,
@@ -397,6 +444,7 @@ class SQLiteRecordsStore:
                             payment.currency,
                             _text(payment.withholding_tax),
                             payment.external_id,
+                            payment.row_hash,
                             payment.notes,
                         ),
                     )
@@ -406,6 +454,120 @@ class SQLiteRecordsStore:
                 conn.rollback()
                 raise
         return inserted, len(payments) - inserted
+
+    def insert_cashflows(self, flows: list[Cashflow]) -> tuple[int, int]:
+        inserted = 0
+        with self._lock:
+            conn = self._conn(self._portfolio_db)
+            try:
+                known_accounts = {
+                    row["account_id"]
+                    for row in conn.execute("select account_id from accounts").fetchall()
+                }
+                missing = sorted({f.account_id for f in flows} - known_accounts)
+                if missing:
+                    raise ValueError(f"unknown account_id(s) in cashflow import: {missing}")
+
+                for flow in flows:
+                    cursor = conn.execute(
+                        """
+                        insert or ignore into cashflows(
+                            account_id, flow_date, type, amount, currency,
+                            counter_account, external_id, row_hash, notes
+                        ) values (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        """,
+                        (
+                            flow.account_id,
+                            flow.flow_date.isoformat(),
+                            flow.type.value,
+                            _text(flow.amount),
+                            flow.currency,
+                            flow.counter_account,
+                            flow.external_id,
+                            flow.row_hash,
+                            flow.notes,
+                        ),
+                    )
+                    inserted += cursor.rowcount
+                conn.commit()
+            except Exception:
+                conn.rollback()
+                raise
+        return inserted, len(flows) - inserted
+
+    def list_cashflows(self, account_id: str, as_of: date | None = None) -> list[Cashflow]:
+        params: list[object] = [account_id]
+        as_of_filter = ""
+        if as_of is not None:
+            as_of_filter = "and flow_date <= ?"
+            params.append(as_of.isoformat())
+        rows = self._query(
+            self._portfolio_db,
+            f"""
+            select cashflow_id, account_id, flow_date, type, amount, currency,
+                   counter_account, external_id, row_hash, notes
+            from cashflows
+            where account_id = ? {as_of_filter}
+            order by flow_date, cashflow_id
+            """,
+            params,
+        )
+        return [
+            Cashflow(
+                cashflow_id=str(row["cashflow_id"]),
+                account_id=row["account_id"],
+                flow_date=date.fromisoformat(row["flow_date"]),
+                type=CashflowType(row["type"]),
+                amount=Decimal(str(row["amount"])),
+                currency=row["currency"],
+                counter_account=row["counter_account"],
+                external_id=row["external_id"],
+                row_hash=row["row_hash"],
+                notes=row["notes"],
+            )
+            for row in rows
+        ]
+
+    def upsert_cash_checkpoints(self, checkpoints: list[CashCheckpoint]) -> int:
+        with self._lock:
+            conn = self._conn(self._portfolio_db)
+            try:
+                conn.executemany(
+                    """
+                    insert or replace into cash_checkpoints(account_id, as_of, currency, balance)
+                    values (?, ?, ?, ?)
+                    """,
+                    [
+                        (c.account_id, c.as_of.isoformat(), c.currency, _text(c.balance))
+                        for c in checkpoints
+                    ],
+                )
+                conn.commit()
+            except Exception:
+                conn.rollback()
+                raise
+        return len(checkpoints)
+
+    def list_cash_checkpoints(self, account_id: str) -> list[CashCheckpoint]:
+        rows = self._query(
+            self._portfolio_db,
+            """
+            select account_id, as_of, currency, balance
+            from cash_checkpoints
+            where account_id = ?
+            order by as_of, currency
+            """,
+            [account_id],
+        )
+        return [
+            CashCheckpoint(
+                account_id=row["account_id"],
+                as_of=date.fromisoformat(row["as_of"]),
+                currency=row["currency"],
+                balance=Decimal(str(row["balance"])),
+            )
+            for row in rows
+        ]
 
     def create_import_batch(self, batch: ImportBatch) -> None:
         with self._lock:

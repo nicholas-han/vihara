@@ -1,0 +1,16 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "instrument_manager"
+version = "0.0.1"
+description = "Instrument reference data: C++ core (validation/classification/symbology/projection) with a Python serde + index layer over per-entity JSON files."
+requires-python = ">=3.11"
+dependencies = []
+
+[project.optional-dependencies]
+dev = ["pytest>=7.4"]
+
+[tool.setuptools.packages.find]
+include = ["instrument_manager*"]

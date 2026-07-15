@@ -23,39 +23,8 @@ if str(PACKAGE_ROOT) not in sys.path:
     sys.path.insert(0, str(PACKAGE_ROOT))
 
 from portfolio_manager.records.config import PortfolioRecordsSettings
-from portfolio_manager.records.models import FxRate
+from portfolio_manager.records.imports import read_fx_rates_csv
 from portfolio_manager.records.sqlite_repos import SQLiteRecordsStore
-
-REQUIRED_COLUMNS = {"base_currency", "quote_currency", "as_of", "rate"}
-
-
-def read_fx_rates_csv(path: Path) -> list[FxRate]:
-    with path.open(newline="", encoding="utf-8") as handle:
-        reader = csv.DictReader(handle)
-        if reader.fieldnames is None:
-            raise ValueError("fx rates CSV is missing a header")
-        missing = REQUIRED_COLUMNS - set(reader.fieldnames)
-        if missing:
-            raise ValueError(f"fx rates CSV is missing required columns: {sorted(missing)}")
-        rates = []
-        for i, row in enumerate(reader):
-            line = i + 2
-            try:
-                rate = Decimal(row["rate"].strip())
-            except Exception as exc:
-                raise ValueError(f"line {line}: rate must be numeric") from exc
-            if rate <= 0:
-                raise ValueError(f"line {line}: rate must be positive")
-            rates.append(
-                FxRate(
-                    base_currency=row["base_currency"].strip().upper(),
-                    quote_currency=row["quote_currency"].strip().upper(),
-                    as_of=date.fromisoformat(row["as_of"].strip()),
-                    rate=rate,
-                )
-            )
-        return rates
-
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Import FX rates into the records DB.")

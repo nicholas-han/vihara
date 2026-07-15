@@ -15,12 +15,14 @@ from pathlib import Path
 from .identity import MARKET_DEFAULT_CURRENCY, ticker_alias
 from .imports import (
     TradeImportRow,
+    read_cashflow_import_csv,
+    read_cashflow_import_text,
     read_dividend_import_csv,
     read_dividend_import_text,
     read_trade_import_csv,
     read_trade_import_text,
 )
-from .models import DividendPayment, ImportBatch, InstrumentSummary
+from .models import Cashflow, DividendPayment, ImportBatch, InstrumentSummary
 from .providers import RecordsStore
 
 
@@ -90,6 +92,35 @@ def _import_dividends(
         )
     )
     return ImportResult(batch_id=batch_id, row_count=len(payments), inserted=inserted, skipped=skipped)
+
+
+def import_cashflows_csv(path: Path, store: RecordsStore) -> ImportResult:
+    return _import_cashflows(read_cashflow_import_csv(path), store, source_file=path.name)
+
+
+def import_cashflows_text(text: str, store: RecordsStore, source_file: str | None = None) -> ImportResult:
+    return _import_cashflows(read_cashflow_import_text(text), store, source_file=source_file)
+
+
+def _import_cashflows(
+    flows: list[Cashflow],
+    store: RecordsStore,
+    source_file: str | None = None,
+) -> ImportResult:
+    batch_id = uuid.uuid4().hex[:12]
+    inserted, skipped = store.insert_cashflows(flows)
+    store.create_import_batch(
+        ImportBatch(
+            batch_id=batch_id,
+            source_file=source_file,
+            imported_at=datetime.now(timezone.utc).isoformat(timespec="seconds"),
+            row_count=len(flows),
+            inserted_count=inserted,
+            skipped_count=skipped,
+            status="completed",
+        )
+    )
+    return ImportResult(batch_id=batch_id, row_count=len(flows), inserted=inserted, skipped=skipped)
 
 
 def _create_missing_instruments(rows: list[TradeImportRow], store: RecordsStore) -> None:

@@ -1,6 +1,6 @@
 # Roadmap and phasing
 
-This is the build sequence for `instrument_manager` v2. It follows the scope in [`00-vision-and-scope.md`](00-vision-and-scope.md) and the decisions in [`decisions.md`](decisions.md). Status today: **design complete, implementation not started.** Nothing below is built yet.
+This is the build sequence for `instrument_manager` v2. It follows the scope in [`00-vision-and-scope.md`](00-vision-and-scope.md) and the decisions in [`decisions.md`](decisions.md). Status today: **P0 core implemented; persistence pivoted to JSON files + SQLite index (v3, ADR-24/25 — see `75-file-persistence.md`).** The PG-specific items below are retained for historical context.
 
 ## Phase 0 — foundation (the priced-or-tradable universe we can source)
 

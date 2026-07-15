@@ -1,0 +1,9 @@
+{
+  "code": "USD",
+  "id": "USD",
+  "is_quotable": true,
+  "is_settleable": true,
+  "kind": "TRANSFERABLE",
+  "name": "US Dollar",
+  "schema_version": 1
+}

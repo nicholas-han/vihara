@@ -77,3 +77,24 @@ on 2026-06-21. Each entry is intentionally terse.
 **Alternatives considered.** One-module-per-branch with stubbed interfaces (rejected for the first cut: too much stubbing before anything runs); build the framework top-down first (rejected: the vacuum trap).
 
 **Consequences.** `vol-arb-v1` touches three folders; decisions for all three are logged here in `portfolio_manager/docs` as the hub until `forecaster` / `strategies` grow their own docs.
+
+## ADR-9 — Canonical text CSVs in vihara-data; SQLite becomes a derived index
+**Decision.** The canonical trade/dividend/cashflow/snapshot/checkpoint/fx records are append-only CSVs in the private `vihara-data` repo under `portfolio/` (see `docs/portfolio-data-layout.md`); the records SQLite database is a disposable index rebuilt from them by `python -m portfolio_manager.records rebuild`. `PORTFOLIO_DB_PATH` defaults to `$VIHARA_DATA_DIR/build/portfolio.sqlite3`. Confirmed by the founder 2026-07-14 as the repo-wide storage direction (text canonical + SQLite derived), together with the `ledger` module.
+
+**Rationale.** Personal data must be human-readable, git-versionable and backup-friendly; the import CSV was already the de-facto source, so promoting it to canonical removes a hidden state split. Idempotent import (external ids + content hashes) makes full rebuild deterministic.
+
+**Consequences.** Every store row must be reachable from text; schema changes are free (rebuild). The dividend content-hash gap (rows without `external_id` duplicating on re-import) is closed with `dividend_payments.row_hash`.
+
+## ADR-10 — Cashflows are recorded, not accounted; the ledger owns cash truth
+**Decision.** A new `cashflows` record type (deposit/withdrawal/transfer/fee/interest/adjustment; SIGNED amount, positive = into the account) and `cash_checkpoints` (broker statement balances) are stored by records. portfolio_manager does NOT grow cash-balance logic: running balances, double-entry and cash reporting belong to the `ledger` module, fed by the upcoming `ledger_bridge` (ADR-4 boundary intact). `counter_account` on a cashflow names the other double-entry leg for the bridge; a transfer between two tracked accounts is ONE row posting both sides.
+
+**Rationale.** Records v2's known gap was cash; closing it with a ledger inside pm would duplicate the accounting engine being built in `ledger`.
+
+**Consequences.** `RealizedTrade` now exposes per-sell `consumed_lots` (with the source buy Trade) so the bridge can generate lot-addressed ledger reductions without re-deriving cost-basis decisions.
+
+## ADR-11 — ledger_bridge lives in portfolio_manager; generation is wholesale and deterministic
+**Decision.** The pm->ledger projection is a pm subpackage (`ledger_bridge/`), adding the dependency edge portfolio_manager -> ledger (mirroring instrument_manager -> asset_pricer; the ledger never learns pm exists). Idempotency is achieved by determinism: every `generate` run wholesale-rewrites `ledger/generated/**` from the CSVs with stable ordering and the ledger's canonical printer, so unchanged inputs produce byte-identical files and the vihara-data git diff is the review surface. Commodities encode `instrument_id` as `MARKET.SYMBOL` (beancount currencies must start with a letter); the encoding exists only in `ledger_bridge/commodities.py`, delegating to `records/identity.py`. Reconciliation (R1-R7, Simmons ch.27 scaled to a personal book) is the merge gate: `reconcile` exits non-zero on any break. See `docs/ledger-bridge.md`.
+
+**Rationale.** Trade->posting mapping is pm domain knowledge (fees, cost basis, identity); a third bridge module would be one more thing to version for no isolation gain. Wholesale regeneration beats append-with-dedup: no state, no partial-update bugs, hand-edits surface as diffs instead of silently persisting.
+
+**Consequences.** Lot-method accounts book "STRICT" in the ledger (generated reductions are fully lot-addressed, so FIFO/LIFO/LOWEST_COST_FIRST selection stays pm-only); average accounts book "NONE" with engine-side pool semantics (ledger ADR-5). R4 compares costs with a 1e-6 tolerance because pm and the ledger divide partial-lot costs in different order (28-digit Decimal dust).

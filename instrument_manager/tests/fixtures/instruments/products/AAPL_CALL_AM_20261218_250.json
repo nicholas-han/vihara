@@ -1,0 +1,29 @@
+{
+  "expiration": "2026-12-18",
+  "id": "AAPL_CALL_AM_20261218_250",
+  "legs": [
+    {
+      "kind": "OPTION",
+      "leg_id": "opt",
+      "params": {
+        "contract_multiplier": 100.0,
+        "deliver_into": {
+          "observable": "AAPL"
+        },
+        "settlement": "PHYSICAL",
+        "strike": 250.0,
+        "style": "AMERICAN",
+        "type": "CALL",
+        "underlier": {
+          "observable": "AAPL"
+        }
+      }
+    }
+  ],
+  "lifecycle_class": "DATED",
+  "name": "AAPL american call 250 Dec 2026",
+  "quote_asset": {
+    "observable": "USD"
+  },
+  "schema_version": 1
+}

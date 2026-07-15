@@ -1,0 +1,29 @@
+{
+  "id": "AAPL_STOCK",
+  "identifiers": [
+    {
+      "scheme": "TICKER",
+      "value": "AAPL.US"
+    }
+  ],
+  "legs": [
+    {
+      "kind": "HOLDING",
+      "leg_id": "hold",
+      "params": {
+        "asset": {
+          "observable": "AAPL"
+        },
+        "quote_ccy": {
+          "observable": "USD"
+        }
+      }
+    }
+  ],
+  "lifecycle_class": "OPEN_ENDED",
+  "name": "Apple common stock",
+  "quote_asset": {
+    "observable": "USD"
+  },
+  "schema_version": 1
+}

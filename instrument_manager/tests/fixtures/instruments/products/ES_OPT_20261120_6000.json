@@ -1,0 +1,24 @@
+{
+  "expiration": "2026-11-20",
+  "id": "ES_OPT_20261120_6000",
+  "legs": [
+    {
+      "kind": "OPTION",
+      "leg_id": "opt",
+      "params": {
+        "contract_multiplier": 50.0,
+        "strike": 6000.0,
+        "type": "CALL",
+        "underlier": {
+          "product": "ES_FUT_20261218"
+        }
+      }
+    }
+  ],
+  "lifecycle_class": "DATED",
+  "name": "Option on ES future",
+  "quote_asset": {
+    "observable": "USD"
+  },
+  "schema_version": 1
+}

@@ -1,0 +1,11 @@
+{
+  "code": "FUNDING_BTC_USDT_OKX",
+  "id": "FUNDING_BTC_USDT_OKX",
+  "kind": "RATE",
+  "metadata": {
+    "cadence": "8h",
+    "venue": "OKX"
+  },
+  "name": "BTC-USDT perp funding (OKX)",
+  "schema_version": 1
+}

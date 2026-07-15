@@ -1,0 +1,7 @@
+{
+  "code": "VIX",
+  "id": "VIX",
+  "kind": "VOLATILITY",
+  "name": "CBOE Volatility Index",
+  "schema_version": 1
+}
