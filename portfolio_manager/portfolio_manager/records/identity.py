@@ -39,3 +39,14 @@ def make_instrument_id(symbol: str, market: str) -> str:
 def ticker_alias(symbol: str, market: str) -> str:
     """Identifier stored under the TICKER scheme in instrument_aliases."""
     return f"{symbol.strip().upper()}.{market.strip().upper()}"
+
+
+def split_instrument_id(instrument_id: str) -> tuple[str, str]:
+    """Split a v2 instrument_id into (symbol, market).
+
+    The market is the LAST dot-segment; symbols may contain dots
+    (``BRK.B.US`` -> ``("BRK.B", "US")``)."""
+    symbol, sep, market = instrument_id.rpartition(".")
+    if not sep or not symbol or market not in VALID_MARKETS:
+        raise ValueError(f"not a valid instrument_id: {instrument_id!r}")
+    return symbol, market
