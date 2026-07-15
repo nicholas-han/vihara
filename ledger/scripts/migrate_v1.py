@@ -1,8 +1,9 @@
 """One-off migration: ledger-v1 MySQL seed data -> beancount journal files.
 
-The old prototype (branch ``ledger-v1``) stored real personal transactions
-2013-2021 in ``ledger/tables/DML_accounting.sql``. This script parses that
-SQL as TEXT (no MySQL needed) and emits:
+The old prototype (branch ``archive/ledger-v1``, formerly ``ledger-v1``)
+stored real personal transactions 2013-2021 in
+``ledger/tables/DML_accounting.sql``. This script parses that SQL as TEXT
+(no MySQL needed) and emits:
 
 - ``<outdir>/accounts-legacy.beancount``  open directives for used accounts
 - ``<outdir>/<year>.beancount``           one journal file per year
@@ -11,7 +12,7 @@ Usage:
     python ledger/scripts/migrate_v1.py DML_accounting.sql OUTDIR
 
 Get the input from git without checking out the branch:
-    git show ledger-v1:ledger/tables/DML_accounting.sql > /tmp/dml.sql
+    git show archive/ledger-v1:ledger/tables/DML_accounting.sql > /tmp/dml.sql
 
 Conventions applied:
 - debit -> positive amount, credit -> negative (beancount signs);

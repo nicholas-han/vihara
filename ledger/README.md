@@ -20,8 +20,8 @@ python -m ledger register Expenses:Food --year 2026
 python -m ledger holdings                   # lots held at cost
 python -m ledger rebuild-index              # refresh build/ledger.sqlite3
 
-# one-off migration of the ledger-v1 data:
-git show ledger-v1:ledger/tables/DML_accounting.sql > /tmp/dml.sql
+# one-off migration of the ledger-v1 data (branch archived after the v2 merge):
+git show archive/ledger-v1:ledger/tables/DML_accounting.sql > /tmp/dml.sql
 python ledger/scripts/migrate_v1.py /tmp/dml.sql $VIHARA_DATA_DIR/ledger/journal
 ```
 

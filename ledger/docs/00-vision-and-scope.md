@@ -7,7 +7,7 @@ of the owner's financial activity — daily spending, salary, bank and broker
 cash, securities positions, dividends, realized P&L — over a lifetime.
 
 It is the v2 rewrite of the `ledger-v1` MySQL prototype (see branch
-`ledger-v1`), redesigned around three commitments:
+`archive/ledger-v1`), redesigned around three commitments:
 
 1. **Plain text is the source of truth.** The journal is a set of
    human-readable text files in a private data repo (`vihara-data`),
