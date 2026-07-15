@@ -10,18 +10,16 @@
   beancount 2.3.6.
 - vihara-data layout spec (the data repo's README).
 
-## Next, in plan order (see the overall vihara plan)
+## Also done on this branch (the full stack landed together)
 
-1. **portfolio-manager-v2** — canonical CSVs under vihara-data
-   (`portfolio/trades|dividends|cashflows|checkpoints`), `records rebuild`
-   command, dividend row_hash dedup fix, cashflow record type, lot
-   consumption detail on `PositionResult`.
-2. **portfolio-manager-v3** — `ledger_bridge/`: mapping.toml, commodity
-   encoding (`MARKET.SYMBOL`), deterministic journal generator into
-   `ledger/generated/**`, checkpoint -> balance assertions, reconciler
-   (R1–R7).
-3. **instrument-manager-v3** — persistence pivot to per-entity JSON files
-   + derived SQLite; Python serde via pybind.
+- **pm records v3** — canonical CSVs under vihara-data, `records rebuild`,
+  dividend row_hash dedup fix, cashflows + cash checkpoints, lot
+  consumption detail (pm ADR-9/10).
+- **ledger_bridge** — mapping.toml, `MARKET.SYMBOL` commodity encoding,
+  deterministic journal generator, checkpoint assertions, reconciler
+  R1–R7 (pm ADR-11, `portfolio_manager/docs/ledger-bridge.md`).
+- **instrument_manager v3** — per-entity JSON persistence + Python serde
+  + SQLite index (IM ADR-24/25).
 
 ## Deferred (revisit when needed)
 
