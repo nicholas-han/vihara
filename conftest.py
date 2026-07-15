@@ -9,7 +9,7 @@ import sys
 from pathlib import Path
 
 _ROOT = Path(__file__).resolve().parent
-for _sub in ("forecaster", "portfolio_manager", "strategies"):
+for _sub in ("forecaster", "portfolio_manager", "strategies", "ledger"):
     _p = str(_ROOT / _sub)
     if _p not in sys.path:
         sys.path.insert(0, _p)

@@ -17,7 +17,7 @@ The platform is organized into three layers.
 | `portfolio_manager` | Backtesting and runtime: one engine drives a strategy over historical or live data via swappable clock / data / execution adapters (backtest-live parity), with portfolio accounting, risk, performance, and factor analytics. | in progress (`vol-arb-v1`) |
 | `forecaster` | Quant-research model library: econometrics, time-series, and ML / DL / RL behind one fit/predict interface, with leakage-safe validation (purged / embargoed CV). Feeds forecasts to strategies and the backtester. | in progress (`vol-arb-v1`) |
 | `plumber` | Infrastructure and data pipelines. | planned |
-| `ledger` | Accounting. | planned |
+| `ledger` | Accounting: double-entry bookkeeping over a beancount-compatible plain-text journal (text is the source of truth, SQLite a derived index); portfolio_manager generates trade postings into it. | in progress (`ledger-v2`) |
 | `matching_engine` | Order matching. | planned |
 | `clearing_and_settlement` | Clearing and settlement. | planned |
 | `risk_engine` | Risk. | planned |

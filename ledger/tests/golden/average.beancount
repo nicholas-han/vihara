@@ -1,0 +1,35 @@
+option "title" "Golden: average-cost pool (booking NONE -> pool semantics)"
+option "operating_currency" "HKD"
+
+; This file exercises the engine's AVERAGE_POOL booking. It is NOT run
+; through bean-check: beancount's NONE booking has no pool semantics, so
+; the empty {} reduction below is engine-specific behaviour by design
+; (see docs/20-model-and-booking.md).
+
+2026-01-01 open Equity:Opening
+2026-01-01 open Assets:Broker:Futu:Cash HKD
+2026-01-01 open Assets:Broker:Futu:Positions "NONE"
+2026-01-01 open Income:PnL:Realized:Futu HKD
+
+2026-01-01 commodity HK.0700
+  instrument_id: "0700.HK"
+
+2026-02-01 * "fund the account"
+  Assets:Broker:Futu:Cash  3000.00 HKD
+  Equity:Opening  -3000.00 HKD
+
+2026-02-02 * "buy 3 Tencent @ 400, no fee"
+  Assets:Broker:Futu:Positions  3 HK.0700 {{1200.00 HKD}}
+  Assets:Broker:Futu:Cash  -1200.00 HKD
+
+2026-02-10 * "buy 2 Tencent @ 450, no fee"
+  Assets:Broker:Futu:Positions  2 HK.0700 {{900.00 HKD}}
+  Assets:Broker:Futu:Cash  -900.00 HKD
+
+2026-03-01 * "sell 2 Tencent @ 450 from the pool"
+  Assets:Broker:Futu:Positions  -2 HK.0700 {} @ 450.00 HKD
+  Assets:Broker:Futu:Cash  900.00 HKD
+  Income:PnL:Realized:Futu  -60.00 HKD
+
+2026-03-02 balance Assets:Broker:Futu:Positions 3 HK.0700
+2026-03-02 balance Assets:Broker:Futu:Cash 1800.00 HKD
