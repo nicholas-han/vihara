@@ -1,0 +1,59 @@
+{
+  "constraints": [
+    {
+      "kind": "SAME_NOTIONAL",
+      "leg_ids": [
+        "perp",
+        "funding"
+      ]
+    }
+  ],
+  "id": "BTC_USDT_PERP",
+  "legs": [
+    {
+      "kind": "PERPETUAL",
+      "leg_id": "perp",
+      "notional": {
+        "amount": 1.0,
+        "currency": {
+          "observable": "USDT"
+        }
+      },
+      "params": {
+        "quote_ccy": {
+          "observable": "USDT"
+        },
+        "underlier": {
+          "observable": "BTC"
+        }
+      }
+    },
+    {
+      "kind": "FUNDING",
+      "leg_id": "funding",
+      "notional": {
+        "amount": 1.0,
+        "currency": {
+          "observable": "USDT"
+        }
+      },
+      "params": {
+        "funding_index": {
+          "observable": "FUNDING_BTC_USDT_OKX"
+        },
+        "pay_ccy": {
+          "observable": "USDT"
+        }
+      }
+    }
+  ],
+  "lifecycle_class": "PERPETUAL",
+  "metadata": {
+    "day_count": "ACT_365"
+  },
+  "name": "BTC-USDT perpetual",
+  "quote_asset": {
+    "observable": "USDT"
+  },
+  "schema_version": 1
+}

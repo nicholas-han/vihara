@@ -1,0 +1,28 @@
+{
+  "expiration": "2026-12-18",
+  "id": "SPX_PUT_UO_20261218",
+  "legs": [
+    {
+      "kind": "OPTION",
+      "leg_id": "opt",
+      "params": {
+        "barrier": {
+          "level": 6800.0,
+          "type": "UP_AND_OUT"
+        },
+        "path": "BARRIER",
+        "strike": 6200.0,
+        "type": "PUT",
+        "underlier": {
+          "observable": "SPX_INDEX"
+        }
+      }
+    }
+  ],
+  "lifecycle_class": "DATED",
+  "name": "SPX up-and-out put Dec 2026",
+  "quote_asset": {
+    "observable": "USD"
+  },
+  "schema_version": 1
+}

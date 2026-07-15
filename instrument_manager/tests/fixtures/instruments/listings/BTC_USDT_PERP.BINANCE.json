@@ -1,0 +1,8 @@
+{
+  "id": "BTC_USDT_PERP.BINANCE",
+  "product_id": "BTC_USDT_PERP",
+  "schema_version": 1,
+  "venue_id": "BINANCE",
+  "venue_segment": "PERP",
+  "venue_symbol": "BTCUSDT"
+}

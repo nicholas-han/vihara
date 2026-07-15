@@ -1,0 +1,8 @@
+{
+  "id": "PRED_DEM_2028.POLYMARKET",
+  "product_id": "PRED_DEM_2028",
+  "schema_version": 1,
+  "venue_id": "POLYMARKET",
+  "venue_segment": "PREDICTION",
+  "venue_symbol": "us-pres-2028-dem"
+}

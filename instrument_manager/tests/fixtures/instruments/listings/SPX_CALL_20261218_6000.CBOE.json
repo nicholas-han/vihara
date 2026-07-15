@@ -1,0 +1,8 @@
+{
+  "id": "SPX_CALL_20261218_6000.CBOE",
+  "product_id": "SPX_CALL_20261218_6000",
+  "schema_version": 1,
+  "venue_id": "CBOE",
+  "venue_segment": "OPTION",
+  "venue_symbol": "SPXW261218C06000000"
+}

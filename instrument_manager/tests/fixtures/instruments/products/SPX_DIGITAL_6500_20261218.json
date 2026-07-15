@@ -1,0 +1,28 @@
+{
+  "expiration": "2026-12-18",
+  "id": "SPX_DIGITAL_6500_20261218",
+  "legs": [
+    {
+      "kind": "DIGITAL",
+      "leg_id": "dig",
+      "params": {
+        "cash_amount": 100.0,
+        "level": 6500.0,
+        "payoff": "CASH",
+        "quote_ccy": {
+          "observable": "USD"
+        },
+        "trigger": "ABOVE",
+        "underlier": {
+          "observable": "SPX_INDEX"
+        }
+      }
+    }
+  ],
+  "lifecycle_class": "DATED",
+  "name": "SPX digital above 6500",
+  "quote_asset": {
+    "observable": "USD"
+  },
+  "schema_version": 1
+}

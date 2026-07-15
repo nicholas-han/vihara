@@ -1,0 +1,21 @@
+{
+  "code": "EVT_US_PRES_2028",
+  "id": "EVT_US_PRES_2028",
+  "kind": "EVENT",
+  "name": "US Presidential Election 2028",
+  "outcomes": [
+    {
+      "name": "Democratic win",
+      "outcome_code": "DEM"
+    },
+    {
+      "name": "Republican win",
+      "outcome_code": "REP"
+    },
+    {
+      "name": "Other",
+      "outcome_code": "OTHER"
+    }
+  ],
+  "schema_version": 1
+}

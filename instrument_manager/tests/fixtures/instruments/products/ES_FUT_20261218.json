@@ -1,0 +1,26 @@
+{
+  "expiration": "2026-12-18",
+  "id": "ES_FUT_20261218",
+  "legs": [
+    {
+      "kind": "FORWARD",
+      "leg_id": "fwd",
+      "params": {
+        "contract_multiplier": 50.0,
+        "quote_ccy": {
+          "observable": "USD"
+        },
+        "settlement": "CASH",
+        "underlier": {
+          "observable": "SPX_INDEX"
+        }
+      }
+    }
+  ],
+  "lifecycle_class": "DATED",
+  "name": "E-mini S&P future Dec 2026",
+  "quote_asset": {
+    "observable": "USD"
+  },
+  "schema_version": 1
+}

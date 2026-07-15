@@ -1,0 +1,31 @@
+{
+  "expiration": "2026-12-18",
+  "id": "SPX_VARSWAP_20261218",
+  "legs": [
+    {
+      "kind": "VARIANCE",
+      "leg_id": "var",
+      "notional": {
+        "amount": 100000.0,
+        "currency": {
+          "observable": "USD"
+        }
+      },
+      "params": {
+        "annualization_factor": 252.0,
+        "measure": "VARIANCE",
+        "num_observations": 252,
+        "underlier": {
+          "observable": "SPX_INDEX"
+        },
+        "vol_strike": 0.18
+      }
+    }
+  ],
+  "lifecycle_class": "DATED",
+  "name": "SPX variance swap Dec 2026",
+  "quote_asset": {
+    "observable": "USD"
+  },
+  "schema_version": 1
+}

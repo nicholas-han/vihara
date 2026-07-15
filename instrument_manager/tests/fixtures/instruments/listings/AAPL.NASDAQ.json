@@ -1,0 +1,8 @@
+{
+  "id": "AAPL.NASDAQ",
+  "product_id": "AAPL_STOCK",
+  "schema_version": 1,
+  "venue_id": "NASDAQ",
+  "venue_segment": "STOCK",
+  "venue_symbol": "AAPL"
+}

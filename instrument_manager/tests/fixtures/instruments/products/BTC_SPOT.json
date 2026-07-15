@@ -1,0 +1,23 @@
+{
+  "id": "BTC_SPOT",
+  "legs": [
+    {
+      "kind": "HOLDING",
+      "leg_id": "hold",
+      "params": {
+        "asset": {
+          "observable": "BTC"
+        },
+        "quote_ccy": {
+          "observable": "USDT"
+        }
+      }
+    }
+  ],
+  "lifecycle_class": "OPEN_ENDED",
+  "name": "BTC spot",
+  "quote_asset": {
+    "observable": "USDT"
+  },
+  "schema_version": 1
+}
