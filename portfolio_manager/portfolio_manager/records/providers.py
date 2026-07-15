@@ -15,6 +15,8 @@ from decimal import Decimal
 
 from .models import (
     Account,
+    CashCheckpoint,
+    Cashflow,
     DividendAnnual,
     DividendPayment,
     FinancialAnnual,
@@ -33,6 +35,10 @@ class RecordsStore(Protocol):
     # accounts
     def list_accounts(self) -> list[Account]: ...
 
+    def upsert_accounts(self, accounts: list[Account]) -> None:
+        """Insert missing accounts (never overwrites existing rows)."""
+        ...
+
     # instruments
     def get_instruments(self, instrument_ids: list[str]) -> dict[str, InstrumentSummary]: ...
 
@@ -44,6 +50,11 @@ class RecordsStore(Protocol):
         kind: SnapshotKind | None = None,
     ) -> dict[str, PositionSnapshot]: ...
 
+    def upsert_snapshots(self, snapshots: list[PositionSnapshot]) -> int:
+        """Insert or replace on (account_id, instrument_id, as_of).
+        Returns the row count."""
+        ...
+
     # trades
     def list_trades(self, account_id: str, as_of: date | None = None) -> list[Trade]: ...
 
@@ -53,9 +64,25 @@ class RecordsStore(Protocol):
         ...
 
     def insert_dividend_payments(self, payments: list[DividendPayment]) -> tuple[int, int]:
-        """Insert payments, skipping duplicates on (account_id, external_id).
-        Returns (inserted, skipped)."""
+        """Insert payments, skipping duplicates on (account_id, external_id)
+        or (account_id, row_hash). Returns (inserted, skipped)."""
         ...
+
+    # cashflows (deposits/withdrawals/transfers/fees/interest)
+    def insert_cashflows(self, flows: list[Cashflow]) -> tuple[int, int]:
+        """Insert flows, skipping duplicates on (account_id, external_id)
+        or (account_id, row_hash). Returns (inserted, skipped)."""
+        ...
+
+    def list_cashflows(self, account_id: str, as_of: date | None = None) -> list[Cashflow]: ...
+
+    # cash checkpoints (broker statement balances; reconciliation input only)
+    def upsert_cash_checkpoints(self, checkpoints: list[CashCheckpoint]) -> int:
+        """Insert or replace on (account_id, as_of, currency).
+        Returns the row count."""
+        ...
+
+    def list_cash_checkpoints(self, account_id: str) -> list[CashCheckpoint]: ...
 
     # reference data (display only)
     def latest_annual_dividends(self, instrument_ids: list[str]) -> dict[str, DividendAnnual]: ...

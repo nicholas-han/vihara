@@ -13,6 +13,7 @@ class PortfolioRecordsSettings:
     instrument_db_path: Path | None = None
     financials_db_path: Path | None = None
     static_dir: Path | None = None
+    data_dir: Path | None = None  # the vihara-data repo root, when known
 
     @classmethod
     def from_env(cls, env_file: Path | str | None = None) -> "PortfolioRecordsSettings":
@@ -22,15 +23,19 @@ class PortfolioRecordsSettings:
         elif Path(".env").exists():
             values.update(_read_env_file(Path(".env")))
 
-        portfolio_db = values.get("PORTFOLIO_DB_PATH")
-        if not portfolio_db:
-            raise ValueError("PORTFOLIO_DB_PATH is required")
+        data_dir = _optional_path(values.get("VIHARA_DATA_DIR"))
+        portfolio_db = _optional_path(values.get("PORTFOLIO_DB_PATH"))
+        if portfolio_db is None and data_dir is not None:
+            portfolio_db = data_dir / "build" / "portfolio.sqlite3"
+        if portfolio_db is None:
+            raise ValueError("PORTFOLIO_DB_PATH or VIHARA_DATA_DIR is required")
 
         return cls(
-            portfolio_db_path=Path(portfolio_db).expanduser(),
+            portfolio_db_path=portfolio_db,
             instrument_db_path=_optional_path(values.get("INSTRUMENT_DB_PATH")),
             financials_db_path=_optional_path(values.get("FINANCIALS_DB_PATH")),
             static_dir=_optional_path(values.get("PORTFOLIO_STATIC_DIR")),
+            data_dir=data_dir,
         )
 
 

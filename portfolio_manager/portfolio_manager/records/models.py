@@ -116,6 +116,20 @@ class OpeningPosition:
 
 
 @dataclass(frozen=True)
+class ConsumedLot:
+    """One lot's contribution to a sell: which buy created the basis consumed.
+
+    ``source_trade`` is the buy Trade that opened the lot; None when the
+    basis came from an opening snapshot or an average-cost pool (which has
+    no per-lot identity). The ledger bridge uses this to address exact lots
+    in generated reduction postings."""
+
+    quantity: Decimal
+    cost_consumed: Decimal
+    source_trade: Trade | None = None
+
+
+@dataclass(frozen=True)
 class RealizedTrade:
     trade_id: str | None
     trade_date: date
@@ -124,6 +138,7 @@ class RealizedTrade:
     cost_consumed: Decimal  # basis of the lots (or average cost) consumed
     sell_fee: Decimal
     realized_pnl: Decimal   # proceeds - cost_consumed
+    consumed_lots: tuple[ConsumedLot, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -150,8 +165,48 @@ class DividendPayment:
     currency: str
     withholding_tax: Decimal = ZERO
     external_id: str | None = None
+    row_hash: str | None = None  # content hash; dedup key when no external_id
     notes: str | None = None
     payment_id: str | None = None
+
+
+class CashflowType(StrEnum):
+    DEPOSIT = "deposit"
+    WITHDRAWAL = "withdrawal"
+    TRANSFER = "transfer"
+    FEE = "fee"
+    INTEREST = "interest"
+    ADJUSTMENT = "adjustment"
+
+
+@dataclass(frozen=True)
+class Cashflow:
+    """A cash movement that is not a trade or dividend.
+
+    ``amount`` is SIGNED: positive means cash into the account. The type is
+    a reporting label; direction lives in the sign. ``counter_account`` names
+    the other double-entry leg (a ledger account) for the ledger bridge."""
+
+    account_id: str
+    flow_date: date
+    type: CashflowType
+    amount: Decimal
+    currency: str
+    counter_account: str | None = None
+    external_id: str | None = None
+    row_hash: str | None = None
+    notes: str | None = None
+    cashflow_id: str | None = None
+
+
+@dataclass(frozen=True)
+class CashCheckpoint:
+    """A broker-statement cash balance; reconciliation input only."""
+
+    account_id: str
+    as_of: date
+    currency: str
+    balance: Decimal
 
 
 @dataclass(frozen=True)
