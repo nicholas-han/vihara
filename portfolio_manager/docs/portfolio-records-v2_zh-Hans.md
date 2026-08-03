@@ -37,8 +37,8 @@ realized = (quantity * price - sell_fee) - 按成本法消耗的 basis
 **多币种**:`fx_rates` 手工维护(无实时行情源)。汇总把各币种的总成本/已实现盈亏/实收分红
 折算到基准币种;缺汇率的币种明确列在 `unconverted_currencies` 里、不进合计,绝不静默算错。
 
-**Instrument 身份**:`instrument_id` 形如 `AAPL.US`,但只有 `records/identity.py` 允许
-构造/解析它,其他代码一律当不透明字符串;`instrument_aliases` 表(scheme + identifier)
+**Instrument 身份**:`instrument_id` 是 `ins_...` 形式的不透明稳定 id,只有 `records/identity.py` 负责校验;
+其他代码一律当不透明字符串;`instrument_aliases` 表(scheme + identifier)
 对齐 `instrument_manager` 的 `external_identifiers` 形态。
 
 ## 数据边界

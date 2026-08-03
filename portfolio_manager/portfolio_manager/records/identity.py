@@ -1,15 +1,14 @@
-"""Instrument identity for portfolio records.
+"""Instrument identity rules for portfolio records.
 
-This is the ONLY module allowed to construct or parse an instrument_id.
-Everywhere else instrument_id is an opaque string, so a future
-instrument_manager adapter only has to replace this module (mapping through
-instrument_aliases, which mirrors instrument_manager's external_identifiers)
-without touching callers.
-
-v2 ids are ``{SYMBOL}.{MARKET}`` (e.g. ``AAPL.US``, ``0700.HK``, ``600519.CN``).
+An instrument_id is an opaque, stable identifier. It never embeds a ticker,
+market, venue, or company name; those mutable values belong in identifier
+mappings owned by instrument_manager.
 """
 
 from __future__ import annotations
+
+import re
+import secrets
 
 # Markets supported by the records app. UNKNOWN is a storage-side fallback for
 # legacy rows only — imports and id construction reject it.
@@ -24,29 +23,28 @@ MARKET_DEFAULT_CURRENCY = {
 
 TICKER_SCHEME = "TICKER"
 
+# 110 bits in Crockford Base32. Lowercase is canonical; the omitted letters
+# make IDs easier to read and transcribe without changing their opacity.
+INSTRUMENT_ID_RE = re.compile(r"ins_[0-9a-hjkmnp-tv-z]{22}")
+_CROCKFORD_ALPHABET = "0123456789abcdefghjkmnpqrstvwxyz"
 
-def make_instrument_id(symbol: str, market: str) -> str:
-    """Build the canonical v2 instrument_id from a symbol and market."""
-    cleaned_symbol = symbol.strip().upper()
-    cleaned_market = market.strip().upper()
-    if not cleaned_symbol:
-        raise ValueError("symbol must not be empty")
-    if cleaned_market not in VALID_MARKETS:
-        raise ValueError(f"market must be one of {sorted(VALID_MARKETS)}")
-    return f"{cleaned_symbol}.{cleaned_market}"
+
+def new_instrument_id() -> str:
+    """Allocate a random opaque id with approximately 110 bits of entropy."""
+    return "ins_" + "".join(secrets.choice(_CROCKFORD_ALPHABET) for _ in range(22))
+
+
+def validate_instrument_id(instrument_id: str) -> str:
+    """Return a canonical internal id or reject aliases masquerading as ids."""
+    value = instrument_id.strip()
+    if INSTRUMENT_ID_RE.fullmatch(value) is None:
+        raise ValueError(
+            "instrument_id must use the internal format "
+            "'ins_' + 22 lowercase Crockford Base32 characters"
+        )
+    return value
 
 
 def ticker_alias(symbol: str, market: str) -> str:
     """Identifier stored under the TICKER scheme in instrument_aliases."""
     return f"{symbol.strip().upper()}.{market.strip().upper()}"
-
-
-def split_instrument_id(instrument_id: str) -> tuple[str, str]:
-    """Split a v2 instrument_id into (symbol, market).
-
-    The market is the LAST dot-segment; symbols may contain dots
-    (``BRK.B.US`` -> ``("BRK.B", "US")``)."""
-    symbol, sep, market = instrument_id.rpartition(".")
-    if not sep or not symbol or market not in VALID_MARKETS:
-        raise ValueError(f"not a valid instrument_id: {instrument_id!r}")
-    return symbol, market

@@ -6,6 +6,9 @@ import pytest
 from portfolio_manager.records.imports import parse_trade_import_row, read_trade_import_csv
 from portfolio_manager.records.models import TradeSide
 
+AAPL_ID = "ins_01j3m8w7rx6f4k2p9c5vbn"
+TENCENT_ID = "ins_01j3m8y4kf9r2w7c6n5ptx"
+
 
 def test_parse_trade_import_row_maps_to_trade():
     parsed = parse_trade_import_row(
@@ -16,7 +19,7 @@ def test_parse_trade_import_row_maps_to_trade():
             "external_trade_id": "ABC-1",
             "trade_date": "2025-01-15",
             "settle_date": "2025-01-17",
-            "instrument_id": "",
+            "instrument_id": AAPL_ID,
             "symbol": "aapl",
             "market": "US",
             "instrument_name": "Apple Inc.",
@@ -25,9 +28,7 @@ def test_parse_trade_import_row_maps_to_trade():
             "price": "175.25",
             "trade_currency": "usd",
             "gross_amount": "1752.50",
-            "commission": "1.00",
-            "tax": "0.50",
-            "other_fee": "0.25",
+            "transaction_fees": "1.75",
             "net_amount": "1754.25",
             "fx_rate_to_account": "1.0",
             "account_currency": "usd",
@@ -36,7 +37,7 @@ def test_parse_trade_import_row_maps_to_trade():
     )
 
     assert parsed.trade.external_trade_id == "ABC-1"
-    assert parsed.trade.instrument_id == "AAPL.US"
+    assert parsed.trade.instrument_id == AAPL_ID
     assert parsed.trade.side == TradeSide.BUY
     assert parsed.trade.quantity == Decimal(10)
     assert parsed.trade.price == Decimal("175.25")
@@ -52,12 +53,14 @@ def test_row_hash_is_stable_and_content_sensitive():
         "schema_version": "1",
         "account_id": "taxable",
         "trade_date": "2025-01-15",
+        "instrument_id": AAPL_ID,
         "symbol": "AAPL",
         "market": "US",
         "side": "buy",
         "quantity": "10",
         "price": "175.25",
         "trade_currency": "USD",
+        "transaction_fees": "0",
     }
     first = parse_trade_import_row(dict(base))
     second = parse_trade_import_row(dict(base))
@@ -71,8 +74,8 @@ def test_read_trade_import_template():
     rows = read_trade_import_csv(Path("portfolio_manager/templates/trades_import_v1.csv"))
 
     assert len(rows) == 2
-    assert rows[0].trade.instrument_id == "AAPL.US"
-    assert rows[1].trade.instrument_id == "0700.HK"
+    assert rows[0].trade.instrument_id == AAPL_ID
+    assert rows[1].trade.instrument_id == TENCENT_ID
 
 
 def test_trade_import_rejects_missing_required_field():
@@ -81,12 +84,14 @@ def test_trade_import_rejects_missing_required_field():
             {
                 "schema_version": "1",
                 "trade_date": "2025-01-15",
+                "instrument_id": AAPL_ID,
                 "symbol": "AAPL",
                 "market": "US",
                 "side": "buy",
                 "quantity": "10",
                 "price": "175.25",
                 "trade_currency": "USD",
+                "transaction_fees": "0",
             }
         )
 
@@ -98,12 +103,14 @@ def test_trade_import_rejects_invalid_side_with_line_number():
                 "schema_version": "1",
                 "account_id": "taxable",
                 "trade_date": "2025-01-15",
+                "instrument_id": AAPL_ID,
                 "symbol": "AAPL",
                 "market": "US",
                 "side": "hold",
                 "quantity": "10",
                 "price": "175.25",
                 "trade_currency": "USD",
+                "transaction_fees": "0",
             },
             line_number=7,
         )
@@ -116,29 +123,51 @@ def test_trade_import_rejects_invalid_market():
                 "schema_version": "1",
                 "account_id": "taxable",
                 "trade_date": "2025-01-15",
+                "instrument_id": AAPL_ID,
                 "symbol": "AAPL",
                 "market": "JP",
                 "side": "buy",
                 "quantity": "10",
                 "price": "175.25",
                 "trade_currency": "USD",
+                "transaction_fees": "0",
             }
         )
 
 
 def test_trade_import_rejects_negative_fee():
-    with pytest.raises(ValueError, match="commission cannot be negative"):
+    with pytest.raises(ValueError, match="transaction_fees cannot be negative"):
         parse_trade_import_row(
             {
                 "schema_version": "1",
                 "account_id": "taxable",
                 "trade_date": "2025-01-15",
+                "instrument_id": AAPL_ID,
                 "symbol": "AAPL",
                 "market": "US",
                 "side": "buy",
                 "quantity": "10",
                 "price": "175.25",
                 "trade_currency": "USD",
-                "commission": "-1",
+                "transaction_fees": "-1",
+            }
+        )
+
+
+def test_trade_import_rejects_ticker_alias_as_instrument_id():
+    with pytest.raises(ValueError, match="internal format"):
+        parse_trade_import_row(
+            {
+                "schema_version": "1",
+                "account_id": "taxable",
+                "trade_date": "2025-01-15",
+                "instrument_id": "AAPL.US",
+                "symbol": "AAPL",
+                "market": "US",
+                "side": "buy",
+                "quantity": "10",
+                "price": "175.25",
+                "trade_currency": "USD",
+                "transaction_fees": "0",
             }
         )

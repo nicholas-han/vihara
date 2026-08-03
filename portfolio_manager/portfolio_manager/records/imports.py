@@ -10,7 +10,7 @@ from datetime import date
 from decimal import Decimal, InvalidOperation
 from pathlib import Path
 
-from .identity import VALID_CURRENCIES, VALID_MARKETS, make_instrument_id
+from .identity import VALID_CURRENCIES, VALID_MARKETS, validate_instrument_id
 from .models import (
     Account,
     CashCheckpoint,
@@ -30,24 +30,22 @@ REQUIRED_TRADE_IMPORT_COLUMNS = {
     "schema_version",
     "account_id",
     "trade_date",
+    "instrument_id",
     "symbol",
     "market",
     "side",
     "quantity",
     "price",
     "trade_currency",
+    "transaction_fees",
 }
 
 OPTIONAL_TRADE_IMPORT_COLUMNS = {
     "broker",
     "external_trade_id",
     "settle_date",
-    "instrument_id",
     "instrument_name",
     "gross_amount",
-    "commission",
-    "tax",
-    "other_fee",
     "net_amount",
     "fx_rate_to_account",
     "account_currency",
@@ -65,9 +63,7 @@ class TradeImportRow:
     settle_date: date | None = None
     instrument_name: str | None = None
     gross_amount: Decimal | None = None
-    commission: Decimal | None = None
-    tax: Decimal | None = None
-    other_fee: Decimal | None = None
+    transaction_fees: Decimal = Decimal("0")
     net_amount: Decimal | None = None
     fx_rate_to_account: Decimal | None = None
     account_currency: str | None = None
@@ -107,13 +103,10 @@ def parse_trade_import_row(row: dict[str, str], line_number: int = 1) -> TradeIm
     if side not in {TradeSide.BUY, TradeSide.SELL}:
         raise ValueError(f"line {line_number}: side must be buy or sell")
 
-    commission = _optional_decimal(row, "commission", line_number)
-    tax = _optional_decimal(row, "tax", line_number)
-    other_fee = _optional_decimal(row, "other_fee", line_number)
-    fee = (commission or Decimal("0")) + (tax or Decimal("0")) + (other_fee or Decimal("0"))
+    transaction_fees = _non_negative_decimal(row, "transaction_fees", line_number)
 
     symbol = _required(row, "symbol", line_number).strip().upper()
-    instrument_id = _clean(row.get("instrument_id")) or make_instrument_id(symbol, market)
+    instrument_id = _instrument_id(row, line_number)
 
     trade = Trade(
         external_trade_id=_clean(row.get("external_trade_id")),
@@ -123,7 +116,7 @@ def parse_trade_import_row(row: dict[str, str], line_number: int = 1) -> TradeIm
         side=TradeSide(side),
         quantity=_positive_decimal(row, "quantity", line_number),
         price=_non_negative_decimal(row, "price", line_number),
-        fee=fee,
+        fee=transaction_fees,
         currency=currency,
     )
 
@@ -143,9 +136,7 @@ def parse_trade_import_row(row: dict[str, str], line_number: int = 1) -> TradeIm
         settle_date=_date(settle_date, "settle_date", line_number) if settle_date else None,
         instrument_name=_clean(row.get("instrument_name")),
         gross_amount=_optional_decimal(row, "gross_amount", line_number),
-        commission=commission,
-        tax=tax,
-        other_fee=other_fee,
+        transaction_fees=transaction_fees,
         net_amount=_optional_decimal(row, "net_amount", line_number),
         fx_rate_to_account=_optional_decimal(row, "fx_rate_to_account", line_number),
         account_currency=account_currency,
@@ -157,6 +148,7 @@ REQUIRED_DIVIDEND_IMPORT_COLUMNS = {
     "schema_version",
     "account_id",
     "pay_date",
+    "instrument_id",
     "symbol",
     "market",
     "amount",
@@ -196,7 +188,7 @@ def parse_dividend_import_row(row: dict[str, str], line_number: int = 1) -> Divi
         raise ValueError(f"line {line_number}: currency must be one of {sorted(VALID_CURRENCIES)}")
 
     symbol = _required(row, "symbol", line_number).strip().upper()
-    instrument_id = _clean(row.get("instrument_id")) or make_instrument_id(symbol, market)
+    instrument_id = _instrument_id(row, line_number)
 
     withholding = _optional_decimal(row, "withholding_tax", line_number)
     payment = DividendPayment(
@@ -306,6 +298,7 @@ def read_accounts_csv(path: Path) -> list[Account]:
 REQUIRED_SNAPSHOT_COLUMNS = {
     "schema_version",
     "account_id",
+    "instrument_id",
     "symbol",
     "market",
     "as_of",
@@ -345,8 +338,7 @@ def read_position_snapshots_csv(path: Path, kind: SnapshotKind) -> list[Position
             snapshots.append(
                 PositionSnapshot(
                     account_id=_required(row, "account_id", line_number),
-                    instrument_id=_clean(row.get("instrument_id"))
-                    or make_instrument_id(symbol, market),
+                    instrument_id=_instrument_id(row, line_number),
                     as_of=_date(_required(row, "as_of", line_number), "as_of", line_number),
                     quantity=_non_negative_decimal(row, "quantity", line_number),
                     average_cost=average_cost if average_cost is not None else Decimal("0"),
@@ -488,6 +480,14 @@ def _required(row: dict[str, str], key: str, line_number: int) -> str:
     if value is None:
         raise ValueError(f"line {line_number}: {key} is required")
     return value
+
+
+def _instrument_id(row: dict[str, str], line_number: int) -> str:
+    value = _required(row, "instrument_id", line_number)
+    try:
+        return validate_instrument_id(value)
+    except ValueError as exc:
+        raise ValueError(f"line {line_number}: {exc}") from exc
 
 
 def _positive_decimal(row: dict[str, str], key: str, line_number: int) -> Decimal:

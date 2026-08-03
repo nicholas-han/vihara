@@ -27,6 +27,7 @@ from .models import (
     Trade,
     TradeSide,
 )
+from .resolver import resolve_instrument_id
 
 
 def _text(value: Decimal | date | None) -> str | None:
@@ -153,6 +154,12 @@ class SQLiteRecordsStore:
             for row in rows
         }
 
+    def resolve_instrument_id(self, symbol: str, market: str, as_of: date) -> str:
+        with self._lock:
+            return resolve_instrument_id(
+                self._conn(self._instrument_db), symbol, market, as_of
+            )
+
     def latest_snapshots(
         self,
         account_id: str,
@@ -213,7 +220,7 @@ class SQLiteRecordsStore:
             self._portfolio_db,
             f"""
             select trade_id, account_id, instrument_id, trade_date, side,
-                   quantity, price, fee, currency, external_trade_id
+                   quantity, price, transaction_fees, currency, external_trade_id
             from trades
             where account_id = ? {as_of_filter}
             order by trade_date, trade_id
@@ -230,7 +237,7 @@ class SQLiteRecordsStore:
                 side=TradeSide(row["side"]),
                 quantity=Decimal(str(row["quantity"])),
                 price=Decimal(str(row["price"])),
-                fee=Decimal(str(row["fee"])),
+                fee=Decimal(str(row["transaction_fees"])),
                 currency=row["currency"],
                 external_trade_id=row["external_trade_id"],
             )
@@ -267,10 +274,32 @@ class SQLiteRecordsStore:
             for row in rows
         }
 
-    def upsert_instruments(self, instruments: list[InstrumentSummary], aliases: dict[str, str]) -> None:
+    def upsert_instruments(
+        self,
+        instruments: list[InstrumentSummary],
+        aliases: dict[str, tuple[str, date]],
+    ) -> None:
         with self._lock:
             conn = self._conn(self._instrument_db)
             try:
+                for _, (identifier, valid_from) in aliases.items():
+                    conflict = conn.execute(
+                        """
+                        select instrument_id, valid_from, valid_to
+                        from instrument_aliases
+                        where scheme = 'TICKER'
+                          and identifier = ?
+                          and (valid_to is null or valid_to > ?)
+                        limit 1
+                        """,
+                        (identifier, valid_from.isoformat()),
+                    ).fetchone()
+                    if conflict is not None:
+                        raise ValueError(
+                            f"cannot register {identifier} from "
+                            f"{valid_from.isoformat()}; it overlaps mapping to "
+                            f"{conflict['instrument_id']}"
+                        )
                 conn.executemany(
                     """
                     insert or ignore into instruments(instrument_id, symbol, name, market, currency, status)
@@ -282,10 +311,23 @@ class SQLiteRecordsStore:
                     ],
                 )
                 conn.executemany(
-                    "insert or ignore into instrument_aliases(instrument_id, scheme, identifier) values (?, 'TICKER', ?)",
-                    [(instrument_id, identifier) for instrument_id, identifier in aliases.items()],
+                    """
+                    insert into instrument_aliases(
+                        instrument_id, scheme, identifier, valid_from
+                    ) values (?, 'TICKER', ?, ?)
+                    """,
+                    [
+                        (instrument_id, identifier, valid_from.isoformat())
+                        for instrument_id, (identifier, valid_from) in aliases.items()
+                    ],
                 )
                 conn.commit()
+            except sqlite3.IntegrityError as exc:
+                conn.rollback()
+                raise ValueError(
+                    "cannot register instrument alias; the ticker already has an "
+                    "active mapping or the validity range is invalid"
+                ) from exc
             except Exception:
                 conn.rollback()
                 raise
@@ -308,11 +350,11 @@ class SQLiteRecordsStore:
                     cursor = conn.execute(
                         """
                         insert or ignore into trades(
-                            account_id, instrument_id, trade_date, side, quantity, price, fee,
+                            account_id, instrument_id, trade_date, side, quantity, price, transaction_fees,
                             currency, external_trade_id, row_hash, import_batch_id, broker,
-                            settle_date, gross_amount, commission, tax, other_fee, net_amount,
+                            settle_date, gross_amount, net_amount,
                             fx_rate_to_account, account_currency, notes
-                        ) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        ) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                         """,
                         (
                             trade.account_id,
@@ -329,9 +371,6 @@ class SQLiteRecordsStore:
                             row.broker,
                             _text(row.settle_date),
                             _text(row.gross_amount),
-                            _text(row.commission),
-                            _text(row.tax),
-                            _text(row.other_fee),
                             _text(row.net_amount),
                             _text(row.fx_rate_to_account),
                             row.account_currency,

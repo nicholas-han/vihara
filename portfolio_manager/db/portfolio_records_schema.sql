@@ -9,10 +9,9 @@
 --   * trades are the single source of truth for positions. position_snapshots
 --     are either opening balances (history unavailable before as_of) or
 --     reconciliation checkpoints — they never override trade-derived positions.
---   * instrument_id is treated as an opaque string everywhere except
---     portfolio_manager/records/identity.py, which is the only module allowed
---     to construct or parse one. instrument_aliases mirrors the shape of
---     instrument_manager's external_identifiers for a future adapter.
+--   * instrument_id is an opaque, stable internal id. It never embeds symbol,
+--     market, or venue. instrument_aliases is a local projection of
+--     instrument_manager's effective-dated identifier mappings.
 
 create table if not exists accounts (
     account_id text primary key,
@@ -33,11 +32,18 @@ create table if not exists instrument_aliases (
     instrument_id text not null,
     scheme text not null,          -- 'TICKER' | 'ISIN' | 'FIGI' | ...
     identifier text not null,
-    primary key (scheme, identifier)
+    valid_from text not null default '0001-01-01',
+    valid_to text,
+    primary key (scheme, identifier, valid_from),
+    check (valid_to is null or valid_to > valid_from)
 );
 
 create index if not exists idx_instrument_aliases_instrument
     on instrument_aliases(instrument_id);
+create index if not exists idx_instrument_aliases_lookup
+    on instrument_aliases(scheme, identifier, valid_from, valid_to);
+create unique index if not exists uq_instrument_aliases_active
+    on instrument_aliases(scheme, identifier) where valid_to is null;
 
 create table if not exists import_batches (
     batch_id text primary key,
@@ -57,7 +63,7 @@ create table if not exists trades (
     side text not null check (side in ('buy','sell')),
     quantity text not null,
     price text not null,
-    fee text not null default '0', -- commission + tax + other_fee
+    transaction_fees text not null default '0',
     currency text not null,
     external_trade_id text,        -- broker trade id; dedup key when present
     row_hash text,                 -- canonical row hash; dedup key when no external id
@@ -65,9 +71,6 @@ create table if not exists trades (
     broker text,
     settle_date text,
     gross_amount text,
-    commission text,
-    tax text,
-    other_fee text,
     net_amount text,
     fx_rate_to_account text,
     account_currency text,

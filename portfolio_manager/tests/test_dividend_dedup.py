@@ -12,9 +12,9 @@ from portfolio_manager.records.rebuild import create_schema
 from portfolio_manager.records.sqlite_repos import SQLiteRecordsStore
 
 CSV_NO_EXTERNAL_ID = """\
-schema_version,account_id,pay_date,symbol,market,amount,currency,withholding_tax
-1,taxable,2026-03-20,AAPL,US,8.50,USD,1.50
-1,taxable,2026-06-20,AAPL,US,8.50,USD,1.50
+schema_version,account_id,pay_date,instrument_id,symbol,market,amount,currency,withholding_tax
+1,taxable,2026-03-20,ins_01j3m8w7rx6f4k2p9c5vbn,AAPL,US,8.50,USD,1.50
+1,taxable,2026-06-20,ins_01j3m8w7rx6f4k2p9c5vbn,AAPL,US,8.50,USD,1.50
 """
 
 
@@ -34,7 +34,7 @@ def test_reimport_without_external_id_skips(store):
     again = import_dividends_text(CSV_NO_EXTERNAL_ID, store)
     assert (again.inserted, again.skipped) == (0, 2)
     received = store.dividends_received("taxable")
-    assert str(received["AAPL.US"]) == "17.00"
+    assert str(received["ins_01j3m8w7rx6f4k2p9c5vbn"]) == "17.00"
 
 
 def test_same_content_different_dates_both_insert(store):

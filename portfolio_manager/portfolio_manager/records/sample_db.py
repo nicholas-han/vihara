@@ -39,11 +39,11 @@ def insert_sample_data(conn: sqlite3.Connection) -> None:
         values (?, ?, ?, ?, ?, ?)
         """,
         [
-            ("AAPL.US", "AAPL", "Apple Inc.", "US", "USD", "ACTIVE"),
-            ("MSFT.US", "MSFT", "Microsoft Corp.", "US", "USD", "ACTIVE"),
-            ("0700.HK", "0700", "Tencent Holdings Ltd.", "HK", "HKD", "ACTIVE"),
-            ("0005.HK", "0005", "HSBC Holdings plc", "HK", "HKD", "ACTIVE"),
-            ("600519.CN", "600519", "Kweichow Moutai Co., Ltd.", "CN", "CNY", "ACTIVE"),
+            ("ins_01j3m8w7rx6f4k2p9c5vbn", "AAPL", "Apple Inc.", "US", "USD", "ACTIVE"),
+            ("ins_01j3m8x2qd7n5h4t8z6kcp", "MSFT", "Microsoft Corp.", "US", "USD", "ACTIVE"),
+            ("ins_01j3m8y4kf9r2w7c6n5ptx", "0700", "Tencent Holdings Ltd.", "HK", "HKD", "ACTIVE"),
+            ("ins_01j3m8z6tv4q7h2k9c5rwd", "0005", "HSBC Holdings plc", "HK", "HKD", "ACTIVE"),
+            ("ins_01j3m90b5rx8k2t7c4q6vn", "600519", "Kweichow Moutai Co., Ltd.", "CN", "CNY", "ACTIVE"),
         ],
     )
 
@@ -53,29 +53,29 @@ def insert_sample_data(conn: sqlite3.Connection) -> None:
         values (?, 'TICKER', ?)
         """,
         [
-            ("AAPL.US", "AAPL.US"),
-            ("MSFT.US", "MSFT.US"),
-            ("0700.HK", "0700.HK"),
-            ("0005.HK", "0005.HK"),
-            ("600519.CN", "600519.CN"),
+            ("ins_01j3m8w7rx6f4k2p9c5vbn", "AAPL.US"),
+            ("ins_01j3m8x2qd7n5h4t8z6kcp", "MSFT.US"),
+            ("ins_01j3m8y4kf9r2w7c6n5ptx", "0700.HK"),
+            ("ins_01j3m8z6tv4q7h2k9c5rwd", "0005.HK"),
+            ("ins_01j3m90b5rx8k2t7c4q6vn", "600519.CN"),
         ],
     )
 
     conn.executemany(
         """
-        insert into trades(account_id, instrument_id, trade_date, side, quantity, price, fee, currency)
+        insert into trades(account_id, instrument_id, trade_date, side, quantity, price, transaction_fees, currency)
         values (?, ?, ?, ?, ?, ?, ?, ?)
         """,
         [
-            ("taxable", "AAPL.US", "2024-01-10", "buy", "10", "175.00", "1.00", "USD"),
-            ("taxable", "AAPL.US", "2024-04-15", "buy", "5", "168.00", "1.00", "USD"),
-            ("taxable", "AAPL.US", "2024-09-20", "sell", "4", "228.00", "1.00", "USD"),
-            ("taxable", "MSFT.US", "2024-02-12", "buy", "8", "405.00", "1.00", "USD"),
-            ("hk_broker", "0700.HK", "2024-03-08", "buy", "300", "290.00", "18.00", "HKD"),
-            ("hk_broker", "0700.HK", "2024-10-16", "buy", "200", "420.00", "18.00", "HKD"),
+            ("taxable", "ins_01j3m8w7rx6f4k2p9c5vbn", "2024-01-10", "buy", "10", "175.00", "1.00", "USD"),
+            ("taxable", "ins_01j3m8w7rx6f4k2p9c5vbn", "2024-04-15", "buy", "5", "168.00", "1.00", "USD"),
+            ("taxable", "ins_01j3m8w7rx6f4k2p9c5vbn", "2024-09-20", "sell", "4", "228.00", "1.00", "USD"),
+            ("taxable", "ins_01j3m8x2qd7n5h4t8z6kcp", "2024-02-12", "buy", "8", "405.00", "1.00", "USD"),
+            ("hk_broker", "ins_01j3m8y4kf9r2w7c6n5ptx", "2024-03-08", "buy", "300", "290.00", "18.00", "HKD"),
+            ("hk_broker", "ins_01j3m8y4kf9r2w7c6n5ptx", "2024-10-16", "buy", "200", "420.00", "18.00", "HKD"),
             # 0005.HK trades sit after its opening snapshot (2024-01-01).
-            ("hk_broker", "0005.HK", "2024-06-12", "buy", "100", "68.00", "18.00", "HKD"),
-            ("retirement", "600519.CN", "2024-05-22", "buy", "100", "1650.00", "12.00", "CNY"),
+            ("hk_broker", "ins_01j3m8z6tv4q7h2k9c5rwd", "2024-06-12", "buy", "100", "68.00", "18.00", "HKD"),
+            ("retirement", "ins_01j3m90b5rx8k2t7c4q6vn", "2024-05-22", "buy", "100", "1650.00", "12.00", "CNY"),
         ],
     )
 
@@ -86,10 +86,10 @@ def insert_sample_data(conn: sqlite3.Connection) -> None:
         """,
         [
             # Checkpoints: broker statement figures to reconcile against.
-            ("taxable", "MSFT.US", "2024-12-31", "8", "405.125", "USD", "average", "checkpoint"),
-            ("retirement", "600519.CN", "2024-12-31", "100", "1650.12", "CNY", "average", "checkpoint"),
+            ("taxable", "ins_01j3m8x2qd7n5h4t8z6kcp", "2024-12-31", "8", "405.125", "USD", "average", "checkpoint"),
+            ("retirement", "ins_01j3m90b5rx8k2t7c4q6vn", "2024-12-31", "100", "1650.12", "CNY", "average", "checkpoint"),
             # Opening balance: history before 2024-01-01 unavailable.
-            ("hk_broker", "0005.HK", "2024-01-01", "400", "60.00", "HKD", "average", "opening"),
+            ("hk_broker", "ins_01j3m8z6tv4q7h2k9c5rwd", "2024-01-01", "400", "60.00", "HKD", "average", "opening"),
         ],
     )
 
@@ -99,9 +99,9 @@ def insert_sample_data(conn: sqlite3.Connection) -> None:
         values (?, ?, ?, ?, ?, ?, ?)
         """,
         [
-            ("taxable", "AAPL.US", "2024-05-16", "3.30", "USD", "0.99", "DIV-AAPL-2024Q2"),
-            ("taxable", "AAPL.US", "2024-08-15", "3.75", "USD", "1.13", "DIV-AAPL-2024Q3"),
-            ("hk_broker", "0005.HK", "2024-09-26", "1240.00", "HKD", "0", "DIV-0005-2024I2"),
+            ("taxable", "ins_01j3m8w7rx6f4k2p9c5vbn", "2024-05-16", "3.30", "USD", "0.99", "DIV-AAPL-2024Q2"),
+            ("taxable", "ins_01j3m8w7rx6f4k2p9c5vbn", "2024-08-15", "3.75", "USD", "1.13", "DIV-AAPL-2024Q3"),
+            ("hk_broker", "ins_01j3m8z6tv4q7h2k9c5rwd", "2024-09-26", "1240.00", "HKD", "0", "DIV-0005-2024I2"),
         ],
     )
 
@@ -124,10 +124,10 @@ def insert_sample_data(conn: sqlite3.Connection) -> None:
         values (?, ?, ?, ?)
         """,
         [
-            ("AAPL.US", 2024, "0.99", "USD"),
-            ("MSFT.US", 2024, "3.00", "USD"),
-            ("0700.HK", 2024, "3.40", "HKD"),
-            ("600519.CN", 2024, "30.88", "CNY"),
+            ("ins_01j3m8w7rx6f4k2p9c5vbn", 2024, "0.99", "USD"),
+            ("ins_01j3m8x2qd7n5h4t8z6kcp", 2024, "3.00", "USD"),
+            ("ins_01j3m8y4kf9r2w7c6n5ptx", 2024, "3.40", "HKD"),
+            ("ins_01j3m90b5rx8k2t7c4q6vn", 2024, "30.88", "CNY"),
         ],
     )
 
@@ -137,9 +137,9 @@ def insert_sample_data(conn: sqlite3.Connection) -> None:
         values (?, ?, ?, ?)
         """,
         [
-            ("AAPL.US", 2024, "6.08", "USD"),
-            ("MSFT.US", 2024, "11.80", "USD"),
-            ("0700.HK", 2024, "17.58", "HKD"),
-            ("600519.CN", 2024, "59.49", "CNY"),
+            ("ins_01j3m8w7rx6f4k2p9c5vbn", 2024, "6.08", "USD"),
+            ("ins_01j3m8x2qd7n5h4t8z6kcp", 2024, "11.80", "USD"),
+            ("ins_01j3m8y4kf9r2w7c6n5ptx", 2024, "17.58", "HKD"),
+            ("ins_01j3m90b5rx8k2t7c4q6vn", 2024, "59.49", "CNY"),
         ],
     )
