@@ -1,0 +1,648 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Portfolio Dashboard — 2026-08-04</title>
+<style>
+:root {
+  color-scheme: dark;
+  font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  background: #060b12;
+  color: #e6edf7;
+  --bg-card: #0c1522;
+  --border: #1a2b3d;
+  --accent: #4f8cff;
+  --gain: #f2546a;
+  --loss: #36c97c;
+  --text-muted: #6b829e;
+  --text-dim: #889eb8;
+  --hl-bg: #111d2e;
+}
+* { box-sizing: border-box; margin: 0; }
+body {
+  min-height: 100vh;
+  background: linear-gradient(180deg, rgba(30,45,65,0.5), rgba(6,11,18,0) 300px), #060b12;
+}
+.shell { width: min(1560px, calc(100vw - 40px)); margin: 24px auto 48px; }
+
+.header {
+  display: flex; justify-content: space-between; align-items: flex-end;
+  margin-bottom: 24px; flex-wrap: wrap; gap: 16px;
+}
+.header h1 { font-size: 28px; font-weight: 700; letter-spacing: -0.5px; }
+.header p { color: var(--text-muted); font-size: 13px; margin-top: 4px; }
+.header .date-badge {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 6px 14px; border-radius: 20px;
+  background: var(--bg-card); border: 1px solid var(--border);
+  font-size: 13px; color: var(--text-dim);
+}
+
+.cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 12px; margin-bottom: 24px;
+}
+.card {
+  border: 1px solid var(--border); border-radius: 10px;
+  background: var(--bg-card); padding: 16px 18px;
+}
+.card-label { font-size: 11px; text-transform: uppercase; color: var(--text-muted); letter-spacing: 0.5px; }
+.card-value { font-size: 22px; font-weight: 700; margin-top: 8px; color: #f0f4fc; }
+.card-sub { font-size: 12px; color: var(--text-dim); margin-top: 4px; }
+.card.gain .card-value { color: var(--gain); }
+.card.loss .card-value { color: var(--loss); }
+
+.tabs { display: flex; gap: 0; margin-bottom: 16px; border-bottom: 2px solid var(--border); }
+.tab {
+  padding: 10px 20px; cursor: pointer; font-size: 13px; font-weight: 600;
+  color: var(--text-muted); border-bottom: 2px solid transparent; margin-bottom: -2px;
+  transition: all 0.15s;
+}
+.tab:hover { color: #c8daf8; }
+.tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+
+.table-wrap {
+  overflow-x: auto; border: 1px solid var(--border); border-radius: 10px;
+  background: var(--bg-card);
+}
+table { width: 100%; border-collapse: collapse; min-width: 1100px; }
+th, td { padding: 11px 14px; border-bottom: 1px solid #111f30; text-align: left; white-space: nowrap; }
+th { color: var(--text-muted); font-size: 11px; font-weight: 650; text-transform: uppercase; background: #0f1927; }
+td { color: #d9e3f1; font-size: 13px; }
+tbody tr:hover { background: #101b2c; }
+tbody tr.group-header { background: #0f1927; }
+tbody tr.group-header td { color: var(--text-muted); font-size: 11px; font-weight: 700; text-transform: uppercase; padding-top: 16px; }
+tbody tr.group-sub { background: #0d1622; }
+tbody tr.group-sub td { color: var(--text-dim); font-size: 11px; font-weight: 600; padding-top: 10px; }
+
+.number { text-align: right; font-variant-numeric: tabular-nums; }
+.symbol-cell { color: #f0f4fc; font-weight: 700; }
+.gain-text { color: var(--gain); }
+.loss-text { color: var(--loss); }
+
+/* Highlighted columns */
+.hl-col { background: var(--hl-bg); }
+th.hl-col { background: #152033; color: #b8cef0; }
+
+.chip {
+  display: inline-flex; align-items: center; min-height: 22px;
+  border-radius: 6px; padding: 2px 8px; font-size: 11px;
+}
+.chip-acct { background: #142032; color: #c8d7ee; }
+.chip-mkt { background: #10223a; color: #9fd0ff; }
+.chip-ccy { background: #1a2a1a; color: #8ae09c; }
+.chip-crypto { background: #2a1a30; color: #d09cf0; }
+
+.toggle-row { display: inline-flex; align-items: center; gap: 8px; cursor: pointer; font-size: 12px; color: var(--text-dim); user-select: none; }
+.toggle-row input { display: none; }
+.toggle-slider {
+  width: 36px; height: 20px; border-radius: 10px;
+  background: #1a2b3d; border: 1px solid var(--border);
+  position: relative; transition: background 0.2s;
+}
+.toggle-slider::after {
+  content: ""; position: absolute; top: 2px; left: 2px;
+  width: 14px; height: 14px; border-radius: 50%;
+  background: #6b829e; transition: all 0.2s;
+}
+.toggle-row input:checked + .toggle-slider { background: #1a3050; border-color: var(--accent); }
+.toggle-row input:checked + .toggle-slider::after { left: 18px; background: var(--accent); }
+.toggle-label { line-height: 20px; }
+
+.footnote { margin-top: 24px; padding: 12px 16px; border-radius: 8px; background: #0f1927; border: 1px solid #1c2d42; }
+.footnote p { font-size: 12px; color: var(--text-muted); line-height: 1.6; }
+.footnote strong { color: #e8b84b; }
+
+@media (max-width: 760px) {
+  .header { flex-direction: column; align-items: flex-start; }
+  .cards { grid-template-columns: repeat(2, 1fr); }
+}
+</style>
+</head>
+<body>
+<main class="shell">
+  <div class="header">
+    <div>
+      <h1>📊 Portfolio Dashboard</h1>
+      <p>多账户 · 多币种 · 持仓汇总 — Futu HK + SBI + 东方财富 + Hyperliquid</p>
+    </div>
+    <div class="date-badge">📅 2026-08-04</div>
+  </div>
+
+  <div class="cards" id="summary-cards"></div>
+
+  <div class="tabs">
+    <div class="tab active" data-view="consolidated">📋 合并持仓</div>
+    <div class="tab" data-view="by-account">🏦 按账户</div>
+    <div class="tab" data-view="by-currency">💱 按币种</div>
+    <div class="tab" data-view="by-market">🌍 按市场</div>
+  </div>
+
+  <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">
+    <label class="toggle-row">
+      <input type="checkbox" id="group-by-market" checked />
+      <span class="toggle-slider"></span>
+      <span class="toggle-label">按市场分组</span>
+    </label>
+  </div>
+
+  <div class="table-wrap">
+    <table>
+      <thead id="table-head"></thead>
+      <tbody id="table-body"></tbody>
+    </table>
+  </div>
+
+  <div class="footnote" id="footnotes"></div>
+</main>
+
+<script>
+// ═══════════════════════════════════════════════════════════════
+// Embedded holdings — 2026-08-04  |  Base currency: HKD
+// [account, symbol, name, market, ccy, qty, avgCost|null, price, notes]
+// ═══════════════════════════════════════════════════════════════
+
+const AS_OF = "2026-08-04";
+const BASE = "HKD";
+
+// FX rates to HKD
+const FX = {
+  USD: { HKD: 7.8182 },
+  CNY: { HKD: 1.069 },
+  HKD: { HKD: 1 },
+};
+
+function fxToBase(fromCcy) {
+  if (fromCcy === BASE) return 1;
+  if (FX[fromCcy] && FX[fromCcy][BASE] != null) return FX[fromCcy][BASE];
+  return null;
+}
+
+// A+H name suffix: append -A / -H for CN/HK market stocks
+function marketSuffix(name, market) {
+  if (market === "CN") return name + "-A";
+  if (market === "HK") return name + "-H";
+  return name;
+}
+
+const positions = [
+  // ═══ Futu HK 保证金综合账户 (3939) — US Stocks ═══
+  ["Futu HK 保证金 (3939)", "GOOGL", "Alphabet Inc. Class A", "US", "USD", 336, 326.336, 367.609, ""],
+  ["Futu HK 保证金 (3939)", "FUTU", "Futu Holdings Ltd.", "US", "USD", 500, 112.35, 107.25, ""],
+  ["Futu HK 保证金 (3939)", "NVDA", "NVIDIA Corporation", "US", "USD", 55, 199.298, 208.72, ""],
+  ["Futu HK 保证金 (3939)", "SKHY", "SK Hynix Inc.", "US", "USD", 15, 146.667, 147.58, ""],
+
+  // ═══ Futu HK 保证金综合账户 (3939) — HK Stocks ═══
+  ["Futu HK 保证金 (3939)", "01171", "兖矿能源", "HK", "HKD", 706700, 10.519, 11.58, ""],
+  ["Futu HK 保证金 (3939)", "03968", "招商银行", "HK", "HKD", 59500, 43.436, 49.46, ""],
+  ["Futu HK 保证金 (3939)", "02318", "中国平安", "HK", "HKD", 39000, 50.341, 57.85, ""],
+  ["Futu HK 保证金 (3939)", "00700", "腾讯控股", "HK", "HKD", 1500, 534.313, 487.60, ""],
+  ["Futu HK 保证金 (3939)", "02611", "国泰海通", "HK", "HKD", 17000, 15.588, 14.54, ""],
+  ["Futu HK 保证金 (3939)", "00300", "美的集团", "HK", "HKD", 1500, null, 96.95, "成本未录入"],
+  ["Futu HK 保证金 (3939)", "02259", "紫金黄金国际", "HK", "HKD", 1200, 70.09, 117.10, ""],
+  ["Futu HK 保证金 (3939)", "00883", "中国海洋石油", "HK", "HKD", 5000, 20.441, 23.58, ""],
+  ["Futu HK 保证金 (3939)", "01211", "比亚迪股份", "HK", "HKD", 700, 107.058, 93.45, ""],
+  ["Futu HK 保证金 (3939)", "06881", "中国银河", "HK", "HKD", 5500, 7.97, 7.66, ""],
+  ["Futu HK 保证金 (3939)", "01187", "可孚医疗", "HK", "HKD", 500, 40.736, 33.30, ""],
+  ["Futu HK 保证金 (3939)", "06880", "Momenta", "HK", "HKD", 40, 293.50, 254.20, ""],
+  ["Futu HK 保证金 (3939)", "03378", "翰思艾泰-B", "HK", "HKD", 100, 36.60, 29.00, ""],
+
+  // ═══ Futu HK 保证金综合账户 (3939) — A-Share Connect ═══
+  ["Futu HK 保证金 (3939)", "600519", "贵州茅台", "CN", "CNY", 200, 1701.27, 1328.36, ""],
+
+  // ═══ SBI 証券 現物 NISA成長 (2913) ═══
+  ["SBI 現物 NISA (2913)", "NVDA", "NVIDIA Corporation", "US", "USD", 140, 109.08, 208.72, ""],
+
+  // ═══ SBI 証券 現物 特定 (2913) ═══
+  ["SBI 現物 特定 (2913)", "NVDA", "NVIDIA Corporation", "US", "USD", 100, 175.43, 208.72, ""],
+  ["SBI 現物 特定 (2913)", "GOOG", "Alphabet Inc. Class C", "US", "USD", 68, 201.35, 366.911, ""],
+
+  // ═══ 东方财富 信用交易 ═══
+  ["东方财富 信用交易", "000651", "格力电器", "CN", "CNY", 61200, 36.191, 40.520, ""],
+  ["东方财富 信用交易", "002594", "比亚迪", "CN", "CNY", 600, 118.613, 91.150, ""],
+  ["东方财富 信用交易", "600036", "招商银行", "CN", "CNY", 45500, 41.568, 39.280, ""],
+  ["东方财富 信用交易", "601019", "山东出版", "CN", "CNY", 31700, 9.002, 7.450, ""],
+  ["东方财富 信用交易", "601098", "中南传媒", "CN", "CNY", 24800, 11.201, 10.960, ""],
+  ["东方财富 信用交易", "601318", "中国平安", "CN", "CNY", 10000, 52.097, 53.930, ""],
+  ["东方财富 信用交易", "601900", "南方传媒", "CN", "CNY", 16000, 14.473, 11.830, ""],
+
+  // ═══ Hyperliquid ═══
+  ["Hyperliquid", "HYPE", "HYPE Token", "CRYPTO", "USD", 1192.75988, null, 55.26, "成本未录入"],
+];
+
+// Per-stock today's P&L (from screenshots, where available)
+const TODAY_PNL = {
+  GOOGL: -1982.90, NVDA: 114.40 + 291.24 + 208.00, FUTU: 85.00, SKHY: 86.50,
+  "01171": -14134.00, "03968": -85680.00, "02318": -23400.00,
+  "00700": -4200.00, "02611": -3060.00, "00300": -1200.00, "02259": 120.00,
+  "00883": -800.00, "01211": -1015.00, "06881": 385.00, "01187": -350.00,
+  "06880": 328.00, "03378": 54.00, "600519": -6124.00, GOOG: -378.00,
+};
+
+// ═══════════════════════════════════════════════════════════════
+// Computed rows
+// ═══════════════════════════════════════════════════════════════
+
+function computeRows() {
+  return positions.map(([acct, sym, name, mkt, ccy, qty, cost, price, notes]) => {
+    const mktVal = qty != null ? qty * price : price;
+    const costBasis = (qty != null && cost != null) ? qty * cost : null;
+    const unrealizedPnl = (mktVal != null && costBasis != null) ? mktVal - costBasis : null;
+    const unrealizedPnlPct = (costBasis != null && costBasis !== 0) ? (unrealizedPnl / Math.abs(costBasis) * 100) : null;
+    const todayPnl = TODAY_PNL[sym] || 0;
+    const mktValHKD = (mktVal != null) ? mktVal * (fxToBase(ccy) || 1) : null;
+    return {
+      account: acct, symbol: sym, name, market: mkt, currency: ccy,
+      quantity: qty, avgCost: cost, price, marketValue: mktVal,
+      marketValueHKD: mktValHKD, costBasis, unrealizedPnl,
+      unrealizedPnlPct, todayPnl, notes,
+      displayName: marketSuffix(name, mkt),
+    };
+  });
+}
+
+// ═══════════════════════════════════════════════════════════════
+// Consolidated (same symbol+currency = separate line; A+H stay split)
+// ═══════════════════════════════════════════════════════════════
+
+function consolidatedRows() {
+  const map = new Map();
+  for (const r of computeRows()) {
+    const key = r.symbol + "|" + r.currency;
+    if (map.has(key)) {
+      const prev = map.get(key);
+      if (r.quantity != null) prev.totalQty = (prev.totalQty || 0) + r.quantity;
+      if (r.costBasis != null) {
+        prev.totalCost = (prev.totalCost || 0) + r.costBasis;
+        prev._costQty = (prev._costQty || 0) + r.quantity;
+      }
+      if (r.marketValue != null) prev.totalMktVal = (prev.totalMktVal || 0) + r.marketValue;
+      if (r.marketValueHKD != null) prev.totalMktValHKD = (prev.totalMktValHKD || 0) + r.marketValueHKD;
+      if (r.unrealizedPnl != null) prev.totalUnrealized = (prev.totalUnrealized || 0) + r.unrealizedPnl;
+      prev.totalToday += r.todayPnl;
+      prev.accounts.push(r.account.split("(")[0].trim());
+      prev._qtys.push({ qty: r.quantity, acct: r.account });
+      prev.hasCost = prev.hasCost || r.avgCost != null;
+      prev.displayName = r.displayName;
+    } else {
+      map.set(key, {
+        symbol: r.symbol, displayName: r.displayName, name: r.name,
+        market: r.market, currency: r.currency, price: r.price,
+        totalQty: r.quantity || 0,
+        totalCost: r.costBasis,
+        totalMktVal: r.marketValue,
+        totalMktValHKD: r.marketValueHKD,
+        totalUnrealized: r.unrealizedPnl,
+        totalToday: r.todayPnl,
+        accounts: [r.account.split("(")[0].trim()],
+        _qtys: [{ qty: r.quantity, acct: r.account }],
+        _costQty: (r.avgCost != null && r.quantity != null) ? r.quantity : 0,
+        hasCost: r.avgCost != null,
+      });
+    }
+  }
+
+  const results = Array.from(map.values()).map(r => {
+    r.avgCost = (r._costQty > 0 && r.totalCost != null) ? r.totalCost / r._costQty : null;
+    r.unrealizedPct = (r.totalCost != null && r.totalCost !== 0)
+      ? (r.totalUnrealized / Math.abs(r.totalCost) * 100) : null;
+    r.accountList = [...new Set(r.accounts)].join(", ");
+    r.breakdown = r._qtys.map(x => x.qty != null ? `${x.qty.toLocaleString()} (${x.acct})` : `? (${x.acct})`).join(" + ");
+    delete r._qtys; delete r.accounts; delete r._costQty;
+    return r;
+  });
+
+  // Add % of total
+  const grandTotalHKD = results.reduce((s, r) => s + (r.totalMktValHKD || 0), 0);
+  for (const r of results) {
+    r.pctOfTotal = grandTotalHKD > 0 ? (r.totalMktValHKD || 0) / grandTotalHKD * 100 : 0;
+  }
+
+  // Sort: by market order, then by market value HKD descending
+  const marketOrder = { US: 0, HK: 1, CN: 2, CRYPTO: 3 };
+  results.sort((a, b) => {
+    const ma = marketOrder[a.market] ?? 9;
+    const mb = marketOrder[b.market] ?? 9;
+    if (ma !== mb) return ma - mb;
+    return (b.totalMktValHKD || 0) - (a.totalMktValHKD || 0);
+  });
+
+  return { rows: results, grandTotalHKD };
+}
+
+// ═══════════════════════════════════════════════════════════════
+// Summary (base: HKD)
+// ═══════════════════════════════════════════════════════════════
+
+function computeSummary() {
+  const rows = computeRows();
+  let totalMktHKD = 0, totalCostHKD = 0, totalUnrealizedHKD = 0, totalTodayHKD = 0;
+  const byCcy = {};
+  let costMissing = 0;
+
+  for (const r of rows) {
+    const rate = fxToBase(r.currency) || 1;
+    const mktHKD = r.marketValue != null ? r.marketValue * rate : null;
+    const costHKD = r.costBasis != null ? r.costBasis * rate : null;
+    const unrHKD = r.unrealizedPnl != null ? r.unrealizedPnl * rate : null;
+
+    if (mktHKD != null) totalMktHKD += mktHKD;
+    if (costHKD != null) totalCostHKD += costHKD; else costMissing++;
+    if (unrHKD != null) totalUnrealizedHKD += unrHKD;
+    totalTodayHKD += (r.todayPnl || 0) * rate;
+
+    byCcy[r.currency] = byCcy[r.currency] || { mkt: 0, cost: 0, unrealized: 0, today: 0 };
+    if (r.marketValue != null) byCcy[r.currency].mkt += r.marketValue;
+    if (r.costBasis != null) byCcy[r.currency].cost += r.costBasis;
+    if (r.unrealizedPnl != null) byCcy[r.currency].unrealized += r.unrealizedPnl;
+    if (r.todayPnl != null) byCcy[r.currency].today += r.todayPnl;
+  }
+
+  return {
+    totalMktHKD, totalCostHKD, totalUnrealizedHKD, totalTodayHKD,
+    totalUnrealizedPct: totalCostHKD !== 0 ? (totalUnrealizedHKD / Math.abs(totalCostHKD) * 100) : null,
+    byCcy, holdingCount: rows.length, costMissing,
+  };
+}
+
+// ═══════════════════════════════════════════════════════════════
+// Render helpers — 涨红跌绿
+// ═══════════════════════════════════════════════════════════════
+
+const FMT = new Intl.NumberFormat("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const FMT4 = new Intl.NumberFormat("en-US", { minimumFractionDigits: 4, maximumFractionDigits: 4 });
+const FMT0 = new Intl.NumberFormat("en-US", { maximumFractionDigits: 0 });
+const FMT1 = new Intl.NumberFormat("en-US", { minimumFractionDigits: 1, maximumFractionDigits: 1 });
+
+function fmt(n) { return FMT.format(n); }
+function fmt4(n) { return FMT4.format(n); }
+function fmt0(n) { return FMT0.format(n); }
+function fmt1(n) { return FMT1.format(n); }
+function fmts(n, ccy) { return `${FMT.format(n)} ${ccy || ""}`; }
+function pct(v) { return v == null ? "N/A" : (v >= 0 ? "+" : "") + v.toFixed(2) + "%"; }
+function pnlClass(v) { return v == null ? "" : v > 0.005 ? "gain-text" : v < -0.005 ? "loss-text" : ""; }
+function esc(s) { return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[c]); }
+function costOrNA(v, ccy) { return v != null ? fmts(v, ccy) : "N/A"; }
+function hkds(v) { return v != null ? `HK$${fmt0(v)}` : "N/A"; }
+
+function renderSummary() {
+  const s = computeSummary();
+  document.getElementById("summary-cards").innerHTML = `
+    <div class="card">
+      <div class="card-label">📈 总市值 (HKD)</div>
+      <div class="card-value">HK$${fmt0(s.totalMktHKD)}</div>
+      <div class="card-sub">${s.holdingCount} 个持仓条目</div>
+    </div>
+    <div class="card">
+      <div class="card-label">💰 总成本 (HKD)</div>
+      <div class="card-value">HK$${fmt0(s.totalCostHKD)}</div>
+      <div class="card-sub">${s.costMissing > 0 ? `⚠ ${s.costMissing} 个持仓缺少成本` : "已投入成本"}</div>
+    </div>
+    <div class="card ${(s.totalUnrealizedHKD || 0) >= 0 ? 'gain' : 'loss'}">
+      <div class="card-label">📊 未实现盈亏 (HKD)</div>
+      <div class="card-value">${(s.totalUnrealizedHKD || 0) >= 0 ? '+' : ''}HK$${fmt0(Math.abs(s.totalUnrealizedHKD || 0))}</div>
+      <div class="card-sub">${pct(s.totalUnrealizedPct)} 回报率 (可计成本部分)</div>
+    </div>
+  `;
+
+  const ccyParts = Object.entries(s.byCcy).map(([ccy, d]) => {
+    const rate = fxToBase(ccy) || 1;
+    const mktHKD = d.mkt * rate;
+    return `<span style="margin-right:16px"><strong>${ccy}</strong> 市值 ${fmt0(d.mkt)} (HK$${fmt0(mktHKD)}) | 盈亏 ${costOrNA(d.unrealized, ccy)}</span>`;
+  });
+  document.getElementById("summary-cards").insertAdjacentHTML("beforeend", `
+    <div class="card" style="grid-column: 1/-1">
+      <div class="card-label">💱 币种分布 (均折合 HKD)</div>
+      <div class="card-sub" style="margin-top:6px;line-height:1.8">${ccyParts.join("")}</div>
+    </div>
+  `);
+
+  const notes = [];
+  const noCost = positions.filter(p => p[6] == null);
+  if (noCost.length > 0) notes.push(`⚠ 以下持仓缺少成本数据: ${noCost.map(p => p[1]).join(", ")}`);
+  notes.push("PURR PUT 261218 5 期权空头 70 张合约未包含。东方财富当日盈亏按账户汇总 -105,697 CNY，单股明细暂缺。");
+  notes.push("A股按 CNY→HKD @ 1.069 折算，美股按 USD→HKD @ 7.8182 折算。");
+  document.getElementById("footnotes").innerHTML = notes.map(n => `<p>${n}</p>`).join("");
+}
+
+// ═══════════════════════════════════════════════════════════════
+// Views
+// ═══════════════════════════════════════════════════════════════
+
+function renderConsolidated() {
+  const grouped = document.getElementById("group-by-market").checked;
+  const { rows, grandTotalHKD } = consolidatedRows();
+
+  document.getElementById("table-head").innerHTML = `
+    <tr>
+      <th>代码</th><th>名称</th>
+      <th class="hl-col">折合港币市值</th><th class="hl-col">占比</th>
+      <th>市场</th><th>币种</th>
+      <th class="number">持仓数量</th><th class="number">现价</th><th class="number">均价</th>
+      <th class="number">本币市值</th><th class="number">成本</th>
+      <th class="number">未实现盈亏</th><th class="number">盈亏%</th>
+      <th>来源账户</th>
+    </tr>`;
+
+  const marketNames = { US: "🇺🇸 美国股市", HK: "🇭🇰 香港股市", CN: "🇨🇳 A股 (沪深)", CRYPTO: "🪙 加密货币" };
+
+  // If not grouped, sort flat by HKD market value descending
+  const displayRows = grouped ? rows : [...rows].sort((a, b) => (b.totalMktValHKD || 0) - (a.totalMktValHKD || 0));
+
+  let html = "", lastMkt = "";
+
+  for (const r of displayRows) {
+    if (grouped && r.market !== lastMkt) {
+      const mktRows = rows.filter(x => x.market === r.market);
+      const mktHKD = mktRows.reduce((s, x) => s + (x.totalMktValHKD || 0), 0);
+      const mktPct = grandTotalHKD > 0 ? (mktHKD / grandTotalHKD * 100) : 0;
+      html += `<tr class="group-header"><td colspan="15">${marketNames[r.market] || r.market} — 折合 HK$${fmt0(mktHKD)} (占 ${fmt1(mktPct)}%) · ${mktRows.length} 个标的</td></tr>`;
+      lastMkt = r.market;
+    }
+    html += `
+    <tr>
+      <td class="symbol-cell">${esc(r.symbol)}</td>
+      <td>${esc(r.displayName)}</td>
+      <td class="number hl-col" style="font-weight:700;color:#f0f4fc">${hkds(r.totalMktValHKD)}</td>
+      <td class="number hl-col" style="font-weight:600">${fmt1(r.pctOfTotal)}%</td>
+      <td><span class="chip ${r.market === 'CRYPTO' ? 'chip-crypto' : 'chip-mkt'}">${esc(r.market)}</span></td>
+      <td><span class="chip chip-ccy">${esc(r.currency)}</span></td>
+      <td class="number" title="${esc(r.breakdown || '')}">${r.totalQty > 0 ? fmt0(r.totalQty) : "—"}</td>
+      <td class="number">${fmt4(r.price)}</td>
+      <td class="number">${r.avgCost != null ? fmt4(r.avgCost) : "N/A"}</td>
+      <td class="number">${costOrNA(r.totalMktVal, r.currency)}</td>
+      <td class="number">${costOrNA(r.totalCost, r.currency)}</td>
+      <td class="number ${pnlClass(r.totalUnrealized)}">${costOrNA(r.totalUnrealized, r.currency)}</td>
+      <td class="number ${pnlClass(r.totalUnrealized)}">${pct(r.unrealizedPct)}</td>
+      <td><span class="chip chip-acct">${esc(r.accountList)}</span></td>
+    </tr>`;
+  }
+  document.getElementById("table-body").innerHTML = html;
+}
+
+function renderByAccount() {
+  const rows = computeRows();
+  const acctOrder = {
+    "Futu HK 保证金 (3939)": 0, "SBI 現物 NISA (2913)": 1,
+    "SBI 現物 特定 (2913)": 2, "东方财富 信用交易": 3, "Hyperliquid": 4
+  };
+  rows.sort((a, b) => (acctOrder[a.account] ?? 9) - (acctOrder[b.account] ?? 9)
+    || a.market.localeCompare(b.market) || a.symbol.localeCompare(b.symbol));
+
+  document.getElementById("table-head").innerHTML = `
+    <tr>
+      <th>账户</th><th>代码</th><th>名称</th><th>市场</th><th>币种</th>
+      <th class="number">数量</th><th class="number">均价</th><th class="number">现价</th>
+      <th class="number">本币市值</th><th class="number">折合HKD</th><th class="number">成本</th>
+      <th class="number">未实现盈亏</th><th class="number">盈亏%</th>
+    </tr>`;
+
+  let html = "", lastAcct = "";
+  for (const r of rows) {
+    if (r.account !== lastAcct) {
+      const acctRows = rows.filter(x => x.account === r.account);
+      let acctHKD = 0;
+      for (const x of acctRows) {
+        const rate = fxToBase(x.currency) || 1;
+        if (x.marketValue != null) acctHKD += x.marketValue * rate;
+      }
+      html += `<tr class="group-header"><td colspan="13">${esc(r.account)} — 折合 HK$${fmt0(acctHKD)} (${acctRows.length} 个持仓)</td></tr>`;
+      lastAcct = r.account;
+    }
+    html += `
+    <tr>
+      <td><span class="chip chip-acct">${esc(r.account)}</span></td>
+      <td class="symbol-cell">${esc(r.symbol)}</td>
+      <td>${esc(r.displayName)}${r.notes ? ` <span class="chip chip-crypto" style="font-size:10px">${esc(r.notes)}</span>` : ""}</td>
+      <td><span class="chip ${r.market === 'CRYPTO' ? 'chip-crypto' : 'chip-mkt'}">${esc(r.market)}</span></td>
+      <td><span class="chip chip-ccy">${esc(r.currency)}</span></td>
+      <td class="number">${r.quantity != null ? fmt0(r.quantity) : "—"}</td>
+      <td class="number">${r.avgCost != null ? fmt4(r.avgCost) : "N/A"}</td>
+      <td class="number">${fmt4(r.price)}</td>
+      <td class="number">${costOrNA(r.marketValue, r.currency)}</td>
+      <td class="number">${hkds(r.marketValueHKD)}</td>
+      <td class="number">${costOrNA(r.costBasis, r.currency)}</td>
+      <td class="number ${pnlClass(r.unrealizedPnl)}">${costOrNA(r.unrealizedPnl, r.currency)}</td>
+      <td class="number ${pnlClass(r.unrealizedPnl)}">${pct(r.unrealizedPnlPct)}</td>
+    </tr>`;
+  }
+  document.getElementById("table-body").innerHTML = html;
+}
+
+function renderByCurrency() {
+  const rows = computeRows();
+  rows.sort((a, b) => (a.currency + a.market + a.symbol).localeCompare(b.currency + b.market + b.symbol));
+
+  document.getElementById("table-head").innerHTML = `
+    <tr>
+      <th>代码</th><th>名称</th><th>市场</th><th>账户</th><th>币种</th>
+      <th class="number">数量</th><th class="number">现价</th><th class="number">均价</th>
+      <th class="number">本币市值</th><th class="number">折合HKD</th><th class="number">成本</th>
+      <th class="number">未实现盈亏</th><th class="number">盈亏%</th>
+    </tr>`;
+
+  let html = "", lastCcy = "";
+  for (const r of rows) {
+    if (r.currency !== lastCcy) {
+      const ccyRows = rows.filter(x => x.currency === r.currency);
+      const ccyTotal = ccyRows.reduce((s, x) => s + (x.marketValue || 0), 0);
+      const ccyHKD = ccyRows.reduce((s, x) => s + (x.marketValueHKD || 0), 0);
+      html += `<tr class="group-header"><td colspan="13">${esc(r.currency)} — 本币 ${fmt0(ccyTotal)} · 折合 HK$${fmt0(ccyHKD)}</td></tr>`;
+      lastCcy = r.currency;
+    }
+    html += `
+    <tr>
+      <td class="symbol-cell">${esc(r.symbol)}</td>
+      <td>${esc(r.displayName)}</td>
+      <td><span class="chip ${r.market === 'CRYPTO' ? 'chip-crypto' : 'chip-mkt'}">${esc(r.market)}</span></td>
+      <td><span class="chip chip-acct">${esc(r.account)}</span></td>
+      <td><span class="chip chip-ccy">${esc(r.currency)}</span></td>
+      <td class="number">${r.quantity != null ? fmt0(r.quantity) : "—"}</td>
+      <td class="number">${fmt4(r.price)}</td>
+      <td class="number">${r.avgCost != null ? fmt4(r.avgCost) : "N/A"}</td>
+      <td class="number">${costOrNA(r.marketValue, r.currency)}</td>
+      <td class="number">${hkds(r.marketValueHKD)}</td>
+      <td class="number">${costOrNA(r.costBasis, r.currency)}</td>
+      <td class="number ${pnlClass(r.unrealizedPnl)}">${costOrNA(r.unrealizedPnl, r.currency)}</td>
+      <td class="number ${pnlClass(r.unrealizedPnl)}">${pct(r.unrealizedPnlPct)}</td>
+    </tr>`;
+  }
+  document.getElementById("table-body").innerHTML = html;
+}
+
+function renderByMarket() {
+  const rows = computeRows();
+  const marketOrder = { US: 0, HK: 1, CN: 2, CRYPTO: 3 };
+  rows.sort((a, b) => (marketOrder[a.market] ?? 9) - (marketOrder[b.market] ?? 9)
+    || a.symbol.localeCompare(b.symbol));
+
+  document.getElementById("table-head").innerHTML = `
+    <tr>
+      <th>代码</th><th>名称</th><th>账户</th><th>币种</th><th>市场</th>
+      <th class="number">数量</th><th class="number">现价</th><th class="number">均价</th>
+      <th class="number">本币市值</th><th class="number">折合HKD</th><th class="number">成本</th>
+      <th class="number">未实现盈亏</th><th class="number">盈亏%</th>
+    </tr>`;
+
+  const marketNames = { US: "🇺🇸 美国股市", HK: "🇭🇰 香港股市", CN: "🇨🇳 A股 (沪深)", CRYPTO: "🪙 加密货币" };
+  let html = "", lastMkt = "";
+  for (const r of rows) {
+    if (r.market !== lastMkt) {
+      const mktRows = rows.filter(x => x.market === r.market);
+      let mktHKD = 0;
+      for (const x of mktRows) { const rate = fxToBase(x.currency) || 1; if (x.marketValue != null) mktHKD += x.marketValue * rate; }
+      html += `<tr class="group-header"><td colspan="13">${marketNames[r.market] || r.market} — 折合 HK$${fmt0(mktHKD)} (${mktRows.length} 个持仓)</td></tr>`;
+      lastMkt = r.market;
+    }
+    html += `
+    <tr>
+      <td class="symbol-cell">${esc(r.symbol)}</td>
+      <td>${esc(r.displayName)}</td>
+      <td><span class="chip chip-acct">${esc(r.account)}</span></td>
+      <td><span class="chip chip-ccy">${esc(r.currency)}</span></td>
+      <td><span class="chip ${r.market === 'CRYPTO' ? 'chip-crypto' : 'chip-mkt'}">${esc(r.market)}</span></td>
+      <td class="number">${r.quantity != null ? fmt0(r.quantity) : "—"}</td>
+      <td class="number">${fmt4(r.price)}</td>
+      <td class="number">${r.avgCost != null ? fmt4(r.avgCost) : "N/A"}</td>
+      <td class="number">${costOrNA(r.marketValue, r.currency)}</td>
+      <td class="number">${hkds(r.marketValueHKD)}</td>
+      <td class="number">${costOrNA(r.costBasis, r.currency)}</td>
+      <td class="number ${pnlClass(r.unrealizedPnl)}">${costOrNA(r.unrealizedPnl, r.currency)}</td>
+      <td class="number ${pnlClass(r.unrealizedPnl)}">${pct(r.unrealizedPnlPct)}</td>
+    </tr>`;
+  }
+  document.getElementById("table-body").innerHTML = html;
+}
+
+// ═══════════════════════════════════════════════════════════════
+// View switching
+// ═══════════════════════════════════════════════════════════════
+
+const views = {
+  consolidated: renderConsolidated,
+  "by-account": renderByAccount,
+  "by-currency": renderByCurrency,
+  "by-market": renderByMarket,
+};
+
+document.querySelectorAll(".tab").forEach(tab => {
+  tab.addEventListener("click", () => {
+    document.querySelectorAll(".tab").forEach(t => t.classList.remove("active"));
+    tab.classList.add("active");
+    views[tab.dataset.view]();
+  });
+});
+
+document.getElementById("group-by-market").addEventListener("change", () => {
+  if (document.querySelector(".tab.active")?.dataset.view === "consolidated") {
+    renderConsolidated();
+  }
+});
+
+renderSummary();
+renderConsolidated();
+</script>
+</body>
+</html>
