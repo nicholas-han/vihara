@@ -69,15 +69,15 @@ def test_reconciliation_endpoint_flags_mismatch_after_new_trades(client):
     # a new MSFT trade after the 2024-12-31 checkpoint does NOT break it,
     # so introduce a mismatch by backdating a trade before the checkpoint
     csv_body = (
-        "schema_version,account_id,trade_date,symbol,market,side,quantity,price,trade_currency\n"
-        "1,taxable,2024-11-01,MSFT,US,buy,2,410.00,USD\n"
+        "schema_version,account_id,trade_date,instrument_id,symbol,market,side,quantity,price,trade_currency,transaction_fees\n"
+        "1,taxable,2024-11-01,ins_01j3m8x2qd7n5h4t8z6kcp,MSFT,US,buy,2,410.00,USD,0\n"
     ).encode()
     assert client.post("/api/imports", content=csv_body).status_code == 200
 
     issues = client.get("/api/reconciliation", params={"account_id": "taxable"}).json()["issues"]
 
     assert len(issues) == 1
-    assert issues[0]["instrument_id"] == "MSFT.US"
+    assert issues[0]["instrument_id"] == "ins_01j3m8x2qd7n5h4t8z6kcp"
     assert float(issues[0]["difference"]) == 2.0
 
 
@@ -95,8 +95,8 @@ def test_summary_endpoint_returns_base_currency_totals(client):
 
 def test_dividend_import_endpoint_is_idempotent(client):
     csv_body = (
-        "schema_version,account_id,pay_date,symbol,market,amount,currency,external_id\n"
-        "1,taxable,2024-11-14,AAPL,US,3.85,USD,DIV-AAPL-2024Q4\n"
+        "schema_version,account_id,pay_date,instrument_id,symbol,market,amount,currency,external_id\n"
+        "1,taxable,2024-11-14,ins_01j3m8w7rx6f4k2p9c5vbn,AAPL,US,3.85,USD,DIV-AAPL-2024Q4\n"
     ).encode()
 
     first = client.post("/api/imports/dividends", content=csv_body)

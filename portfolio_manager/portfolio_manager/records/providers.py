@@ -42,6 +42,10 @@ class RecordsStore(Protocol):
     # instruments
     def get_instruments(self, instrument_ids: list[str]) -> dict[str, InstrumentSummary]: ...
 
+    def resolve_instrument_id(self, symbol: str, market: str, as_of: date) -> str:
+        """Resolve an effective-dated ticker alias to one stable internal id."""
+        ...
+
     # position snapshots (opening balances + reconciliation checkpoints)
     def latest_snapshots(
         self,
@@ -95,9 +99,14 @@ class RecordsStore(Protocol):
     def upsert_fx_rates(self, rates: list[FxRate]) -> int: ...
 
     # import persistence
-    def upsert_instruments(self, instruments: list[InstrumentSummary], aliases: dict[str, str]) -> None:
+    def upsert_instruments(
+        self,
+        instruments: list[InstrumentSummary],
+        aliases: dict[str, tuple[str, date]],
+    ) -> None:
         """Insert missing instruments (never overwrites existing reference
-        data). ``aliases`` maps instrument_id -> TICKER-scheme identifier."""
+        data). ``aliases`` maps instrument_id -> (TICKER identifier,
+        valid_from) and creates an open-ended mapping."""
         ...
 
     def insert_trades(self, rows: list[TradeImportRow], batch_id: str) -> tuple[int, int]:

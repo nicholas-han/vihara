@@ -16,12 +16,14 @@ from portfolio_manager.records.models import (
     TradeSide,
 )
 
+AAPL_ID = "ins_01j3m8w7rx6f4k2p9c5vbn"
+
 
 def _trade(trade_id: str, side: TradeSide, quantity: int, price: int, day: int | None = None) -> Trade:
     return Trade(
         trade_id=trade_id,
         account_id="taxable",
-        instrument_id="AAPL.US",
+        instrument_id=AAPL_ID,
         trade_date=date(2025, 1, day if day is not None else int(trade_id)),
         side=side,
         quantity=Decimal(quantity),
@@ -145,7 +147,7 @@ def test_opening_position_conflicts_with_earlier_trades():
 def _opening_snapshot(kind: SnapshotKind, quantity: int, as_of: date) -> PositionSnapshot:
     return PositionSnapshot(
         account_id="taxable",
-        instrument_id="AAPL.US",
+        instrument_id=AAPL_ID,
         as_of=as_of,
         quantity=Decimal(quantity),
         average_cost=Decimal(88),
@@ -211,7 +213,7 @@ def test_service_reconcile_passes_when_quantities_match():
 
 def test_service_reports_dividends_received():
     store = _FakeStore(snapshots=[], trades=[_trade("1", TradeSide.BUY, 10, 100)])
-    store.dividends = {"AAPL.US": Decimal("7.05")}
+    store.dividends = {AAPL_ID: Decimal("7.05")}
     service = PortfolioRecordsService(store)
 
     rows = service.holdings("taxable")
@@ -249,9 +251,9 @@ class _FakeStore:
 
     def get_instruments(self, instrument_ids: list[str]):
         return {
-            "AAPL.US": InstrumentSummary("AAPL.US", "AAPL", "Apple Inc.", "US", "USD")
+            AAPL_ID: InstrumentSummary(AAPL_ID, "AAPL", "Apple Inc.", "US", "USD")
             for instrument_id in instrument_ids
-            if instrument_id == "AAPL.US"
+            if instrument_id == AAPL_ID
         }
 
     def latest_snapshots(self, account_id: str, as_of=None, kind=None):
@@ -269,14 +271,14 @@ class _FakeStore:
 
     def latest_annual_dividends(self, instrument_ids: list[str]):
         return {
-            "AAPL.US": DividendAnnual("AAPL.US", 2024, Decimal("0.96"), "USD")
+            AAPL_ID: DividendAnnual(AAPL_ID, 2024, Decimal("0.96"), "USD")
             for instrument_id in instrument_ids
-            if instrument_id == "AAPL.US"
+            if instrument_id == AAPL_ID
         }
 
     def latest_annual_financials(self, instrument_ids: list[str]):
         return {
-            "AAPL.US": FinancialAnnual("AAPL.US", 2024, Decimal("6.08"), "USD")
+            AAPL_ID: FinancialAnnual(AAPL_ID, 2024, Decimal("6.08"), "USD")
             for instrument_id in instrument_ids
-            if instrument_id == "AAPL.US"
+            if instrument_id == AAPL_ID
         }

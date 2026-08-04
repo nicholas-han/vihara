@@ -2,15 +2,21 @@
 
 ## Pipeline
 
+Two sources feed one booking engine (v3, ADR-10):
+
 ```
-parse (per file)  ->  loader (includes, options, stable sort)  ->  booking
-                  ->  CheckResult { directives, inventories, booked, errors }
+DB (canonical): store.load_directives -> snapshot.canonical_directives
+                                      -> booking -> CheckResult
+text (import/fixtures): parse -> loader (includes, options, sort)
+                                      -> booking -> CheckResult
 ```
 
-- `ledger.validate.check(main_path)` is the single entry point.
+- `ledger.validate.check_db(db_path)` is the canonical entry point
+  (`full=True` ignores snapshots); `check(main_path)` keeps the text
+  pipeline alive for importers, fixtures and the bean-compat gate.
 - Sort key: `(date, type order, file, line)`; within one date, opens come
   first, then balance assertions ("start of day"), then activity, closes
-  last.
+  last. DB-loaded directives use `(db:<table>, rowid)` as the tiebreaker.
 - Every stage collects `LedgerError(file:line)` and keeps going.
 
 ## Full rebuild, every run
@@ -46,18 +52,21 @@ construction — deleting it loses nothing.
 
 | Env var | Default |
 |---|---|
-| `LEDGER_MAIN` | `$VIHARA_DATA_DIR/ledger/main.beancount` |
-| `LEDGER_INDEX` | `$VIHARA_DATA_DIR/build/ledger.sqlite3` |
+| `LEDGER_DB` | `$VIHARA_DATA_DIR/ledger/ledger.db` (source of truth) |
+| `LEDGER_MAIN` | `$VIHARA_DATA_DIR/ledger/main.beancount` (import/export) |
+| `LEDGER_INDEX` | `$VIHARA_DATA_DIR/build/ledger.sqlite3` (derived) |
 
 `.env` files are honored the same way as portfolio_manager's config.
 
 ## Query surface
 
 CLI (`python -m ledger`): `check`, `bal [--at DATE] [PREFIX]`,
-`register ACCOUNT [--year Y]`, `holdings [PREFIX]`, `rebuild-index`.
-Point-in-time queries simply re-book the stream filtered by date.
+`register ACCOUNT [--year Y]`, `holdings [PREFIX]`, `rebuild-index` —
+all with `--full` to ignore snapshots. Point-in-time queries simply
+re-book the stream filtered by date.
 
-**fava is the recommended browser** — run it read-only against
-`main.beancount` when a UI is wanted; it is not a dependency of anything.
-The `beancount` package appears only as a dev extra so CI can run the
-compatibility gate (`tests/test_bean_compat.py`).
+**The built-in web app is the primary browser** (`python -m ledger web`,
+see 50-store-webapp-snapshots). fava remains available as a secondary
+read-only viewer over `export-beancount` output; the `beancount` package
+appears only as a dev extra so CI can run the compatibility gate
+(`tests/test_bean_compat.py`).

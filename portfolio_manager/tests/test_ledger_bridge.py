@@ -42,15 +42,15 @@ HAND_ACCOUNTS = """\
 """
 
 TRADES = """\
-schema_version,account_id,broker,external_trade_id,trade_date,symbol,market,side,quantity,price,trade_currency,commission
-1,taxable,IBKR,IBKR-1,2026-03-02,AAPL,US,buy,10,175.00,USD,1.00
-1,taxable,IBKR,IBKR-2,2026-03-10,AAPL,US,buy,5,180.00,USD,1.00
-1,taxable,IBKR,IBKR-3,2026-04-01,AAPL,US,sell,12,190.00,USD,1.00
+schema_version,account_id,broker,external_trade_id,trade_date,instrument_id,symbol,market,side,quantity,price,trade_currency,transaction_fees
+1,taxable,IBKR,IBKR-1,2026-03-02,ins_01j3m8w7rx6f4k2p9c5vbn,AAPL,US,buy,10,175.00,USD,1.00
+1,taxable,IBKR,IBKR-2,2026-03-10,ins_01j3m8w7rx6f4k2p9c5vbn,AAPL,US,buy,5,180.00,USD,1.00
+1,taxable,IBKR,IBKR-3,2026-04-01,ins_01j3m8w7rx6f4k2p9c5vbn,AAPL,US,sell,12,190.00,USD,1.00
 """
 
 DIVIDENDS = """\
-schema_version,account_id,pay_date,symbol,market,amount,currency,withholding_tax
-1,taxable,2026-03-20,AAPL,US,8.50,USD,1.50
+schema_version,account_id,pay_date,instrument_id,symbol,market,amount,currency,withholding_tax
+1,taxable,2026-03-20,ins_01j3m8w7rx6f4k2p9c5vbn,AAPL,US,8.50,USD,1.50
 """
 
 CASHFLOWS = """\
@@ -59,8 +59,8 @@ schema_version,account_id,flow_date,type,amount,currency,counter_account,externa
 """
 
 CHECKPOINT_POSITIONS = """\
-schema_version,account_id,symbol,market,as_of,quantity,currency
-1,taxable,AAPL,US,2026-05-01,3,USD
+schema_version,account_id,instrument_id,symbol,market,as_of,quantity,currency
+1,taxable,ins_01j3m8w7rx6f4k2p9c5vbn,AAPL,US,2026-05-01,3,USD
 """
 
 CHECKPOINT_CASH = """\
@@ -92,15 +92,13 @@ def _write_fixture(root: Path, method: str = "fifo") -> Path:
 
 def test_commodity_encoding_roundtrip():
     for instrument_id, commodity in [
-        ("AAPL.US", "US.AAPL"),
-        ("0700.HK", "HK.0700"),
-        ("600519.CN", "CN.600519"),
-        ("BRK.B.US", "US.BRK.B"),
+        ("ins_01j3m8w7rx6f4k2p9c5vbn", "I01J3M8W7RX6F4K2P9C5VBN"),
+        ("ins_01j3m8y4kf9r2w7c6n5ptx", "I01J3M8Y4KF9R2W7C6N5PTX"),
     ]:
         assert to_commodity(instrument_id) == commodity
         assert from_commodity(commodity) == instrument_id
     with pytest.raises(ValueError):
-        to_commodity("AAPL")  # no market segment
+        to_commodity("AAPL.US")
     with pytest.raises(ValueError):
         from_commodity("USD")  # not an instrument commodity
 
@@ -161,8 +159,8 @@ def test_ledger_agrees_with_pm_numbers(tmp_path: Path):
     assert result.ok
 
     positions = result.book.inventories["Assets:Broker:IBKR:Positions"]
-    assert positions.units_of("US.AAPL") == Decimal("3")
-    (lot,) = positions.lots_of("US.AAPL")
+    assert positions.units_of("I01J3M8W7RX6F4K2P9C5VBN") == Decimal("3")
+    (lot,) = positions.lots_of("I01J3M8W7RX6F4K2P9C5VBN")
     # FIFO: sell 12 = all of lot1 (1751.00) + 2/5 of lot2 (360.40)
     assert lot.cost_total == Decimal("540.60")
     assert lot.label == "t:IBKR-2"
@@ -205,7 +203,7 @@ def test_perturbations_fire_the_right_checks(tmp_path: Path):
     )
     generate(data_dir)
     (data_dir / "portfolio" / "trades" / "taxable" / "2026.csv").write_text(
-        TRADES + "1,taxable,IBKR,IBKR-4,2026-04-15,AAPL,US,buy,2,170.00,USD,0\n"
+        TRADES + "1,taxable,IBKR,IBKR-4,2026-04-15,ins_01j3m8w7rx6f4k2p9c5vbn,AAPL,US,buy,2,170.00,USD,0\n"
     )
     checks = {b.check for b in run_checks(data_dir)}
     assert "R2-generated-drift" in checks
@@ -219,16 +217,16 @@ def test_opening_anchor_generates_and_reconciles(tmp_path: Path):
     (portfolio / "snapshots").mkdir(parents=True)
     (portfolio / "checkpoints" / "taxable").mkdir(parents=True)
     (portfolio / "trades" / "taxable" / "2026.csv").write_text(
-        "schema_version,account_id,broker,external_trade_id,trade_date,symbol,market,side,quantity,price,trade_currency,commission\n"
-        "1,taxable,IBKR,IBKR-9,2026-02-01,AAPL,US,sell,2,160.00,USD,0\n"
+        "schema_version,account_id,broker,external_trade_id,trade_date,instrument_id,symbol,market,side,quantity,price,trade_currency,transaction_fees\n"
+        "1,taxable,IBKR,IBKR-9,2026-02-01,ins_01j3m8w7rx6f4k2p9c5vbn,AAPL,US,sell,2,160.00,USD,0\n"
     )
     (portfolio / "snapshots" / "opening.csv").write_text(
-        "schema_version,account_id,symbol,market,as_of,quantity,average_cost,currency\n"
-        "1,taxable,AAPL,US,2026-01-01,4,150.00,USD\n"
+        "schema_version,account_id,instrument_id,symbol,market,as_of,quantity,average_cost,currency\n"
+        "1,taxable,ins_01j3m8w7rx6f4k2p9c5vbn,AAPL,US,2026-01-01,4,150.00,USD\n"
     )
     (portfolio / "checkpoints" / "taxable" / "positions.csv").write_text(
-        "schema_version,account_id,symbol,market,as_of,quantity,currency\n"
-        "1,taxable,AAPL,US,2026-03-01,2,USD\n"
+        "schema_version,account_id,instrument_id,symbol,market,as_of,quantity,currency\n"
+        "1,taxable,ins_01j3m8w7rx6f4k2p9c5vbn,AAPL,US,2026-03-01,2,USD\n"
     )
     (root / "bridge").mkdir()
     (root / "bridge" / "mapping.toml").write_text(MAPPING.format(method="fifo"))
@@ -243,7 +241,7 @@ def test_opening_anchor_generates_and_reconciles(tmp_path: Path):
     assert breaks == [], [str(b) for b in breaks]
 
     positions = result.book.inventories["Assets:Broker:IBKR:Positions"]
-    (lot,) = positions.lots_of("US.AAPL")
+    (lot,) = positions.lots_of("I01J3M8W7RX6F4K2P9C5VBN")
     assert lot.units == Decimal("2")
     assert lot.cost_total == Decimal("300.00")  # half of the 600 opening basis
     assert lot.label == "t:opening"

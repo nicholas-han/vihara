@@ -1,6 +1,31 @@
 # 90 — Roadmap
 
-## Done in `ledger-v2` (this branch)
+## Done in `ledger-v3` (this branch)
+
+- **DB-canonical flip (ADR-10)** — authoritative SQLite store
+  (`ledger/store/`), parser demoted to importer, printer promoted to
+  exporter; text pipeline retained for fixtures and the bean-compat gate.
+- **Importers (ADR-12)** — batch-idempotent beancount and CSV/XLSX table
+  imports (+ paste variants for the web app), post-import full check.
+- **Snapshots (ADR-11)** — journal-derived position checkpoints:
+  `create --from-booked`, `verify` (journal vs snapshot diff), canonical
+  booking reset via a synthesized opening transaction; `--full` views.
+- **Web app (ADR-13)** — zero-dependency browser + entry UI: journal
+  filters, entry/edit/delete with rebook validation, accounts, balances,
+  holdings, snapshots, errors, import-by-paste, text export.
+- CLI: `init-db` / `import-beancount` / `import-table` /
+  `export-beancount` / `snapshot` / `web`; DB mode default, `--ledger`
+  file mode kept.
+
+## Next (v3 follow-ups)
+
+- ledger_bridge writes to the store directly (today its text output goes
+  through `import-beancount` unchanged).
+- Snapshot position editing in the web app (today: CLI/from-booked, or
+  SQL).
+- Real broker/bank statement importers on top of the table template.
+
+## Done in `ledger-v2`
 
 - Core model, parser, loader, booking (STRICT/FIFO/AVERAGE_POOL),
   balance assertions, canonical printer, SQLite index, queries, CLI.
@@ -32,6 +57,7 @@
   machinery) — trade-date basis is deliberate for a personal book;
   `settle_date` survives as metadata for a future settlement mode.
 - Short positions (negative lots).
-- `pad`, plugins, tag stacks; a ledger web API (fava covers browsing).
+- `pad`, plugins, tag stacks (snapshots replaced `pad`, ADR-11); a JSON
+  API for the web app (server-rendered pages cover v3).
 - Multi-language docs — English only until the owner's planned
   auto-translation system lands (ADR-6).

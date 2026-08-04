@@ -12,21 +12,21 @@ from portfolio_manager.records.sqlite_repos import SQLiteRecordsStore
 ACCOUNTS = "schema_version,account_id,name,currency\n1,taxable,Taxable,USD\n"
 FX = "base_currency,quote_currency,as_of,rate\nHKD,USD,2026-03-31,0.1282\n"
 TRADES_2026 = """\
-schema_version,account_id,broker,external_trade_id,trade_date,settle_date,symbol,market,side,quantity,price,trade_currency,commission,tax,other_fee,notes
-1,taxable,IBKR,IBKR-1,2026-03-02,2026-03-03,AAPL,US,buy,10,175.00,USD,1.00,0,0,
-1,taxable,IBKR,IBKR-2,2026-04-01,2026-04-02,AAPL,US,sell,4,180.00,USD,1.00,0,0,
+schema_version,account_id,broker,external_trade_id,trade_date,settle_date,instrument_id,symbol,market,side,quantity,price,trade_currency,transaction_fees,notes
+1,taxable,IBKR,IBKR-1,2026-03-02,2026-03-03,ins_01j3m8w7rx6f4k2p9c5vbn,AAPL,US,buy,10,175.00,USD,1.00,
+1,taxable,IBKR,IBKR-2,2026-04-01,2026-04-02,ins_01j3m8w7rx6f4k2p9c5vbn,AAPL,US,sell,4,180.00,USD,1.00,
 """
 DIVIDENDS = """\
-schema_version,account_id,pay_date,symbol,market,amount,currency,withholding_tax
-1,taxable,2026-03-20,AAPL,US,8.50,USD,1.50
+schema_version,account_id,pay_date,instrument_id,symbol,market,amount,currency,withholding_tax
+1,taxable,2026-03-20,ins_01j3m8w7rx6f4k2p9c5vbn,AAPL,US,8.50,USD,1.50
 """
 CASHFLOWS = """\
 schema_version,account_id,flow_date,type,amount,currency,counter_account
 1,taxable,2026-03-01,deposit,2000.00,USD,Assets:Bank:BOA:Checking
 """
 CHECKPOINT_POSITIONS = """\
-schema_version,account_id,symbol,market,as_of,quantity,currency
-1,taxable,AAPL,US,2026-05-01,6,USD
+schema_version,account_id,instrument_id,symbol,market,as_of,quantity,currency
+1,taxable,ins_01j3m8w7rx6f4k2p9c5vbn,AAPL,US,2026-05-01,6,USD
 """
 CHECKPOINT_CASH = """\
 schema_version,account_id,as_of,currency,balance
@@ -108,7 +108,7 @@ def test_rebuild_end_to_end_reads(tmp_path: Path):
     store = stores[-1]
     service = PortfolioRecordsService(store)
     positions = service.positions("taxable")
-    result = positions["AAPL.US"]
+    result = positions["ins_01j3m8w7rx6f4k2p9c5vbn"]
     assert result.quantity == Decimal("6")
     # buy 10@175 + 1 fee = 1751; sell 4 consumes 700.40 (average)
     assert result.total_cost == Decimal("1751.00") - Decimal("700.40")
@@ -131,11 +131,11 @@ def test_consumed_lots_detail(tmp_path: Path):
     from datetime import date
 
     trades = [
-        Trade("taxable", "AAPL.US", date(2026, 3, 1), TradeSide.BUY,
+        Trade("taxable", "ins_01j3m8w7rx6f4k2p9c5vbn", date(2026, 3, 1), TradeSide.BUY,
               Decimal("3"), Decimal("100.00"), Decimal("0"), "USD", trade_id="1"),
-        Trade("taxable", "AAPL.US", date(2026, 3, 5), TradeSide.BUY,
+        Trade("taxable", "ins_01j3m8w7rx6f4k2p9c5vbn", date(2026, 3, 5), TradeSide.BUY,
               Decimal("2"), Decimal("125.00"), Decimal("0"), "USD", trade_id="2"),
-        Trade("taxable", "AAPL.US", date(2026, 4, 1), TradeSide.SELL,
+        Trade("taxable", "ins_01j3m8w7rx6f4k2p9c5vbn", date(2026, 4, 1), TradeSide.SELL,
               Decimal("4"), Decimal("125.00"), Decimal("0"), "USD", trade_id="3"),
     ]
     result = calculate_position(trades, CostMethod.FIFO)

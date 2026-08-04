@@ -26,7 +26,7 @@ portfolio_manager/templates/trades_import_v1.csv
 | `external_trade_id` | 否 | `U123-456` | 券商成交/订单 id;用于去重 |
 | `trade_date` | 是 | `2025-01-15` | 成交日期,暂不含时间 |
 | `settle_date` | 否 | `2025-01-17` | 结算日期 |
-| `instrument_id` | 否 | `AAPL.US` | 内部 instrument id;缺失时用 `symbol` + `market` 解析 |
+| `instrument_id` | 是 | `ins_01j3m8w7rx6f4k2p9c5vbn` | 内部稳定 id;由 instrument manager 分配,永不从代码推导 |
 | `symbol` | 是 | `AAPL` | 证券代码。A股可用 `600519`,港股可用 `0700` |
 | `market` | 是 | `US` | `US` / `HK` / `CN` |
 | `instrument_name` | 否 | `Apple Inc.` | 外部记录中的证券名称 |
@@ -35,9 +35,7 @@ portfolio_manager/templates/trades_import_v1.csv
 | `price` | 是 | `175.25` | 每股成交价,必须不小于 0 |
 | `trade_currency` | 是 | `USD` | 成交币种 |
 | `gross_amount` | 否 | `1752.50` | 成交总额。若缺失,导入器可用 `quantity * price` 计算 |
-| `commission` | 否 | `1.00` | 佣金,非负 |
-| `tax` | 否 | `0.00` | 印花税、交易征费等税费合计,非负 |
-| `other_fee` | 否 | `0.00` | 平台费、监管费等其他费用,非负 |
+| `transaction_fees` | 是 | `1.00` | 本笔交易的全部费用合计,非负;无费用时填 `0` |
 | `net_amount` | 否 | `1753.50` | 现金流金额。v1 暂作审计字段,不强制参与计算 |
 | `fx_rate_to_account` | 否 | `1.0` | 交易币种折算到账户本位币的汇率 |
 | `account_currency` | 否 | `USD` | 账户本位币 |
@@ -47,10 +45,14 @@ portfolio_manager/templates/trades_import_v1.csv
 
 导入到当前 `trades` 表时:
 
-- `fee = commission + tax + other_fee`。
-- `instrument_id` 优先使用导入文件中的值;缺失时由 `records/identity.py` 按 `symbol` + `market` 生成
-  (`AAPL.US` / `0700.HK` / `600519.CN`)。identity.py 是全 codebase 唯一允许构造/解析
-  instrument_id 的模块。
+- `instrument_id` 格式固定为 `ins_` + 22 位小写 Crockford Base32,例如
+  `ins_01j3m8w7rx6f4k2p9c5vbn`。它是不可解析的稳定身份,不包含 ticker、市场、交易所或公司名称。
+- `AAPL.US`、`0700.HK`、`600519.CN` 都是外部 ticker alias,不是合法的 `instrument_id`。
+- 转换工具必须根据 `symbol`、`market` 和 `trade_date` 到 instrument manager 的有效期映射中解析
+  `instrument_id`;找不到或同一时点匹配多个 instrument 时必须报错,不得临时拼接或猜测 id。
+- alias 的有效期采用半开区间 `[valid_from, valid_to)`。同一 ticker 可以在互不重叠的时期映射到
+  不同 instrument,但同一日期不得同时命中多个 instrument。
+- `transaction_fees` 是 v1 唯一费用字段。佣金、印花税、交易所费、监管费等拆分留给后续费用子模块。
 - 买入/卖出方向不通过数量正负表达,统一由 `side` 表达。
 - `gross_amount`、`net_amount` 等金额字段全部落库(审计用途),但不参与成本计算。
 
@@ -62,10 +64,42 @@ portfolio_manager/templates/trades_import_v1.csv
 - 没有的行,按行内容的规范化哈希 `(account_id, row_hash)` 去重
   (hash 覆盖 account/instrument/date/side/quantity/price/fee/currency)。
 - 每次导入记录一条 `import_batches`(batch id、行数、新增/跳过数)。
-- 导入文件中的未知 `account_id` 会整批报错;未知 instrument 会按行数据自动建档
-  (market/currency 取自该行,同时写入 `instrument_aliases` 的 TICKER 映射)。
+- 导入文件中的未知 `account_id` 会整批报错。首次出现的合法 `instrument_id` 可在 rebuild/import 时
+  建立本地 instrument 投影;一旦 ticker 已登记,导入器会按 `trade_date` 核对映射,不一致即拒绝整批。
 
 入口:`scripts/import_trades.py` CLI,或 `POST /api/imports`(raw CSV body),或网页右上角的导入控件。
+
+对已经整理成上述字段、但尚无内部 ID 的 CSV,先运行只读解析工具:
+
+```bash
+python3 portfolio_manager/scripts/resolve_trade_instruments.py source.csv \
+  --db /path/to/instruments.db --output canonical.csv
+```
+
+该工具只补齐或核对 `instrument_id`,不会写入交易数据库。任何未匹配、多重匹配或 ID 不一致都会整批失败。
+
+首次遇到尚未登记的股票时,通过受控注册工具分配 ID 并建立首个 ticker alias:
+
+```bash
+python3 portfolio_manager/scripts/register_instrument.py \
+  --db /path/to/instruments.db \
+  --symbol AAPL --market US --name "Apple Inc." --valid-from 1980-12-12
+```
+
+默认按市场选择币种,也可用 `--currency` 指定。工具会输出新 `instrument_id`;ticker 已被占用或
+有效期冲突时整笔回滚。
+
+ticker 变更时先关闭旧 alias,再把新 alias 加到同一 `instrument_id`:
+
+```bash
+python3 portfolio_manager/scripts/manage_instrument_alias.py --db /path/to/instruments.db \
+  close --symbol OLD --market US --valid-to 2020-01-01
+python3 portfolio_manager/scripts/manage_instrument_alias.py --db /path/to/instruments.db \
+  add --instrument-id ins_... --symbol NEW --market US --valid-from 2020-01-01
+```
+
+如果旧 ticker 被另一只股票复用,关闭旧映射后,以同一个生效日注册新的 instrument。边界采用
+半开区间,因此旧映射的 `valid_to` 可以等于新映射的 `valid_from`。
 
 ## 分红导入 (dividend payments)
 
@@ -80,12 +114,17 @@ portfolio_manager/templates/trades_import_v1.csv
 | `market` | 是 | `US` | `US` / `HK` / `CN` |
 | `amount` | 是 | `3.30` | 实收净额(该币种),必须大于 0 |
 | `currency` | 是 | `USD` | 币种 |
-| `instrument_id` | 否 | `AAPL.US` | 缺失时按 symbol+market 生成 |
+| `instrument_id` | 是 | `ins_01j3m8w7rx6f4k2p9c5vbn` | 与交易文件使用同一内部稳定 id |
 | `withholding_tax` | 否 | `0.99` | 预扣税(审计字段) |
 | `external_id` | 否 | `DIV-2024Q2` | 券商流水 id;按 `(account_id, external_id)` 去重 |
 | `notes` | 否 | | 备注 |
 
-入口:`POST /api/imports/dividends`。注意:没有 `external_id` 的分红行不做内容哈希去重,重复导入会产生重复记录。
+入口:`POST /api/imports/dividends`。没有 `external_id` 时按规范化内容哈希去重。
+
+## v1 范围
+
+本格式只定义股票买卖交易。现金入金、出金、换汇以及费用明细拆分不属于本次标准导入范围。
+现有系统中的现金流和汇率模块是独立格式,不能混入本交易 CSV。
 
 ## 汇率导入 (fx rates)
 

@@ -35,14 +35,19 @@ column and omits it).
 
 The existing import-format v1 (see `docs/import-format-v1_zh-Hans.md` and
 `templates/trades_import_v1.csv`). Required: `schema_version, account_id,
-trade_date, symbol, market, side, quantity, price, trade_currency`.
+trade_date, instrument_id, symbol, market, side, quantity, price,
+trade_currency, transaction_fees`.
 Dedup: `(account_id, external_trade_id)` when present, else
 `(account_id, row_hash)` over the canonical content fields.
+Before persistence, `(symbol, market, trade_date)` is resolved against the
+effective-dated `instrument_aliases` projection and must equal the supplied
+`instrument_id`.
 
 ### dividends/<account>/<year>.csv
 
-Required: `schema_version, account_id, pay_date, symbol, market, amount
-(net cash), currency`. Optional: `withholding_tax, external_id, notes`.
+Required: `schema_version, account_id, pay_date, instrument_id, symbol,
+market, amount (net cash), currency`. Optional: `withholding_tax,
+external_id, notes`.
 Dedup: external id when present, else a content `row_hash` over
 `account|instrument|pay_date|amount|withholding|currency` — re-importing a
 file never duplicates payments.
@@ -66,10 +71,10 @@ Optional: `counter_account, external_id, notes`.
 ### snapshots/opening.csv and checkpoints/<account>/positions.csv
 
 Shared format; the file's location determines the snapshot kind. Required:
-`schema_version, account_id, symbol, market, as_of, quantity, currency`.
+`schema_version, account_id, instrument_id, symbol, market, as_of, quantity,
+currency`.
 Optional: `average_cost` (defaults to 0; meaningful for opening anchors),
-`cost_method, instrument_id`. Upsert on `(account_id, instrument_id,
-as_of)`.
+`cost_method`. Upsert on `(account_id, instrument_id, as_of)`.
 
 ### checkpoints/<account>/cash.csv
 

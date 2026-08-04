@@ -44,9 +44,10 @@ docstring for the format). The ledger's `main.beancount` must
 | opening anchor | `Positions +qty {{qty·avg, as_of, "t:opening"}}` / `Equity:Opening` |
 | checkpoint | `balance` assertion dated `as_of + 1 day` |
 
-Commodities encode instrument ids as `MARKET.SYMBOL` (`US.AAPL`,
-`HK.0700`) because beancount currencies must start with a letter; the
-encoding lives only in `ledger_bridge/commodities.py`.
+Commodities preserve the opaque internal id payload as
+`I<UPPERCASE_PAYLOAD>` (for example, `ins_01j3...` becomes `I01J3...`).
+Ticker and market are not encoded. The reversible mapping lives only in
+`ledger_bridge/commodities.py`.
 
 ## Reconciliation checks (Simmons ch.27, personal scale)
 
