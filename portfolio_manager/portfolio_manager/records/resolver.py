@@ -32,6 +32,10 @@ class InstrumentMismatchError(InstrumentResolutionError):
     pass
 
 
+class InstrumentAliasOverlapError(InstrumentResolutionError):
+    pass
+
+
 class InstrumentResolver(Protocol):
     def resolve_instrument_id(self, symbol: str, market: str, as_of: date) -> str: ...
 
@@ -83,6 +87,34 @@ def resolve_instrument_id(
             f"{instrument_ids}"
         )
     return instrument_ids[0]
+
+
+def ensure_alias_available(
+    conn: sqlite3.Connection,
+    identifier: str,
+    valid_from: date,
+    valid_to: date | None = None,
+) -> None:
+    """Reject any overlap with the proposed half-open validity interval."""
+    start = valid_from.isoformat()
+    end = valid_to.isoformat() if valid_to is not None else None
+    conflict = conn.execute(
+        """
+        select instrument_id, valid_from, valid_to
+        from instrument_aliases
+        where scheme = 'TICKER'
+          and identifier = ?
+          and (? is null or valid_from < ?)
+          and (valid_to is null or ? < valid_to)
+        limit 1
+        """,
+        (identifier, end, end, start),
+    ).fetchone()
+    if conflict is not None:
+        raise InstrumentAliasOverlapError(
+            f"cannot register {identifier} for [{start}, {end or 'infinity'}); "
+            f"it overlaps mapping to {conflict[0]}"
+        )
 
 
 def resolve_trade_alias(

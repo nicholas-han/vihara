@@ -27,7 +27,7 @@ from .models import (
     Trade,
     TradeSide,
 )
-from .resolver import resolve_instrument_id
+from .resolver import ensure_alias_available, resolve_instrument_id
 
 
 def _text(value: Decimal | date | None) -> str | None:
@@ -283,23 +283,7 @@ class SQLiteRecordsStore:
             conn = self._conn(self._instrument_db)
             try:
                 for _, (identifier, valid_from) in aliases.items():
-                    conflict = conn.execute(
-                        """
-                        select instrument_id, valid_from, valid_to
-                        from instrument_aliases
-                        where scheme = 'TICKER'
-                          and identifier = ?
-                          and (valid_to is null or valid_to > ?)
-                        limit 1
-                        """,
-                        (identifier, valid_from.isoformat()),
-                    ).fetchone()
-                    if conflict is not None:
-                        raise ValueError(
-                            f"cannot register {identifier} from "
-                            f"{valid_from.isoformat()}; it overlaps mapping to "
-                            f"{conflict['instrument_id']}"
-                        )
+                    ensure_alias_available(conn, identifier, valid_from)
                 conn.executemany(
                     """
                     insert or ignore into instruments(instrument_id, symbol, name, market, currency, status)

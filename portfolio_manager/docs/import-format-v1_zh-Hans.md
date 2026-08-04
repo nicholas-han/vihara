@@ -78,6 +78,29 @@ python3 portfolio_manager/scripts/resolve_trade_instruments.py source.csv \
 
 该工具只补齐或核对 `instrument_id`,不会写入交易数据库。任何未匹配、多重匹配或 ID 不一致都会整批失败。
 
+首次遇到尚未登记的股票时,通过受控注册工具分配 ID 并建立首个 ticker alias:
+
+```bash
+python3 portfolio_manager/scripts/register_instrument.py \
+  --db /path/to/instruments.db \
+  --symbol AAPL --market US --name "Apple Inc." --valid-from 1980-12-12
+```
+
+默认按市场选择币种,也可用 `--currency` 指定。工具会输出新 `instrument_id`;ticker 已被占用或
+有效期冲突时整笔回滚。
+
+ticker 变更时先关闭旧 alias,再把新 alias 加到同一 `instrument_id`:
+
+```bash
+python3 portfolio_manager/scripts/manage_instrument_alias.py --db /path/to/instruments.db \
+  close --symbol OLD --market US --valid-to 2020-01-01
+python3 portfolio_manager/scripts/manage_instrument_alias.py --db /path/to/instruments.db \
+  add --instrument-id ins_... --symbol NEW --market US --valid-from 2020-01-01
+```
+
+如果旧 ticker 被另一只股票复用,关闭旧映射后,以同一个生效日注册新的 instrument。边界采用
+半开区间,因此旧映射的 `valid_to` 可以等于新映射的 `valid_from`。
+
 ## 分红导入 (dividend payments)
 
 实收分红现金流使用单独的 CSV,导入到 `dividend_payments` 表:
