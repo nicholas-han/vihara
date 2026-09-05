@@ -21,6 +21,7 @@ from .models import (
     FinancialAnnual,
     FxRate,
     ImportBatch,
+    InstrumentAlias,
     InstrumentSummary,
     PositionSnapshot,
     SnapshotKind,
@@ -277,13 +278,11 @@ class SQLiteRecordsStore:
     def upsert_instruments(
         self,
         instruments: list[InstrumentSummary],
-        aliases: dict[str, tuple[str, date]],
+        aliases: list[InstrumentAlias],
     ) -> None:
         with self._lock:
             conn = self._conn(self._instrument_db)
             try:
-                for _, (identifier, valid_from) in aliases.items():
-                    ensure_alias_available(conn, identifier, valid_from)
                 conn.executemany(
                     """
                     insert or ignore into instruments(instrument_id, symbol, name, market, currency, status)
@@ -294,17 +293,26 @@ class SQLiteRecordsStore:
                         for i in instruments
                     ],
                 )
-                conn.executemany(
-                    """
-                    insert into instrument_aliases(
-                        instrument_id, scheme, identifier, valid_from
-                    ) values (?, 'TICKER', ?, ?)
-                    """,
-                    [
-                        (instrument_id, identifier, valid_from.isoformat())
-                        for instrument_id, (identifier, valid_from) in aliases.items()
-                    ],
-                )
+                for alias in aliases:
+                    ensure_alias_available(
+                        conn,
+                        alias.identifier,
+                        alias.valid_from,
+                        alias.valid_to,
+                    )
+                    conn.execute(
+                        """
+                        insert into instrument_aliases(
+                            instrument_id, scheme, identifier, valid_from, valid_to
+                        ) values (?, 'TICKER', ?, ?, ?)
+                        """,
+                        (
+                            alias.instrument_id,
+                            alias.identifier,
+                            alias.valid_from.isoformat(),
+                            alias.valid_to.isoformat() if alias.valid_to else None,
+                        ),
+                    )
                 conn.commit()
             except sqlite3.IntegrityError as exc:
                 conn.rollback()

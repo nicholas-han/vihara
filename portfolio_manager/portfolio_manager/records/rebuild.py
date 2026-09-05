@@ -5,8 +5,8 @@ SQLite file is a disposable index. ``rebuild()`` deletes the database,
 recreates the schema, and imports everything in a fixed, deterministic
 order (sorted paths within each stage):
 
-    accounts.csv -> fx/rates.csv -> trades/**/*.csv -> dividends/**/*.csv
-    -> cashflows/**/*.csv -> snapshots/opening.csv
+    accounts.csv -> instruments.csv -> fx/rates.csv -> trades/**/*.csv
+    -> dividends/**/*.csv -> cashflows/**/*.csv -> snapshots/opening.csv
     -> checkpoints/**/positions.csv -> checkpoints/**/cash.csv
 
 Every stage is idempotent (INSERT OR IGNORE / OR REPLACE), so rebuilding
@@ -15,6 +15,7 @@ twice yields the same database.
 Expected layout under ``<data_dir>/portfolio/`` (all parts optional):
 
     accounts.csv
+    instruments.csv
     fx/rates.csv
     trades/<account_id>/<year>.csv
     dividends/<account_id>/<year>.csv
@@ -36,9 +37,11 @@ from .import_service import (
     import_trades_csv,
 )
 from .imports import (
+    InstrumentImportRow,
     read_accounts_csv,
     read_cash_checkpoints_csv,
     read_fx_rates_csv,
+    read_instruments_csv,
     read_position_snapshots_csv,
 )
 from .models import SnapshotKind
@@ -51,6 +54,7 @@ SCHEMA_PATH = Path(__file__).resolve().parents[2] / "db" / "portfolio_records_sc
 class RebuildReport:
     db_path: Path
     accounts: int = 0
+    instruments: int = 0
     fx_rates: int = 0
     snapshots: int = 0
     cash_checkpoints: int = 0
@@ -59,8 +63,9 @@ class RebuildReport:
     def summary(self) -> str:
         lines = [
             f"rebuilt {self.db_path}",
-            f"  accounts: {self.accounts}, fx rates: {self.fx_rates}, "
-            f"snapshots: {self.snapshots}, cash checkpoints: {self.cash_checkpoints}",
+            f"  accounts: {self.accounts}, instruments: {self.instruments}, "
+            f"fx rates: {self.fx_rates}, snapshots: {self.snapshots}, "
+            f"cash checkpoints: {self.cash_checkpoints}",
         ]
         for name, result in self.imports:
             lines.append(
@@ -106,6 +111,20 @@ def rebuild(data_dir: Path, db_path: Path, store_factory) -> RebuildReport:
         accounts = read_accounts_csv(accounts_csv)
         store.upsert_accounts(accounts)
         report.accounts = len(accounts)
+
+    instruments_csv = portfolio_dir / "instruments.csv"
+    if instruments_csv.exists():
+        instrument_rows = read_instruments_csv(instruments_csv)
+        latest_rows: dict[str, InstrumentImportRow] = {}
+        for row in instrument_rows:
+            current = latest_rows.get(row.instrument.instrument_id)
+            if current is None or row.alias.valid_from >= current.alias.valid_from:
+                latest_rows[row.instrument.instrument_id] = row
+        store.upsert_instruments(
+            [row.instrument for row in latest_rows.values()],
+            [row.alias for row in instrument_rows],
+        )
+        report.instruments = len(latest_rows)
 
     fx_csv = portfolio_dir / "fx" / "rates.csv"
     if fx_csv.exists():

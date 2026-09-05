@@ -52,6 +52,14 @@ class InstrumentSummary:
 
 
 @dataclass(frozen=True)
+class InstrumentAlias:
+    instrument_id: str
+    identifier: str
+    valid_from: date
+    valid_to: date | None = None
+
+
+@dataclass(frozen=True)
 class PositionSnapshot:
     account_id: str
     instrument_id: str
