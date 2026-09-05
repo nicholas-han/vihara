@@ -25,6 +25,7 @@ from .models import (
     CostMethod,
     DividendPayment,
     FxRate,
+    InstrumentAlias,
     InstrumentSummary,
     PositionSnapshot,
     SnapshotKind,
@@ -564,16 +565,16 @@ REQUIRED_INSTRUMENT_COLUMNS = {
 @dataclass(frozen=True)
 class InstrumentImportRow:
     instrument: InstrumentSummary
-    ticker_identifier: str  # "SYMBOL.MARKET" alias for the initial TICKER entry
-    valid_from: date
+    alias: InstrumentAlias
 
 
 def read_instruments_csv(path: Path) -> list[InstrumentImportRow]:
     """Read instrument reference data and its initial ticker aliases.
 
     Required columns are instrument_id, symbol, name, market, and currency.
-    Blank currency defaults by market, status defaults to ACTIVE, and
-    valid_from defaults to 0001-01-01.
+    Rows may repeat an instrument_id to describe its ticker history. Blank
+    currency defaults by market, status defaults to ACTIVE, valid_from defaults
+    to 0001-01-01, and valid_to defaults to an open-ended interval.
     """
     with path.open(newline="", encoding="utf-8") as handle:
         reader = csv.DictReader(handle)
@@ -612,6 +613,16 @@ def read_instruments_csv(path: Path) -> list[InstrumentImportRow]:
                 if valid_from_str
                 else date(1, 1, 1)
             )
+            valid_to_str = _clean(row.get("valid_to"))
+            valid_to = (
+                _date(valid_to_str, "valid_to", line_number)
+                if valid_to_str
+                else None
+            )
+            if valid_to is not None and valid_to <= valid_from:
+                raise ValueError(
+                    f"line {line_number}: valid_to must be later than valid_from"
+                )
             rows.append(
                 InstrumentImportRow(
                     instrument=InstrumentSummary(
@@ -622,8 +633,12 @@ def read_instruments_csv(path: Path) -> list[InstrumentImportRow]:
                         currency=currency,
                         status=status,
                     ),
-                    ticker_identifier=ticker_alias(symbol, market),
-                    valid_from=valid_from,
+                    alias=InstrumentAlias(
+                        instrument_id=instrument_id,
+                        identifier=ticker_alias(symbol, market),
+                        valid_from=valid_from,
+                        valid_to=valid_to,
+                    ),
                 )
             )
         return rows

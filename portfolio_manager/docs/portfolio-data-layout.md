@@ -11,6 +11,7 @@ to `$VIHARA_DATA_DIR/build/portfolio.sqlite3` (gitignored in vihara-data).
 ```
 <VIHARA_DATA_DIR>/portfolio/
 ├── accounts.csv
+├── instruments.csv
 ├── fx/rates.csv
 ├── trades/<account_id>/<year>.csv        append-only
 ├── dividends/<account_id>/<year>.csv     append-only
@@ -30,6 +31,15 @@ column and omits it).
 ### accounts.csv
 
 `schema_version,account_id,name,currency`
+
+### instruments.csv
+
+One row per effective-dated ticker alias:
+`instrument_id,symbol,name,market,currency,status,valid_from,valid_to`.
+The same `instrument_id` may appear more than once when its ticker changes.
+Validity uses half-open intervals `[valid_from, valid_to)`; an empty `valid_to`
+means the alias remains active. The latest row supplies the display fields in
+the `instruments` table, while every row is retained in `instrument_aliases`.
 
 ### trades/<account>/<year>.csv
 
@@ -88,6 +98,6 @@ Re-import replaces on the (base, quote, as_of) key.
 
 ## Rebuild order
 
-accounts → fx → trades → dividends → cashflows → opening snapshot →
+accounts → instruments → fx → trades → dividends → cashflows → opening snapshot →
 checkpoint positions → checkpoint cash, with sorted paths inside each
 stage, so the rebuild is deterministic.

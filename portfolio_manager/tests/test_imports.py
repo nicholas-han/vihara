@@ -18,9 +18,9 @@ TENCENT_ID = "ins_01j3m8y4kf9r2w7c6n5ptx"
 def test_read_instruments_csv_normalizes_and_defaults(tmp_path: Path):
     path = tmp_path / "instruments.csv"
     path.write_text(
-        "instrument_id,symbol,name,market,currency,status,valid_from\n"
-        f"{AAPL_ID}, aapl , , us , usd , ,\n"
-        f"{TENCENT_ID}, 0700 , Tencent , hk , , inactive ,2020-01-02\n",
+        "instrument_id,symbol,name,market,currency,status,valid_from,valid_to\n"
+        f"{AAPL_ID}, aapl , , us , usd , , ,\n"
+        f"{TENCENT_ID}, 0700 , Tencent , hk , , inactive ,2020-01-02,2021-01-02\n",
         encoding="utf-8",
     )
 
@@ -32,12 +32,14 @@ def test_read_instruments_csv_normalizes_and_defaults(tmp_path: Path):
     assert row.instrument.market == "US"
     assert row.instrument.currency == "USD"
     assert row.instrument.status == "ACTIVE"
-    assert row.ticker_identifier == "AAPL.US"
-    assert row.valid_from == date(1, 1, 1)
+    assert row.alias.identifier == "AAPL.US"
+    assert row.alias.valid_from == date(1, 1, 1)
+    assert row.alias.valid_to is None
     assert market_default_row.instrument.currency == "HKD"
     assert market_default_row.instrument.status == "INACTIVE"
-    assert market_default_row.ticker_identifier == "0700.HK"
-    assert market_default_row.valid_from == date(2020, 1, 2)
+    assert market_default_row.alias.identifier == "0700.HK"
+    assert market_default_row.alias.valid_from == date(2020, 1, 2)
+    assert market_default_row.alias.valid_to == date(2021, 1, 2)
 
 
 def test_read_instruments_csv_reports_invalid_date_line(tmp_path: Path):
@@ -51,6 +53,21 @@ def test_read_instruments_csv_reports_invalid_date_line(tmp_path: Path):
     with pytest.raises(
         ValueError,
         match="line 2: valid_from must use YYYY-MM-DD",
+    ):
+        read_instruments_csv(path)
+
+
+def test_read_instruments_csv_rejects_invalid_alias_interval(tmp_path: Path):
+    path = tmp_path / "instruments.csv"
+    path.write_text(
+        "instrument_id,symbol,name,market,currency,valid_from,valid_to\n"
+        f"{AAPL_ID},AAPL,Apple Inc.,US,USD,2020-01-02,2020-01-01\n",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(
+        ValueError,
+        match="line 2: valid_to must be later than valid_from",
     ):
         read_instruments_csv(path)
 

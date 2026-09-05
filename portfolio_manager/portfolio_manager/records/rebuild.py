@@ -37,6 +37,7 @@ from .import_service import (
     import_trades_csv,
 )
 from .imports import (
+    InstrumentImportRow,
     read_accounts_csv,
     read_cash_checkpoints_csv,
     read_fx_rates_csv,
@@ -114,14 +115,16 @@ def rebuild(data_dir: Path, db_path: Path, store_factory) -> RebuildReport:
     instruments_csv = portfolio_dir / "instruments.csv"
     if instruments_csv.exists():
         instrument_rows = read_instruments_csv(instruments_csv)
+        latest_rows: dict[str, InstrumentImportRow] = {}
+        for row in instrument_rows:
+            current = latest_rows.get(row.instrument.instrument_id)
+            if current is None or row.alias.valid_from >= current.alias.valid_from:
+                latest_rows[row.instrument.instrument_id] = row
         store.upsert_instruments(
-            [row.instrument for row in instrument_rows],
-            {
-                row.instrument.instrument_id: (row.ticker_identifier, row.valid_from)
-                for row in instrument_rows
-            },
+            [row.instrument for row in latest_rows.values()],
+            [row.alias for row in instrument_rows],
         )
-        report.instruments = len(instrument_rows)
+        report.instruments = len(latest_rows)
 
     fx_csv = portfolio_dir / "fx" / "rates.csv"
     if fx_csv.exists():

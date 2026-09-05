@@ -22,7 +22,13 @@ from .imports import (
     read_trade_import_csv,
     read_trade_import_text,
 )
-from .models import Cashflow, DividendPayment, ImportBatch, InstrumentSummary
+from .models import (
+    Cashflow,
+    DividendPayment,
+    ImportBatch,
+    InstrumentAlias,
+    InstrumentSummary,
+)
 from .providers import RecordsStore
 
 
@@ -172,10 +178,14 @@ def _create_missing_instruments(rows: list[TradeImportRow], store: RecordsStore)
         )
         for instrument_id, (row, _) in definitions.items()
     ]
-    aliases = {
-        instrument_id: (ticker_alias(row.symbol, row.market), valid_from)
+    aliases = [
+        InstrumentAlias(
+            instrument_id=instrument_id,
+            identifier=ticker_alias(row.symbol, row.market),
+            valid_from=valid_from,
+        )
         for instrument_id, (row, valid_from) in definitions.items()
-    }
+    ]
     store.upsert_instruments(instruments, aliases)
 
 

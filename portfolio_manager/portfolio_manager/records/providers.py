@@ -22,6 +22,7 @@ from .models import (
     FinancialAnnual,
     FxRate,
     ImportBatch,
+    InstrumentAlias,
     InstrumentSummary,
     PositionSnapshot,
     SnapshotKind,
@@ -102,11 +103,10 @@ class RecordsStore(Protocol):
     def upsert_instruments(
         self,
         instruments: list[InstrumentSummary],
-        aliases: dict[str, tuple[str, date]],
+        aliases: list[InstrumentAlias],
     ) -> None:
         """Insert missing instruments (never overwrites existing reference
-        data). ``aliases`` maps instrument_id -> (TICKER identifier,
-        valid_from) and creates an open-ended mapping."""
+        data) and their effective-dated ticker aliases."""
         ...
 
     def insert_trades(self, rows: list[TradeImportRow], batch_id: str) -> tuple[int, int]:
