@@ -10,7 +10,13 @@ from datetime import date
 from decimal import Decimal, InvalidOperation
 from pathlib import Path
 
-from .identity import VALID_CURRENCIES, VALID_MARKETS, validate_instrument_id
+from .identity import (
+    MARKET_DEFAULT_CURRENCY,
+    VALID_CURRENCIES,
+    VALID_MARKETS,
+    ticker_alias,
+    validate_instrument_id,
+)
 from .models import (
     Account,
     CashCheckpoint,
@@ -19,6 +25,7 @@ from .models import (
     CostMethod,
     DividendPayment,
     FxRate,
+    InstrumentSummary,
     PositionSnapshot,
     SnapshotKind,
     Trade,
@@ -541,3 +548,82 @@ def _clean(value: str | None) -> str | None:
         return None
     stripped = value.strip()
     return stripped or None
+
+
+# ── Instruments CSV ──────────────────────────────────────────────
+
+REQUIRED_INSTRUMENT_COLUMNS = {
+    "instrument_id",
+    "symbol",
+    "name",
+    "market",
+    "currency",
+}
+
+
+@dataclass(frozen=True)
+class InstrumentImportRow:
+    instrument: InstrumentSummary
+    ticker_identifier: str  # "SYMBOL.MARKET" alias for the initial TICKER entry
+    valid_from: date
+
+
+def read_instruments_csv(path: Path) -> list[InstrumentImportRow]:
+    """Read instrument reference data and its initial ticker aliases.
+
+    Required columns are instrument_id, symbol, name, market, and currency.
+    Blank currency defaults by market, status defaults to ACTIVE, and
+    valid_from defaults to 0001-01-01.
+    """
+    with path.open(newline="", encoding="utf-8") as handle:
+        reader = csv.DictReader(handle)
+        if reader.fieldnames is None:
+            raise ValueError("instruments CSV is missing a header")
+        columns = set(reader.fieldnames)
+        missing = REQUIRED_INSTRUMENT_COLUMNS - columns
+        if missing:
+            raise ValueError(
+                f"instruments CSV is missing required columns: {sorted(missing)}"
+            )
+        rows: list[InstrumentImportRow] = []
+        for i, row in enumerate(reader):
+            line_number = i + 2
+            instrument_id = _instrument_id(row, line_number)
+            symbol = _required(row, "symbol", line_number).upper()
+            name = _clean(row["name"]) or symbol
+            market = _required(row, "market", line_number).upper()
+            if market not in VALID_MARKETS:
+                raise ValueError(
+                    f"line {line_number}: market must be one of "
+                    f"{sorted(VALID_MARKETS)}, got {market!r}"
+                )
+            currency = (
+                _clean(row["currency"]) or MARKET_DEFAULT_CURRENCY[market]
+            ).upper()
+            if currency not in VALID_CURRENCIES:
+                raise ValueError(
+                    f"line {line_number}: currency {currency!r} is not a "
+                    f"recognised ISO 4217 code"
+                )
+            status = (_clean(row.get("status")) or "ACTIVE").upper()
+            valid_from_str = _clean(row.get("valid_from"))
+            valid_from = (
+                _date(valid_from_str, "valid_from", line_number)
+                if valid_from_str
+                else date(1, 1, 1)
+            )
+            rows.append(
+                InstrumentImportRow(
+                    instrument=InstrumentSummary(
+                        instrument_id=instrument_id,
+                        symbol=symbol,
+                        name=name,
+                        market=market,
+                        currency=currency,
+                        status=status,
+                    ),
+                    ticker_identifier=ticker_alias(symbol, market),
+                    valid_from=valid_from,
+                )
+            )
+        return rows

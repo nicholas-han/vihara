@@ -1,6 +1,7 @@
 """Rebuild-from-text tests: determinism and end-to-end service reads."""
 
 import sqlite3
+from datetime import date
 from decimal import Decimal
 from pathlib import Path
 
@@ -10,6 +11,10 @@ from portfolio_manager.records.service import PortfolioRecordsService
 from portfolio_manager.records.sqlite_repos import SQLiteRecordsStore
 
 ACCOUNTS = "schema_version,account_id,name,currency\n1,taxable,Taxable,USD\n"
+INSTRUMENTS = """\
+instrument_id,symbol,name,market,currency,status,valid_from
+ins_01j3m8w7rx6f4k2p9c5vbn,AAPL,Apple Inc.,US,USD,ACTIVE,0001-01-01
+"""
 FX = "base_currency,quote_currency,as_of,rate\nHKD,USD,2026-03-31,0.1282\n"
 TRADES_2026 = """\
 schema_version,account_id,broker,external_trade_id,trade_date,settle_date,instrument_id,symbol,market,side,quantity,price,trade_currency,transaction_fees,notes
@@ -42,6 +47,7 @@ def _write_data_dir(root: Path) -> Path:
     (portfolio / "checkpoints" / "taxable").mkdir(parents=True)
     (portfolio / "fx").mkdir()
     (portfolio / "accounts.csv").write_text(ACCOUNTS)
+    (portfolio / "instruments.csv").write_text(INSTRUMENTS)
     (portfolio / "fx" / "rates.csv").write_text(FX)
     (portfolio / "trades" / "taxable" / "2026.csv").write_text(TRADES_2026)
     (portfolio / "dividends" / "taxable" / "2026.csv").write_text(DIVIDENDS)
@@ -100,12 +106,20 @@ def test_rebuild_end_to_end_reads(tmp_path: Path):
     db = tmp_path / "records.sqlite3"
     report = rebuild(data_dir, db, _factory(stores))
     assert report.accounts == 1
+    assert report.instruments == 1
     assert report.fx_rates == 1
     assert report.snapshots == 1
     assert report.cash_checkpoints == 1
     assert all(r.skipped == 0 for _, r in report.imports)
 
     store = stores[-1]
+    instrument = store.get_instruments(["ins_01j3m8w7rx6f4k2p9c5vbn"])
+    assert instrument["ins_01j3m8w7rx6f4k2p9c5vbn"].name == "Apple Inc."
+    assert store.resolve_instrument_id("AAPL", "US", date(2026, 3, 2)) == (
+        "ins_01j3m8w7rx6f4k2p9c5vbn"
+    )
+    assert "instruments: 1" in report.summary()
+
     service = PortfolioRecordsService(store)
     positions = service.positions("taxable")
     result = positions["ins_01j3m8w7rx6f4k2p9c5vbn"]

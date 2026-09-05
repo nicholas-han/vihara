@@ -1,13 +1,58 @@
+from datetime import date
 from decimal import Decimal
 from pathlib import Path
 
 import pytest
 
-from portfolio_manager.records.imports import parse_trade_import_row, read_trade_import_csv
+from portfolio_manager.records.imports import (
+    parse_trade_import_row,
+    read_instruments_csv,
+    read_trade_import_csv,
+)
 from portfolio_manager.records.models import TradeSide
 
 AAPL_ID = "ins_01j3m8w7rx6f4k2p9c5vbn"
 TENCENT_ID = "ins_01j3m8y4kf9r2w7c6n5ptx"
+
+
+def test_read_instruments_csv_normalizes_and_defaults(tmp_path: Path):
+    path = tmp_path / "instruments.csv"
+    path.write_text(
+        "instrument_id,symbol,name,market,currency,status,valid_from\n"
+        f"{AAPL_ID}, aapl , , us , usd , ,\n"
+        f"{TENCENT_ID}, 0700 , Tencent , hk , , inactive ,2020-01-02\n",
+        encoding="utf-8",
+    )
+
+    row, market_default_row = read_instruments_csv(path)
+
+    assert row.instrument.instrument_id == AAPL_ID
+    assert row.instrument.symbol == "AAPL"
+    assert row.instrument.name == "AAPL"
+    assert row.instrument.market == "US"
+    assert row.instrument.currency == "USD"
+    assert row.instrument.status == "ACTIVE"
+    assert row.ticker_identifier == "AAPL.US"
+    assert row.valid_from == date(1, 1, 1)
+    assert market_default_row.instrument.currency == "HKD"
+    assert market_default_row.instrument.status == "INACTIVE"
+    assert market_default_row.ticker_identifier == "0700.HK"
+    assert market_default_row.valid_from == date(2020, 1, 2)
+
+
+def test_read_instruments_csv_reports_invalid_date_line(tmp_path: Path):
+    path = tmp_path / "instruments.csv"
+    path.write_text(
+        "instrument_id,symbol,name,market,currency,valid_from\n"
+        f"{AAPL_ID},AAPL,Apple Inc.,US,USD,not-a-date\n",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(
+        ValueError,
+        match="line 2: valid_from must use YYYY-MM-DD",
+    ):
+        read_instruments_csv(path)
 
 
 def test_parse_trade_import_row_maps_to_trade():
