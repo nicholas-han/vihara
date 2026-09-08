@@ -1,0 +1,10 @@
+{
+  "schema_version": 1,
+  "id": "6476b6a6b22459839972f70c110257af",
+  "code": "INTC",
+  "name": "Intel Corporation",
+  "kind": "TRANSFERABLE",
+  "asset_class_id": "EQUITY",
+  "is_quotable": true,
+  "is_settleable": true
+}

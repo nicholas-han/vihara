@@ -1,0 +1,29 @@
+{
+  "schema_version": 1,
+  "id": "818ad599e5715e5b9c10a0db9894d31f",
+  "name": "NVDA / USD",
+  "lifecycle_class": "OPEN_ENDED",
+  "legs": [
+    {
+      "leg_id": "14f367ec61995d91801d7014dea5ebe1",
+      "position": 0,
+      "kind": "HOLDING",
+      "params": {
+        "asset": {
+          "observable": "a9e2151671a757b2a1df67ad52254771"
+        },
+        "quote_ccy": {
+          "observable": "0c0f8c70f5195ef3ab73bec85c297a12"
+        }
+      }
+    }
+  ],
+  "identifiers": [
+    {
+      "scheme": "TICKER",
+      "authority": "NASDAQ",
+      "value": "NVDA",
+      "valid_from": "0001-01-01"
+    }
+  ]
+}

@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "id": "42c19380913659a4b048aa5e199c12af",
+  "product_id": "51d9eb96692f509dae03ea5422b6c338",
+  "venue_id": "453f99eacd245e50be17d833655ebf11",
+  "venue_segment": "STOCK",
+  "identifiers": [
+    {
+      "scheme": "VENUE_SYMBOL",
+      "authority": "NASDAQ",
+      "value": "AAPL",
+      "valid_from": "0001-01-01"
+    }
+  ]
+}

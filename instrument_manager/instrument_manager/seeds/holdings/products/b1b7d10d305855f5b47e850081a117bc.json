@@ -1,0 +1,29 @@
+{
+  "schema_version": 1,
+  "id": "b1b7d10d305855f5b47e850081a117bc",
+  "name": "COIN / USD",
+  "lifecycle_class": "OPEN_ENDED",
+  "legs": [
+    {
+      "leg_id": "7c5379f3b4805e6993ef5075ef1c3b54",
+      "position": 0,
+      "kind": "HOLDING",
+      "params": {
+        "asset": {
+          "observable": "5e680dfca109516caa2c7a112f4fba32"
+        },
+        "quote_ccy": {
+          "observable": "0c0f8c70f5195ef3ab73bec85c297a12"
+        }
+      }
+    }
+  ],
+  "identifiers": [
+    {
+      "scheme": "TICKER",
+      "authority": "NASDAQ",
+      "value": "COIN",
+      "valid_from": "0001-01-01"
+    }
+  ]
+}

@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "id": "70a98fb4c7585ff58e4520f8d6e80640",
+  "product_id": "f91471966a395221bf6c697db32c1419",
+  "venue_id": "fd31a79fef715f5a9820cee804174e0e",
+  "venue_segment": "SPOT",
+  "identifiers": [
+    {
+      "scheme": "VENUE_SYMBOL",
+      "authority": "BINANCE",
+      "value": "BTCUSDT",
+      "valid_from": "0001-01-01"
+    }
+  ]
+}

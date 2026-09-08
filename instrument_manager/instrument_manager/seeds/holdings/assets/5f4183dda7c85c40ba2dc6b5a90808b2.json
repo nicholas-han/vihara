@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "id": "5f4183dda7c85c40ba2dc6b5a90808b2",
+  "code": "USDT",
+  "name": "Tether USD",
+  "kind": "TRANSFERABLE",
+  "asset_class_id": "STABLECOIN",
+  "is_quotable": true,
+  "is_settleable": true,
+  "metadata": {
+    "currency_code": "USDT"
+  }
+}

@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "id": "b7b4c3d6b84b527fae90e0a5f6727c61",
+  "product_id": "a284397c40525cd6a1ea42b0d39d39d3",
+  "venue_id": "eaeaf5f6fda25c979d1695305aa25d9b",
+  "venue_segment": "SPOT",
+  "identifiers": [
+    {
+      "scheme": "VENUE_SYMBOL",
+      "authority": "HYPERLIQUID",
+      "value": "HYPE/USDC",
+      "valid_from": "2024-11-29"
+    }
+  ]
+}

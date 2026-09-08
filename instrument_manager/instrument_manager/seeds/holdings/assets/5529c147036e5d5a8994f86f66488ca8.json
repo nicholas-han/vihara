@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "id": "5529c147036e5d5a8994f86f66488ca8",
+  "code": "HKD",
+  "name": "Hong Kong Dollar",
+  "kind": "TRANSFERABLE",
+  "asset_class_id": "FIAT_CURRENCY",
+  "is_quotable": true,
+  "is_settleable": true,
+  "metadata": {
+    "currency_code": "HKD"
+  }
+}

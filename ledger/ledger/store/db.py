@@ -173,6 +173,8 @@ def connect(db_path: str | Path) -> sqlite3.Connection:
 
 def init_schema(conn: sqlite3.Connection) -> bool:
     """Create the schema if absent. Returns True when freshly created."""
+    if conn.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='holdings_metadata'").fetchone():
+        raise RuntimeError("Portfolio Holdings database cannot use the generic ledger store")
     exists = conn.execute(
         "SELECT 1 FROM sqlite_master WHERE type='table' AND name='meta'"
     ).fetchone()

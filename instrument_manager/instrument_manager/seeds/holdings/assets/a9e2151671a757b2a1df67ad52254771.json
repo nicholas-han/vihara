@@ -1,0 +1,10 @@
+{
+  "schema_version": 1,
+  "id": "a9e2151671a757b2a1df67ad52254771",
+  "code": "NVDA",
+  "name": "NVIDIA Corporation",
+  "kind": "TRANSFERABLE",
+  "asset_class_id": "EQUITY",
+  "is_quotable": true,
+  "is_settleable": true
+}

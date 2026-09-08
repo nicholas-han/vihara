@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "id": "f1e2274910375657a3b00c4c52afef5c",
+  "product_id": "b1b7d10d305855f5b47e850081a117bc",
+  "venue_id": "453f99eacd245e50be17d833655ebf11",
+  "venue_segment": "STOCK",
+  "identifiers": [
+    {
+      "scheme": "VENUE_SYMBOL",
+      "authority": "NASDAQ",
+      "value": "COIN",
+      "valid_from": "0001-01-01"
+    }
+  ]
+}

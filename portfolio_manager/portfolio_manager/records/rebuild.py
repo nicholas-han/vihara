@@ -30,6 +30,8 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from pathlib import Path
 
+from ledger.investment.safety import reject_holdings_database
+
 from .import_service import (
     ImportResult,
     import_cashflows_csv,
@@ -76,6 +78,7 @@ class RebuildReport:
 
 
 def create_schema(db_path: Path) -> None:
+    reject_holdings_database(db_path)
     import sqlite3
 
     db_path.parent.mkdir(parents=True, exist_ok=True)
@@ -99,6 +102,7 @@ def rebuild(data_dir: Path, db_path: Path, store_factory) -> RebuildReport:
     """
     portfolio_dir = Path(data_dir) / "portfolio"
     db_path = Path(db_path)
+    reject_holdings_database(db_path)
     if db_path.exists():
         db_path.unlink()
     create_schema(db_path)

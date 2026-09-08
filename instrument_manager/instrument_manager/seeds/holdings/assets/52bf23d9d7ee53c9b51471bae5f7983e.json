@@ -1,0 +1,10 @@
+{
+  "schema_version": 1,
+  "id": "52bf23d9d7ee53c9b51471bae5f7983e",
+  "code": "HYPE",
+  "name": "Hyperliquid",
+  "kind": "TRANSFERABLE",
+  "asset_class_id": "CRYPTO",
+  "is_quotable": true,
+  "is_settleable": true
+}

@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "id": "c80fd6dbe0985841b1b22ee6d5ca56e1",
+  "product_id": "818ad599e5715e5b9c10a0db9894d31f",
+  "venue_id": "453f99eacd245e50be17d833655ebf11",
+  "venue_segment": "STOCK",
+  "identifiers": [
+    {
+      "scheme": "VENUE_SYMBOL",
+      "authority": "NASDAQ",
+      "value": "NVDA",
+      "valid_from": "0001-01-01"
+    }
+  ]
+}

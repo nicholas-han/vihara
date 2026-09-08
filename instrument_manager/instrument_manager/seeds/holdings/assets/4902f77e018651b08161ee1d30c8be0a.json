@@ -1,0 +1,10 @@
+{
+  "schema_version": 1,
+  "id": "4902f77e018651b08161ee1d30c8be0a",
+  "code": "AAPL",
+  "name": "Apple Inc.",
+  "kind": "TRANSFERABLE",
+  "asset_class_id": "EQUITY",
+  "is_quotable": true,
+  "is_settleable": true
+}

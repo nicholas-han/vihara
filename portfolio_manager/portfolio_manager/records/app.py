@@ -24,6 +24,8 @@ def create_app(settings: PortfolioRecordsSettings | None = None):
         raise RuntimeError("Install portfolio_manager[web] to run the records API") from exc
 
     settings = settings or PortfolioRecordsSettings.from_env()
+    from ledger.investment.safety import reject_holdings_database
+    reject_holdings_database(settings.portfolio_db_path)
     store = SQLiteRecordsStore(settings)
     service = PortfolioRecordsService(store)
     static_dir = settings.static_dir or Path(__file__).resolve().parents[1] / "web"

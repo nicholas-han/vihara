@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "id": "d8ab10f0b606581aa623e67b245ad6a8",
+  "product_id": "a5f3726883ac51eeb72ea30d35b865b7",
+  "venue_id": "453f99eacd245e50be17d833655ebf11",
+  "venue_segment": "STOCK",
+  "identifiers": [
+    {
+      "scheme": "VENUE_SYMBOL",
+      "authority": "NASDAQ",
+      "value": "GOOGL",
+      "valid_from": "0001-01-01"
+    }
+  ]
+}

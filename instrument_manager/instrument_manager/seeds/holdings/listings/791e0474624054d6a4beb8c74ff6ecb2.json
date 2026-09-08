@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "id": "791e0474624054d6a4beb8c74ff6ecb2",
+  "product_id": "95d2822b2c425c218afc3523ccd8cef2",
+  "venue_id": "453f99eacd245e50be17d833655ebf11",
+  "venue_segment": "STOCK",
+  "identifiers": [
+    {
+      "scheme": "VENUE_SYMBOL",
+      "authority": "NASDAQ",
+      "value": "INTC",
+      "valid_from": "0001-01-01"
+    }
+  ]
+}

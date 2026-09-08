@@ -1,0 +1,29 @@
+{
+  "schema_version": 1,
+  "id": "a5f3726883ac51eeb72ea30d35b865b7",
+  "name": "GOOGL / USD",
+  "lifecycle_class": "OPEN_ENDED",
+  "legs": [
+    {
+      "leg_id": "fe6055140dda5ce2900a9c202086b8d3",
+      "position": 0,
+      "kind": "HOLDING",
+      "params": {
+        "asset": {
+          "observable": "3ed7a947febb5b72b3b68a61295be2e6"
+        },
+        "quote_ccy": {
+          "observable": "0c0f8c70f5195ef3ab73bec85c297a12"
+        }
+      }
+    }
+  ],
+  "identifiers": [
+    {
+      "scheme": "TICKER",
+      "authority": "NASDAQ",
+      "value": "GOOGL",
+      "valid_from": "0001-01-01"
+    }
+  ]
+}

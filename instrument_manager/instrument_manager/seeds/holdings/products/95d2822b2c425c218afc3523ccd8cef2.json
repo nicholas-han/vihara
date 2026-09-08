@@ -1,0 +1,29 @@
+{
+  "schema_version": 1,
+  "id": "95d2822b2c425c218afc3523ccd8cef2",
+  "name": "INTC / USD",
+  "lifecycle_class": "OPEN_ENDED",
+  "legs": [
+    {
+      "leg_id": "52574b1faf405b06815b6275ab0e2fcf",
+      "position": 0,
+      "kind": "HOLDING",
+      "params": {
+        "asset": {
+          "observable": "6476b6a6b22459839972f70c110257af"
+        },
+        "quote_ccy": {
+          "observable": "0c0f8c70f5195ef3ab73bec85c297a12"
+        }
+      }
+    }
+  ],
+  "identifiers": [
+    {
+      "scheme": "TICKER",
+      "authority": "NASDAQ",
+      "value": "INTC",
+      "valid_from": "0001-01-01"
+    }
+  ]
+}

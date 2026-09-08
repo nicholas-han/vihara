@@ -1,0 +1,325 @@
+:root {
+  font-family:
+    Inter,
+    -apple-system,
+    BlinkMacSystemFont,
+    "Segoe UI",
+    sans-serif;
+  color: #202b2b;
+  background: #f5f6f4;
+  font-size: 15px;
+}
+* {
+  box-sizing: border-box;
+}
+body {
+  margin: 0;
+}
+header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 23px 5%;
+  background: white;
+  border-bottom: 1px solid #dce1db;
+}
+.brand {
+  font-size: 21px;
+  font-weight: 700;
+  letter-spacing: -0.5px;
+}
+.brand span {
+  font-weight: 400;
+  color: #65736f;
+}
+nav {
+  display: flex;
+  gap: 8px;
+}
+button,
+input {
+  font: inherit;
+}
+button {
+  cursor: pointer;
+  border: 1px solid #cdd6d0;
+  border-radius: 6px;
+  background: white;
+  padding: 9px 17px;
+  color: #26453b;
+}
+button:disabled {
+  cursor: default;
+  opacity: 0.35;
+}
+nav button {
+  border: 0;
+}
+nav button[aria-current] {
+  background: #e7efea;
+  font-weight: 600;
+}
+.primary {
+  background: #284d40;
+  border-color: #284d40;
+  color: white;
+}
+main {
+  max-width: 1120px;
+  margin: auto;
+  padding: 38px 24px;
+}
+h1 {
+  font-size: 29px;
+  letter-spacing: -0.6px;
+  margin: 5px 0 28px;
+}
+h2 {
+  font-size: 18px;
+}
+.heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.eyebrow {
+  font-size: 11px;
+  letter-spacing: 2px;
+  color: #65786f;
+}
+.badge {
+  padding: 7px 12px;
+  border: 1px solid #cdd6d0;
+  border-radius: 20px;
+  font-size: 12px;
+}
+.empty {
+  background: white;
+  border: 1px solid #dde3de;
+  border-radius: 10px;
+  text-align: center;
+  padding: 70px 20px;
+}
+.empty-symbol {
+  font-size: 35px;
+  color: #527663;
+}
+p {
+  color: #67736e;
+  line-height: 1.7;
+}
+.panel {
+  background: white;
+  border: 1px solid #dde3de;
+  border-radius: 10px;
+  padding: 24px;
+  margin: 18px 0;
+}
+form {
+  display: flex;
+  gap: 18px;
+  align-items: end;
+  margin: 22px 0;
+}
+label {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  font-size: 13px;
+  flex: 1;
+}
+input {
+  min-width: 0;
+  padding: 10px;
+  border: 1px solid #cdd6d0;
+  border-radius: 5px;
+  background: #fff;
+  color: #202b2b;
+}
+input:focus {
+  outline: 2px solid #83a58e;
+  outline-offset: 1px;
+}
+.table-wrap {
+  overflow: auto;
+}
+table {
+  border-collapse: collapse;
+  width: 100%;
+  margin-top: 18px;
+}
+td,
+th {
+  padding: 14px 10px;
+  border-bottom: 1px solid #edf0ed;
+  text-align: left;
+}
+th {
+  font-size: 12px;
+  font-weight: 500;
+  color: #67736e;
+}
+td button {
+  padding: 5px 10px;
+}
+.search-label {
+  max-width: 380px;
+}
+#message {
+  padding: 13px 18px;
+  margin-bottom: 20px;
+  background: #e6eee6;
+  border-radius: 6px;
+}
+#message.error {
+  background: #fce9e5;
+  color: #843b2b;
+}
+#instrument-detail {
+  margin-top: 20px;
+  padding: 18px;
+  background: #f5f7f4;
+  overflow-wrap: anywhere;
+}
+#instrument-detail dl {
+  display: grid;
+  grid-template-columns: 140px 1fr;
+  gap: 10px;
+}
+dd {
+  margin: 0;
+}
+[hidden] {
+  display: none !important;
+}
+@media (max-width: 700px) {
+  header {
+    align-items: start;
+    gap: 18px;
+    flex-direction: column;
+  }
+  main {
+    padding: 22px 16px;
+  }
+  form {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  nav {
+    gap: 0;
+  }
+  nav button {
+    padding: 8px 13px;
+  }
+  .panel {
+    padding: 17px;
+  }
+  h1 {
+    font-size: 25px;
+  }
+}
+
+select {
+  font: inherit;
+  padding: 10px;
+  border: 1px solid #cdd6d0;
+  border-radius: 5px;
+  min-width: 0;
+  background: white;
+  color: inherit;
+}
+.entry-form {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-items: end;
+}
+.numeric {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+#transaction-detail {
+  overflow-wrap: anywhere;
+}
+@media (max-width: 700px) {
+  .entry-form {
+    grid-template-columns: 1fr;
+  }
+}
+
+.filters {
+  display: flex;
+  gap: 14px;
+  flex-wrap: wrap;
+  margin: 18px 0;
+}
+.filters label {
+  min-width: 140px;
+}
+.fee-row {
+  display: flex;
+  gap: 6px;
+  margin: 8px 0;
+}
+.fee-row input {
+  width: 110px;
+}
+#holding-detail {
+  overflow-wrap: anywhere;
+}
+#holding-groups table {
+  margin: 0;
+}
+
+.table-wrap {
+  max-width: 100%;
+}
+.panel {
+  min-width: 0;
+}
+td {
+  vertical-align: top;
+}
+#import-result button {
+  margin: 3px;
+}
+#import-history {
+  margin-top: 14px;
+}
+#holding-groups table {
+  min-width: 450px;
+}
+@media (max-width: 700px) {
+  .table-wrap table {
+    min-width: 650px;
+  }
+  #accounts {
+    white-space: normal;
+  }
+  #valuation-summary {
+    line-height: 1.8;
+  }
+  .fee-row {
+    flex-wrap: wrap;
+  }
+}
+
+nav {
+  flex-wrap: wrap;
+}
+@media (max-width: 700px) {
+  .heading {
+    flex-wrap: wrap;
+    gap: 12px;
+  }
+}
+
+.account-rename-form {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 0;
+}
+.account-rename-form input {
+  width: 100%;
+  min-width: 0;
+}

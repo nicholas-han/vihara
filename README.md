@@ -17,7 +17,7 @@ The platform is organized into three layers.
 | `portfolio_manager` | Backtesting and runtime: one engine drives a strategy over historical or live data via swappable clock / data / execution adapters (backtest-live parity), with portfolio accounting, risk, performance, and factor analytics. | in progress (`vol-arb-v1`) |
 | `forecaster` | Quant-research model library: econometrics, time-series, and ML / DL / RL behind one fit/predict interface, with leakage-safe validation (purged / embargoed CV). Feeds forecasts to strategies and the backtester. | in progress (`vol-arb-v1`) |
 | `plumber` | Infrastructure and data pipelines. | planned |
-| `ledger` | Accounting: double-entry bookkeeping over a beancount-compatible plain-text journal (text is the source of truth, SQLite a derived index); portfolio_manager generates trade postings into it. | in progress (`ledger-v2`) |
+| `ledger` | Accounting: standalone generic bookkeeping plus pure investment accounting definitions/builders. Portfolio Holdings owns its dedicated canonical SQLite database and atomic write path. | in progress (`ledger-v2`) |
 | `matching_engine` | Order matching. | planned |
 | `clearing_and_settlement` | Clearing and settlement. | planned |
 | `risk_engine` | Risk. | planned |
@@ -29,6 +29,8 @@ The platform is organized into three layers.
 The packaged offerings exposed to end users (exchange / broker products). To be defined.
 
 ### Project layer — business initiatives on top of the stack
+
+- Portfolio Holdings MVP: [project plan](<docs/Project - Portfolio Holdings MVP/PROJECT_PLAN.md>) and [runbook](<docs/Project - Portfolio Holdings MVP/RUNBOOK.md>). Canonical investment records use a dedicated SQLite database; the default Portfolio web launcher opens this application.
 
 - Trading strategy: implied-vs-realized volatility statistical arbitrage (`strategies/iv_rv_arb`, in progress on `vol-arb-v1`)
 - Broker: Hyperliquid Builder

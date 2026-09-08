@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "id": "0c0f8c70f5195ef3ab73bec85c297a12",
+  "code": "USD",
+  "name": "US Dollar",
+  "kind": "TRANSFERABLE",
+  "asset_class_id": "FIAT_CURRENCY",
+  "is_quotable": true,
+  "is_settleable": true,
+  "metadata": {
+    "currency_code": "USD"
+  }
+}
