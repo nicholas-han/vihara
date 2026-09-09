@@ -1,0 +1,10 @@
+{
+  "schema_version": 1,
+  "id": "3ed7a947febb5b72b3b68a61295be2e6",
+  "code": "GOOGL",
+  "name": "Alphabet Inc. Class A",
+  "kind": "TRANSFERABLE",
+  "asset_class_id": "EQUITY",
+  "is_quotable": true,
+  "is_settleable": true
+}

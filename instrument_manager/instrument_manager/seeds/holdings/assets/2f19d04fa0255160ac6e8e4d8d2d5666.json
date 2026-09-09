@@ -1,0 +1,10 @@
+{
+  "schema_version": 1,
+  "id": "2f19d04fa0255160ac6e8e4d8d2d5666",
+  "code": "BTC",
+  "name": "Bitcoin",
+  "kind": "TRANSFERABLE",
+  "asset_class_id": "CRYPTO",
+  "is_quotable": true,
+  "is_settleable": true
+}

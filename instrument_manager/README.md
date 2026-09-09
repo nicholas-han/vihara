@@ -1,4 +1,6 @@
-# instrument_manager (v2)
+# instrument_manager (v3)
+
+> Scope: the layered model describes the target architecture. P0 Listing is minimal; full tick/lot/fee/calendar and lifecycle processing remain deferred. Holdings consumes the validated read-only `holding_catalog` projection. Current persistence: [JSON + derived SQLite](docs/75-file-persistence.md).
 
 The static-data / reference-data core of an everything exchange / everything broker: one coherent model for every tradable financial product (securities and derivatives) and every priced-but-not-tradable observable (index, rate, event, volatility).
 
@@ -54,13 +56,14 @@ Numbering note: `20` (L1) comes first in band B — not strict L0→L1→L2 orde
 ## Boundaries
 
 - **Pricing** lives in [`asset_pricer`](../asset_pricer); this module produces well-typed economic terms and projects them into `asset_pricer` structs — it never values.
-- **Persistence** is PostgreSQL (system of record for slowly-changing data); the **C++ core** is the in-memory model, the validation single-source-of-truth (shared to Python via pybind11), and the home of all semantics.
+- **Persistence** uses per-entity JSON as the system of record and a rebuildable SQLite index ([current design](docs/75-file-persistence.md)); PostgreSQL files are historical design material; the **C++ core** is the in-memory model, the validation single-source-of-truth (shared to Python via pybind11), and the home of all semantics.
 
-## Planned layout (P0, not yet built)
+## Current layout (P0 implemented)
 
 ```
 instrument_manager/
   docs/            design docs (this set)
-  db/              schema.sql, migrations/, seeds/   (Postgres SoT)
+  instrument_manager/  Python serde, holding_catalog, seeds/
+  db/              historical PostgreSQL design (not runtime migrations)
   cpp/             C++ core: src/{core,registry,projection,validation,symbology}, tests/, bindings/
 ```

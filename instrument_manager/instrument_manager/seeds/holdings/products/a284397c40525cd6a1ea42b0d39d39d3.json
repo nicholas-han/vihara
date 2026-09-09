@@ -1,0 +1,29 @@
+{
+  "schema_version": 1,
+  "id": "a284397c40525cd6a1ea42b0d39d39d3",
+  "name": "HYPE / USDC",
+  "lifecycle_class": "OPEN_ENDED",
+  "legs": [
+    {
+      "leg_id": "81bc41ea4dec542ebad6f4932060d128",
+      "position": 0,
+      "kind": "HOLDING",
+      "params": {
+        "asset": {
+          "observable": "52bf23d9d7ee53c9b51471bae5f7983e"
+        },
+        "quote_ccy": {
+          "observable": "e6668e9649245a8f87189c8a572dddb4"
+        }
+      }
+    }
+  ],
+  "identifiers": [
+    {
+      "scheme": "TICKER",
+      "authority": "HYPERLIQUID",
+      "value": "HYPE",
+      "valid_from": "2024-11-29"
+    }
+  ]
+}

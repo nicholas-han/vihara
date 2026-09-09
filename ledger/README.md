@@ -1,11 +1,15 @@
 # ledger
 
+This package contains two separate ledger domains. The sections below describe **generic personal bookkeeping**. **Investment Ledger** lives in `ledger/investment/` and owns Accounting Ledger, Position Ledger, canonical SQLite storage, atomic commands, imports and validation. It depends on `instrument_manager`; its catalog startup uses the IM C++ binding. Portfolio Manager supplies analysis, valuation and the English Web/API.
+
+The investment database defaults to `state/holdings.sqlite3` in the Vihara repo and is authoritative, not rebuildable from legacy CSVs. Investment corrections use Reversal; generic journal editing and snapshots below do not apply to it. See the [Holdings runbook](../docs/Project%20-%20Portfolio%20Holdings%20MVP/RUNBOOK.md) and [module boundaries](../docs/Project%20-%20Portfolio%20Holdings%20MVP/MODULE_BOUNDARIES.md).
+
 Double-entry bookkeeping for all personal financial activity. The
 authoritative record is a SQLite database of structured journal entries
 (in the private `vihara-data` repo); beancount text is an interchange
 format — history imports from it, and the store exports back to
 deterministic, bean-check-legal text so fava stays a free secondary
-viewer. Implemented from scratch — zero runtime dependencies; the
+viewer. The generic bookkeeping implementation uses the standard library; the
 `beancount` package appears only as a dev extra powering the CI
 compatibility gate (openpyxl, if present, enables XLSX import).
 

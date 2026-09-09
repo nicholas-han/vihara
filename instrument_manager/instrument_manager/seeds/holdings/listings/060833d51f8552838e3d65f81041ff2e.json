@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "id": "060833d51f8552838e3d65f81041ff2e",
+  "product_id": "7022a8ba86d2545990cee4a1bd0df20d",
+  "venue_id": "453f99eacd245e50be17d833655ebf11",
+  "venue_segment": "STOCK",
+  "identifiers": [
+    {
+      "scheme": "VENUE_SYMBOL",
+      "authority": "NASDAQ",
+      "value": "SKHY",
+      "valid_from": "2026-07-13"
+    }
+  ]
+}

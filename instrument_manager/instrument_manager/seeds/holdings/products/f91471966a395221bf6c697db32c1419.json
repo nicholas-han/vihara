@@ -1,0 +1,29 @@
+{
+  "schema_version": 1,
+  "id": "f91471966a395221bf6c697db32c1419",
+  "name": "BTC / USDT",
+  "lifecycle_class": "OPEN_ENDED",
+  "legs": [
+    {
+      "leg_id": "15477cba8aea5b8b8ea3d1411752ee88",
+      "position": 0,
+      "kind": "HOLDING",
+      "params": {
+        "asset": {
+          "observable": "2f19d04fa0255160ac6e8e4d8d2d5666"
+        },
+        "quote_ccy": {
+          "observable": "5f4183dda7c85c40ba2dc6b5a90808b2"
+        }
+      }
+    }
+  ],
+  "identifiers": [
+    {
+      "scheme": "TICKER",
+      "authority": "BINANCE",
+      "value": "BTCUSDT",
+      "valid_from": "0001-01-01"
+    }
+  ]
+}

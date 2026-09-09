@@ -1,0 +1,29 @@
+{
+  "schema_version": 1,
+  "id": "fe10048a7aa855979785016ee161a6c5",
+  "name": "FUTU / USD",
+  "lifecycle_class": "OPEN_ENDED",
+  "legs": [
+    {
+      "leg_id": "8b6d2a1759bd5545bdd15f963b056d8e",
+      "position": 0,
+      "kind": "HOLDING",
+      "params": {
+        "asset": {
+          "observable": "0c1e8dd366c55f20b7c1a912229a64eb"
+        },
+        "quote_ccy": {
+          "observable": "0c0f8c70f5195ef3ab73bec85c297a12"
+        }
+      }
+    }
+  ],
+  "identifiers": [
+    {
+      "scheme": "TICKER",
+      "authority": "NASDAQ",
+      "value": "FUTU",
+      "valid_from": "0001-01-01"
+    }
+  ]
+}

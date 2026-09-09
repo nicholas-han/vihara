@@ -1,0 +1,10 @@
+{
+  "name": "holdings-browser-regressions",
+  "private": true,
+  "scripts": {
+    "test": "node --test review-regressions.cjs"
+  },
+  "devDependencies": {
+    "playwright": "1.63.0"
+  }
+}

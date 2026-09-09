@@ -8,12 +8,15 @@ from __future__ import annotations
 import sqlite3
 from pathlib import Path
 
+from ledger.investment.safety import reject_holdings_database
+
 
 ROOT = Path(__file__).resolve().parents[3]
 SCHEMA_PATH = ROOT / "portfolio_manager" / "db" / "portfolio_records_schema.sql"
 
 
 def create_sample_db(db_path: Path) -> None:
+    reject_holdings_database(db_path)
     db_path.parent.mkdir(parents=True, exist_ok=True)
     if db_path.exists():
         db_path.unlink()

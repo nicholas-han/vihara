@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "id": "27369545ec4255669f83616803d9e53c",
+  "product_id": "fe10048a7aa855979785016ee161a6c5",
+  "venue_id": "453f99eacd245e50be17d833655ebf11",
+  "venue_segment": "STOCK",
+  "identifiers": [
+    {
+      "scheme": "VENUE_SYMBOL",
+      "authority": "NASDAQ",
+      "value": "FUTU",
+      "valid_from": "0001-01-01"
+    }
+  ]
+}

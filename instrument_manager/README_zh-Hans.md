@@ -1,8 +1,10 @@
-# instrument_manager (v2)
+# instrument_manager (v3)
+
+> Scope: the layered model describes the target architecture. P0 Listing is minimal; full tick/lot/fee/calendar and lifecycle processing remain deferred. Holdings consumes the validated read-only `holding_catalog` projection. Current persistence: [JSON + derived SQLite](docs/75-file-persistence.md).
 
 万物交易所 / 万物经纪商的静态数据 / 参考数据核心：用一套统一连贯的模型表达每一种可交易的金融产品（证券与衍生品），以及每一种已定价但不可交易的可观测量（指数、利率、事件、波动率）。
 
-**状态：** 设计阶段。本分支（`instrument-manager-v2`）目前仅包含设计——尚无实现。v2 是一次全新的构建，沿用了 v1 的良好骨架并对其重新组织；`instrument-manager-v1` 分支已归档。
+**状态：** v3 已实现 P0 C++ 核心、pybind、JSON 读取及派生 SQLite 索引。逐实体 JSON 为主数据；旧 PostgreSQL 设计保留作历史参考。当前持久化以 [75-file-persistence](docs/75-file-persistence.md) 和 ADR-24/25 为准。
 
 ## 核心理念
 
@@ -54,13 +56,14 @@ L0  Reference data    observables / underliers: asset, index, rate, event, volat
 ## 边界
 
 - **定价**位于 [`asset_pricer`](../asset_pricer)；本模块产出类型良好的经济条款并将其投影为 `asset_pricer` 结构体——它从不进行估值。
-- **持久化**采用 PostgreSQL（缓慢变化数据的记录系统）；**C++ 核心**则是内存中的模型、校验的唯一真相来源（通过 pybind11 共享给 Python），也是所有语义的归宿。
+- **持久化**采用逐实体 JSON（主数据）及可重建 SQLite 索引；PostgreSQL 文件属于历史设计；**C++ 核心**则是内存中的模型、校验的唯一真相来源（通过 pybind11 共享给 Python），也是所有语义的归宿。
 
-## 计划布局（P0，尚未构建）
+## 当前布局（P0 已实现）
 
 ```
 instrument_manager/
   docs/            design docs (this set)
-  db/              schema.sql, migrations/, seeds/   (Postgres SoT)
+  instrument_manager/  Python serde, holding_catalog, seeds/
+  db/              historical PostgreSQL design (not runtime migrations)
   cpp/             C++ core: src/{core,registry,projection,validation,symbology}, tests/, bindings/
 ```

@@ -1,0 +1,29 @@
+{
+  "schema_version": 1,
+  "id": "f2f07088aa535eb99a0120f1bc61ef70",
+  "name": "CRCL / USD",
+  "lifecycle_class": "OPEN_ENDED",
+  "legs": [
+    {
+      "leg_id": "47f64a7aa90c5c0aa42a92d8b33233e3",
+      "position": 0,
+      "kind": "HOLDING",
+      "params": {
+        "asset": {
+          "observable": "3bb13373e2645d2fb1b9af0d58c5ccec"
+        },
+        "quote_ccy": {
+          "observable": "0c0f8c70f5195ef3ab73bec85c297a12"
+        }
+      }
+    }
+  ],
+  "identifiers": [
+    {
+      "scheme": "TICKER",
+      "authority": "NYSE",
+      "value": "CRCL",
+      "valid_from": "0001-01-01"
+    }
+  ]
+}

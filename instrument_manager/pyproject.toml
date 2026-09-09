@@ -14,3 +14,6 @@ dev = ["pytest>=7.4"]
 
 [tool.setuptools.packages.find]
 include = ["instrument_manager*"]
+
+[tool.setuptools.package-data]
+instrument_manager = ["seeds/holdings/*/*.json"]

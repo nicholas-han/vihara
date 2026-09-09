@@ -1,0 +1,29 @@
+{
+  "schema_version": 1,
+  "id": "51d9eb96692f509dae03ea5422b6c338",
+  "name": "AAPL / USD",
+  "lifecycle_class": "OPEN_ENDED",
+  "legs": [
+    {
+      "leg_id": "4f0e0e1739c75a1dbb5bf3f25097dabe",
+      "position": 0,
+      "kind": "HOLDING",
+      "params": {
+        "asset": {
+          "observable": "4902f77e018651b08161ee1d30c8be0a"
+        },
+        "quote_ccy": {
+          "observable": "0c0f8c70f5195ef3ab73bec85c297a12"
+        }
+      }
+    }
+  ],
+  "identifiers": [
+    {
+      "scheme": "TICKER",
+      "authority": "NASDAQ",
+      "value": "AAPL",
+      "valid_from": "0001-01-01"
+    }
+  ]
+}

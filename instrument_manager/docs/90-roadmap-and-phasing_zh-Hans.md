@@ -1,5 +1,7 @@
 # 路线图与阶段划分
 
+> 历史阶段规划：P0 C++ 核心和文件持久化现已实现。当前状态见 [README](../README_zh-Hans.md)；PostgreSQL 相关计划已被 [文件持久化](75-file-persistence.md) 取代，后续范围仍以英文 roadmap 为准。
+
 这是 `instrument_manager` v2 的构建顺序。它遵循 [`00-vision-and-scope_zh-Hans.md`](00-vision-and-scope_zh-Hans.md) 中的范围以及 [`decisions_zh-Hans.md`](decisions_zh-Hans.md) 中的决策。当前状态：**设计已完成，实现尚未开始。** 以下内容均尚未构建。
 
 ## 阶段 0 —— 基础（我们能够获取数据来源的可定价或可交易宇宙）

@@ -1,5 +1,7 @@
 # ledger_bridge — trades to double-entry postings
 
+> Legacy scope: this document describes `portfolio_manager.records` / `ledger_bridge`, not the new Portfolio Holdings MVP. Holdings uses Instrument Manager references and an authoritative SQLite database owned by `ledger.investment`; it must not be deleted or rebuilt from these CSVs. See [current module boundaries](../../docs/Project%20-%20Portfolio%20Holdings%20MVP/MODULE_BOUNDARIES.md).
+
 The bridge realizes ADR-4/ADR-10: portfolio records (trades, dividends,
 cashflows — canonical CSVs in vihara-data) stay the single source of truth,
 and their double-entry journal is a **derived, deterministic projection**

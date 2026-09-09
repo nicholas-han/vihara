@@ -1,0 +1,10 @@
+{
+  "schema_version": 1,
+  "id": "5e680dfca109516caa2c7a112f4fba32",
+  "code": "COIN",
+  "name": "Coinbase Global, Inc. Class A",
+  "kind": "TRANSFERABLE",
+  "asset_class_id": "EQUITY",
+  "is_quotable": true,
+  "is_settleable": true
+}

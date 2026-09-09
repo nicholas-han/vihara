@@ -40,7 +40,7 @@
 - **pm records v3** — canonical CSVs under vihara-data, `records rebuild`,
   dividend row_hash dedup fix, cashflows + cash checkpoints, lot
   consumption detail (pm ADR-9/10).
-- **ledger_bridge** — mapping.toml, `MARKET.SYMBOL` commodity encoding,
+- **ledger_bridge** — mapping.toml, opaque instrument-ID commodity encoding (`I<UPPERCASE_PAYLOAD>`),
   deterministic journal generator, checkpoint assertions, reconciler
   R1–R7 (pm ADR-11, `portfolio_manager/docs/ledger-bridge.md`).
 - **instrument_manager v3** — per-entity JSON persistence + Python serde

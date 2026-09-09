@@ -1,0 +1,10 @@
+{
+  "schema_version": 1,
+  "id": "b53fc84155e457a1bcd5eaef0845db1d",
+  "code": "SKHY",
+  "name": "SK hynix Inc. ADS",
+  "kind": "TRANSFERABLE",
+  "asset_class_id": "EQUITY",
+  "is_quotable": true,
+  "is_settleable": true
+}
