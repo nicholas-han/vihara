@@ -87,10 +87,18 @@ def value(conn, result, catalog):
         for kind in ("cash", "investments"):
             for row in result[kind]:
                 row["market_value"] = None
+                row["native_market_value"] = None
+                row["market_fx_rate"] = None
                 row["unrealized_difference"] = None
                 row["price_as_of"] = None
                 row["fx_as_of"] = None
                 if kind == "investments":
+                    quantity = Decimal(row["quantity"])
+                    row["average_historical_cost"] = (
+                        format(Decimal(row["book_value"]) / quantity, "f")
+                        if quantity
+                        else None
+                    )
                     quote = conn.execute(
                         "SELECT * FROM market_prices WHERE observable_id=? AND as_of<=? ORDER BY as_of DESC,observation_id DESC LIMIT 1",
                         (row["observable_id"], day),
@@ -111,6 +119,7 @@ def value(conn, result, catalog):
                         catalog.currencies[row["currency"]]
                     ].asset_class
                     native = Decimal(row["quantity"])
+                row["native_market_value"] = format(native, "f")
                 rate = fx(conn, row["valuation_currency"], functional, day)
                 if rate is None:
                     row["valuation_status"] = "MISSING_FX"

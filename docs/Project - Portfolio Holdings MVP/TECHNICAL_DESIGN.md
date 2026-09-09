@@ -432,7 +432,7 @@ S0 接口集中在 `holdings/api.py`；Book FX 与事务基础在 `persistence/s
 
 ## 18. 最终实际落点与验收
 
-数据库迁移版本为 6：foundation、cash、trades、cash events、market、imports。`application/service.py` 协调普通 command、冲销及重演；cash / trades / cash_events 显式分担五类经济处理。ledger/investment_accounting 提供纯分录结构与差额构建；没有复用旧 generic ledger CRUD。`validation/` 独立读取已存关系和表，检查冗余约束、原始/有效历史及冻结效果。
+数据库迁移版本为 6：foundation、cash、trades、cash events、market、imports。`application/service.py` 协调普通 command、冲销及重演；cash / trades / cash_events 显式分担五类经济处理。`ledger/ledger/investment/accounting/` 提供会计分录，`position/` 提供持仓与批次，统一由 `application/` 协调并通过 `persistence/` 原子保存；没有复用旧 generic ledger CRUD。`validation/` 独立读取已存关系和表，检查冗余约束、原始/有效历史及冻结效果。
 
 Holdings 现金读取原始 CASH 行、数量读取 LOCATION 行，分别与有效历史/批次数量核对；成本来自 active lot/allocation，并与 INVESTMENT 对账。book 使用 80 位中间 Decimal context；市场派生估值用 120 位以容纳 quantity × price × FX 三因子，不改变 canonical 存储精度。
 

@@ -1,5 +1,7 @@
 # Portfolio Holdings MVP — 本地使用说明
 
+> 2026-09-08：参考数据及查询/UI 已同步。Web 全英文：Settings 创建 Financial Account，Add Transaction 预览及录入，Transactions 查询及 Reversal。普通余额/批次读取冻结记录；经济重演用于写入检查与独立 validation。见 [一致性修正记录](CONSISTENCY_REVIEW.md)。
+
 > 2026-09-07 模块调整：Accounting Ledger 与 Position Ledger 统一迁入 `ledger.investment`；Portfolio 保留分析、估值与英文 Web。当前边界详见 [MODULE_BOUNDARIES](MODULE_BOUNDARIES.md)。
 
 更新：2026-09-06。对应 S0～S10 实现。专项入口见 [PROJECT_PLAN](PROJECT_PLAN.md)，验收证据见 [STAGE_ACCEPTANCE](STAGE_ACCEPTANCE.md)。
@@ -31,7 +33,7 @@ Python 需安装项目依赖及 FastAPI/uvicorn。本次验证环境为 Python 3
 ## 首次使用
 
 1. 设置页创建账户，例如 IBKR；账户代码固定，显示名称可改。
-2. 检查产品。内置参考集含 HKD、USD、USDT 与 AAPL/USD、BTC/USDT；它们不是已有持仓。
+2. 检查产品。内置参考集含 HKD、USD、USDT、USDC 四个 Currency，以及 AAPL、BTC、HYPE、NVDA、GOOGL、GOOG、FUTU、INTC、SKHY、COIN、CRCL 共 11 个 Tradable Product；它们不是已有持仓。报价币种及身份见 [REFERENCE_DATA_UPDATES](REFERENCE_DATA_UPDATES.md)。
 3. 若需要外币入账，先导入准确日期的 Book FX。
 4. 录入页选择现金移动、买卖、换汇或股息，先预览，再确认。
 5. 持仓页查看现金、投资历史成本和估值；点击币种或资产追溯分录、批次和来源交易。
@@ -44,7 +46,7 @@ Python 需安装项目依赖及 FastAPI/uvicorn。本次验证环境为 Python 3
 
 Currency-like Observable 需 TRANSFERABLE、FIAT_CURRENCY/STABLECOIN 与 metadata.currency_code；Holding Product 需 OPEN_ENDED、唯一 HOLDING leg、稳定且唯一 leg_id，asset 与 quote_ccy 都引用 Observable；ExternalIdentifier 必须有 valid_from，可选 valid_to 为右开区间。Listing 不确定时保持空值。
 
-不能改写已被交易引用的资产、报价币种或 Listing 身份；显示名称可调整。扩展 Currency 不是普通交易自动完成的操作，需显式参考数据迁移。现有三币种覆盖当前 MVP 验收范围。
+不能改写已被交易引用的资产、报价币种或 Listing 身份；显示名称可调整。扩展 Currency 不是普通交易自动完成的操作，需显式参考数据迁移。当前内置四币种；新增币种需要同步主数据和数据库 Currency 映射。
 
 ## Book FX
 

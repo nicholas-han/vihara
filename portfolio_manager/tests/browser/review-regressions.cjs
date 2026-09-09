@@ -27,6 +27,7 @@ const product = {
   quote_observable_id: "usd",
   observable: { observable_id: "o", name: "Apple Inc.", code: "AAPL" },
   quote_observable: { code: "USD" },
+  holding_leg: { leg_id: "leg-aapl", kind: "HOLDING" },
   listings: [{ listing_id: "l", venue_id: "v", venue_segment: "STOCK" }],
   identifiers: [
     {
@@ -286,3 +287,105 @@ for (const kind of ["TRADE", "CASH_TRANSFER", "DIVIDEND_RECEIPT", "REVERSAL"])
       assert(text.includes("NASDAQ · STOCK · AAPL"));
     }
   });
+
+test("transaction filters send currency, observable, status and end date", async (t) => {
+  let query;
+  const p = await pageFixture(t, (url, req) => {
+    if (url === "/api/transactions") query = new URL(req.url()).searchParams;
+  });
+  await p.click('[data-page="transactions"]');
+  await p.selectOption("#tx-currency", "USD");
+  await p.selectOption("#tx-observable", "o");
+  await p.selectOption("#tx-status", "REVERSED");
+  const filtered = p.waitForResponse((r) =>
+    r.url().includes("date_to=2026-09-02"),
+  );
+  await p.fill("#tx-to", "2026-09-02");
+  await p.locator("#tx-to").dispatchEvent("change");
+  await filtered;
+  assert.equal(query.get("currency"), "USD");
+  assert.equal(query.get("observable_id"), "o");
+  assert.equal(query.get("status"), "REVERSED");
+  assert.equal(query.get("date_to"), "2026-09-02");
+  assert.equal(query.get("offset"), "0");
+});
+
+test("instrument detail shows HoldingLeg and external identity", async (t) => {
+  const p = await pageFixture(t);
+  await p.click('[data-page="settings"]');
+  await p.locator("#instruments button").click();
+  await p.waitForFunction(() =>
+    document
+      .querySelector("#instrument-detail")
+      .textContent.includes("leg-aapl"),
+  );
+  const detail = await p.locator("#instrument-detail").innerText();
+  assert.match(detail, /HoldingLeg/);
+  assert.match(detail, /ExternalIdentifiers/);
+  assert.match(detail, /NASDAQ/);
+  assert.match(detail, /LISTING l/);
+});
+
+test("valuation renders actual zero price and distinguishes missing market FX", async (t) => {
+  const p = await pageFixture(t, (url) => {
+    if (url !== "/api/holdings") return;
+    return {
+      transaction_count: 1,
+      cash: [
+        {
+          financial_account_id: "1",
+          account_name: "Broker Account",
+          currency: "USD",
+          quantity: "10",
+          book_value: "78",
+          valuation_currency: "USD",
+          market_value: null,
+          market_fx_rate: null,
+          valuation_status: "MISSING_FX",
+        },
+      ],
+      investments: [
+        {
+          financial_account_id: "1",
+          account_name: "Broker Account",
+          name: "Apple Inc.",
+          code: "AAPL",
+          position_id: "1",
+          quantity: "2",
+          book_value: "160",
+          average_historical_cost: "80",
+          valuation_currency: "USD",
+          market_price: "0",
+          native_market_value: "0",
+          market_value: "0",
+          unrealized_difference: "-160",
+          valuation_status: "AVAILABLE",
+          price_as_of: "2026-09-02",
+          fx_as_of: "2026-09-02",
+        },
+      ],
+      valuation: {
+        complete: false,
+        valued_subtotal: "0",
+        unvalued_count: 1,
+        investment_unrealized_complete: true,
+        investment_unrealized_subtotal: "-160",
+      },
+    };
+  });
+  const investment = await p.locator("#investment-rows td").allTextContents();
+  assert.deepEqual(investment.slice(2, 10), [
+    "2",
+    "160",
+    "80",
+    "0",
+    "USD",
+    "0",
+    "0",
+    "-160",
+  ]);
+  const cash = await p.locator("#cash-rows td").allTextContents();
+  assert.equal(cash[4], "Unavailable");
+  assert.equal(cash[5], "Incomplete Valuation");
+  assert.match(cash[6], /Missing USD Market FX/);
+});

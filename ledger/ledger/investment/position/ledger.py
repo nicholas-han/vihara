@@ -257,3 +257,70 @@ def reverse(conn, tid, new):
                     line["financial_account_id"],
                 ),
             )
+
+
+def read_state(conn, as_of=None):
+    """Read frozen lots/allocations; economic replay belongs to commands/validation.
+
+    Reversed BUY lots and reversed SELL allocations are excluded at the requested
+    effective date. Position and Accounting lines retain their signed reversals.
+    """
+    state = State()
+    state.as_of = as_of
+    active = """WITH active AS (
+        SELECT t.transaction_id FROM transactions t
+        WHERE (? IS NULL OR t.effective_date<=?)
+        AND NOT EXISTS (
+            SELECT 1 FROM transaction_relationships r
+            JOIN transactions reversal ON reversal.transaction_id=r.subject_transaction_id
+            WHERE r.object_transaction_id=t.transaction_id
+            AND (? IS NULL OR reversal.effective_date<=?)
+        )
+    ) """
+    args = (as_of,) * 4
+    by_id = {}
+    for row in conn.execute(
+        active + """
+        SELECT l.* FROM position_cost_basis_lots l
+        JOIN active a ON a.transaction_id=l.source_transaction_id
+        ORDER BY l.source_transaction_id
+    """,
+        args,
+    ):
+        quantity, basis = Decimal(row["quantity_acquired"]), Decimal(
+            row["book_cost_basis"]
+        )
+        lot = {
+            "source": row["source_transaction_id"],
+            "position_id": row["position_id"],
+            "account_id": row["financial_account_id"],
+            "quantity": quantity,
+            "basis": basis,
+            "remaining_quantity": quantity,
+            "remaining_basis": basis,
+        }
+        state.lots[lot["source"]] = lot
+        by_id[row["cost_basis_lot_id"]] = lot
+    for row in conn.execute(
+        active + """
+        SELECT a.* FROM position_cost_basis_allocations a
+        JOIN journal_lines l ON l.journal_line_id=a.investment_journal_line_id
+        JOIN journal_entries e USING(journal_entry_id)
+        JOIN active t ON t.transaction_id=e.source_transaction_id
+    """,
+        args,
+    ):
+        lot = by_id.get(row["source_cost_basis_lot_id"])
+        if lot is None:
+            raise LedgerError(
+                "INTEGRITY_ERROR", "Allocation references an inactive Cost Basis Lot."
+            )
+        lot["remaining_quantity"] -= Decimal(row["quantity_disposed"])
+        lot["remaining_basis"] -= Decimal(row["book_cost_disposed"])
+    for lot in state.lots.values():
+        q, b = lot["remaining_quantity"], lot["remaining_basis"]
+        if q < 0 or b < 0 or (q == 0) != (b == 0):
+            raise LedgerError(
+                "INTEGRITY_ERROR", "Invalid remaining Cost Basis Lot quantity or cost."
+            )
+    return state

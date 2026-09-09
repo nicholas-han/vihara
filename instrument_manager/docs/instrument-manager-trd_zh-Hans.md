@@ -1,5 +1,7 @@
 # Instrument Manager 技术设计文档
 
+> 2026-09-08 更新：新 Holdings 已通过 `holding_catalog.py` 使用 Instrument Manager，Trade 引用 Product 和可选 Listing，Position 引用 Observable。§15 中 flat registry / adapter 未接通的说明仅适用于旧 `portfolio_manager.records`。§17.1 的 README 漂移已修正；其余历史 PostgreSQL 文档须按文件持久化方案解读。
+
 ## 1. 文档信息
 
 | 项目 | 内容 |
@@ -973,7 +975,7 @@ TICKER = SYMBOL.MARKET + as_of date
 1. `instrument_manager`：完整的 L0/L1/L2/L3 领域模型；
 2. `portfolio_manager.records`：面向交易导入的轻量 instrument/alias registry。
 
-双方尚未正式接通：
+以下断点仅描述旧 `portfolio_manager.records` 路径，不能用于判断新 Holdings 的集成状态：
 
 - PM 使用 `ins_<22 chars>` 随机 opaque ID；
 - IM fixtures 使用 `BTC_SPOT`、`AAPL_STOCK` 等 ID；
@@ -1036,7 +1038,7 @@ instrument_manager/tests/fixtures/instruments/
 
 ## 17. 已知差距与风险
 
-### 17.1 文档存在版本漂移
+### 17.1 文档版本漂移（历史检查记录）
 
 英文文档已部分更新到 v3，但：
 

@@ -3,6 +3,7 @@
 from dataclasses import asdict
 from datetime import date
 from pathlib import Path
+from typing import Literal
 
 from fastapi import FastAPI, Query, Request
 from fastapi.exceptions import RequestValidationError
@@ -208,6 +209,7 @@ def create_app(settings: Settings | None = None):
         product = catalog.holding(product_id, listing_id)
         return {
             **asdict(product),
+            "holding_leg": catalog.holding_legs[product_id],
             "observable": asdict(catalog.observables[product.asset_observable_id]),
             "quote_observable": asdict(
                 catalog.observables[product.quote_observable_id]
@@ -311,6 +313,8 @@ def create_app(settings: Settings | None = None):
         date_from: date | None = None,
         currency: str | None = None,
         observable_id: str | None = None,
+        status: Literal["ACTIVE", "REVERSED"] | None = None,
+        date_to: date | None = None,
     ):
         return service.transactions(
             as_of.isoformat() if as_of else None,
@@ -321,6 +325,8 @@ def create_app(settings: Settings | None = None):
             date_from.isoformat() if date_from else None,
             currency,
             observable_id,
+            status,
+            date_to.isoformat() if date_to else None,
         )
 
     @app.get("/api/transactions/{transaction_id}")

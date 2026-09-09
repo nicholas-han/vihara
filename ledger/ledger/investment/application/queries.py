@@ -3,6 +3,7 @@
 from decimal import Decimal, localcontext
 from .service import Service, serialize_ids
 from ..errors import LedgerError
+from ..position.ledger import read_state
 from ..numbers import decimal_text
 
 
@@ -16,7 +17,7 @@ def position(store, pid, as_of=None):
             if row is None:
                 raise LedgerError("REFERENCE_NOT_FOUND", "Position not found.")
             service = Service(store)
-            state, _, _ = service.replay(conn, as_of=as_of)
+            state = read_state(conn, as_of)
             lots = []
             for lot in state.lots.values():
                 if lot["position_id"] == pid:

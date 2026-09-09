@@ -191,6 +191,21 @@ async function detail(id) {
     ["Product ID", p.product_id],
     ["Observable ID", p.asset_observable_id],
     [
+      "HoldingLeg",
+      p.holding_leg
+        ? `${p.holding_leg.leg_id} · ${p.holding_leg.direction || "RECEIVE"} · ${p.observable.name} / ${p.quote_observable.code}`
+        : "Not Specified",
+    ],
+    [
+      "ExternalIdentifiers",
+      (p.identifiers || [])
+        .map(
+          (i) =>
+            `${i.scheme || "Identifier"}: ${i.identifier} · ${i.authority || "No Authority"} · ${i.target_type} ${i.target_id} · ${i.valid_from || "Unspecified"} to ${i.valid_to || "Open Ended"}`,
+        )
+        .join("; ") || "Not Specified",
+    ],
+    [
       "Available Listings",
       p.listings.map((l) => l.venue_segment + " · " + l.venue_id).join(" / ") ||
         "Not Specified",

@@ -1,5 +1,7 @@
 # 持久化与 C++ 核心
 
+> Historical PostgreSQL design. The runtime persistence model is superseded by [75-file-persistence](75-file-persistence.md), ADR-24/25: per-entity JSON is authoritative and SQLite is derived. This file is not a runtime migration guide.
+
 ## 0. 范围与它在整个技术栈中的位置
 
 本文档负责 `instrument_manager` v2 的**持久化形态**和 **C++ 核心**：数据库边界落在何处、一个强类型的收益（payout）组合如何在 PostgreSQL 中存储而又不丢失类型安全或 SQL 可查询性、L1 与 L3 的具体 schema 骨架、C++ 源码布局（`core` / `registry` / `pricing` / `validation` / `symbology` / `serde` / `bindings`）、热路径上的快照加载模型，以及通过 pybind11 共享给 Python 的校验单一事实来源（SoT）。

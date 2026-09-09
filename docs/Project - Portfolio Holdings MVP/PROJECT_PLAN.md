@@ -1,5 +1,7 @@
 # Portfolio Holdings MVP — 专项推进总计划
 
+> 2026-09-08：S0～S10 为原阶段验收记录，不代表每个设计字段当时均完整落地。后续文档同步、冻结查询、筛选及详情补齐与 PR bot 建议逐项结论见 [CONSISTENCY_REVIEW](CONSISTENCY_REVIEW.md)。历史验收数字按日期保留。
+
 > 2026-09-07 模块调整：Accounting Ledger 与 Position Ledger 统一迁入 `ledger.investment`；Portfolio 保留分析、估值与英文 Web。当前边界详见 [MODULE_BOUNDARIES](MODULE_BOUNDARIES.md)。
 
 **版本：** v1.0  

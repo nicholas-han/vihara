@@ -472,7 +472,7 @@ class Service:
         with localcontext() as context:
             context.prec = 80
             with self.store.read() as conn:
-                state, _, _ = self.replay(conn, as_of=as_of)
+                state = position.read_state(conn, as_of)
                 state.include_zero = include_zero
                 raw = {}
                 sql = "SELECT l.* FROM journal_lines l JOIN journal_entries e USING(journal_entry_id) JOIN transactions t ON t.transaction_id=e.source_transaction_id WHERE ledger_account_code='CASH'"
@@ -485,13 +485,6 @@ class Service:
                     raw[key] = (
                         q + sign * Decimal(line["native_amount"]),
                         b + sign * Decimal(line["book_amount"]),
-                    )
-                if {k: v for k, v in raw.items() if any(v)} != {
-                    k: v for k, v in state.items() if any(v)
-                }:
-                    raise LedgerError(
-                        "INTEGRITY_ERROR",
-                        "Frozen cash journal lines do not match effective history.",
                     )
                 accounts = {
                     r["financial_account_id"]: dict(r)
@@ -528,9 +521,26 @@ class Service:
         date_from=None,
         currency=None,
         observable_id=None,
+        status=None,
+        date_to=None,
     ):
         with self.store.read() as conn:
             events = self.events(conn, as_of)
+            if status not in (None, "ACTIVE", "REVERSED"):
+                raise LedgerError("VALIDATION_ERROR", "Invalid transaction status.")
+            reversed_ids = {
+                int(e["data"]["target_transaction_id"])
+                for e in events
+                if e["transaction_type"] == "REVERSAL"
+            }
+            if status:
+                events = [
+                    e
+                    for e in events
+                    if (e["transaction_id"] in reversed_ids) == (status == "REVERSED")
+                ]
+            if date_to:
+                events = [e for e in events if e["effective_date"] <= date_to]
             if account_id is not None:
                 all_events = {e["transaction_id"]: e for e in self.events(conn)}
                 events = [

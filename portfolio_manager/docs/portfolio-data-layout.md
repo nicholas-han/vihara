@@ -1,5 +1,7 @@
 # Portfolio data layout (canonical CSVs in vihara-data)
 
+> Legacy scope: this document describes `portfolio_manager.records` / `ledger_bridge`, not the new Portfolio Holdings MVP. Holdings uses Instrument Manager references and an authoritative SQLite database owned by `ledger.investment`; it must not be deleted or rebuilt from these CSVs. See [current module boundaries](../../docs/Project%20-%20Portfolio%20Holdings%20MVP/MODULE_BOUNDARIES.md).
+
 Since ADR-9, the source of truth for portfolio records is the `portfolio/`
 tree in the private `vihara-data` repo. The SQLite database is a derived
 index: `python -m portfolio_manager.records rebuild` deletes and recreates

@@ -105,6 +105,10 @@ async function options() {
       ["", "All"],
       ...accounts.map((a) => [a.financial_account_id, a.display_name]),
     ]);
+  selectOptions($("#tx-currency"), [
+    ["", "All"],
+    ...c.currencies.map((c) => [c.currency_code, c.currency_code]),
+  ]);
   selectOptions($("#holdings-currency"), [
     ["", "All"],
     ...c.currencies.map((c) => [c.currency_code, c.currency_code]),
@@ -128,6 +132,10 @@ async function options() {
       c.currencies.map((c) => [c.currency_code, c.currency_code]),
     );
   const observables = await api("/api/observables");
+  selectOptions($("#tx-observable"), [
+    ["", "All"],
+    ...observables.rows.map((o) => [o.observable_id, o.name]),
+  ]);
   selectOptions(
     dividend.elements.observable_id,
     observables.rows.map((o) => [o.observable_id, o.name]),
@@ -566,6 +574,14 @@ async function refresh() {
     cell(tr, "").append(open);
     cell(tr, r.quantity).className = "numeric";
     cell(tr, r.book_value).className = "numeric";
+    if (r.currency) {
+      cell(tr, r.market_fx_rate ?? "Unavailable").className = "numeric";
+    } else {
+      cell(tr, r.average_historical_cost ?? "—").className = "numeric";
+      cell(tr, r.market_price ?? "Unavailable").className = "numeric";
+      cell(tr, r.valuation_currency ?? "Unavailable");
+      cell(tr, r.native_market_value ?? "Unavailable").className = "numeric";
+    }
     cell(tr, r.market_value ?? "Incomplete Valuation").className = "numeric";
     cell(tr, marketStatus(r));
     body.append(tr);
@@ -586,6 +602,14 @@ async function refresh() {
     cell(tr, r.account_name);
     cell(tr, r.quantity).className = "numeric";
     cell(tr, r.book_value).className = "numeric";
+    if (r.currency) {
+      cell(tr, r.market_fx_rate ?? "Unavailable").className = "numeric";
+    } else {
+      cell(tr, r.average_historical_cost ?? "—").className = "numeric";
+      cell(tr, r.market_price ?? "Unavailable").className = "numeric";
+      cell(tr, r.valuation_currency ?? "Unavailable");
+      cell(tr, r.native_market_value ?? "Unavailable").className = "numeric";
+    }
     cell(tr, r.market_value ?? "Incomplete Valuation").className = "numeric";
     cell(tr, r.unrealized_difference ?? "—").className = "numeric";
     cell(tr, marketStatus(r));
@@ -666,6 +690,13 @@ function transactionQuery() {
   if ($("#tx-account").value) q.set("account_id", $("#tx-account").value);
   if ($("#tx-type").value) q.set("transaction_type", $("#tx-type").value);
   if ($("#tx-from").value) q.set("date_from", $("#tx-from").value);
+  for (const [id, param] of [
+    ["tx-to", "date_to"],
+    ["tx-currency", "currency"],
+    ["tx-observable", "observable_id"],
+    ["tx-status", "status"],
+  ])
+    if ($("#" + id).value) q.set(param, $("#" + id).value);
   q.set("offset", String(txOffset));
   return "?" + q;
 }
@@ -677,6 +708,10 @@ for (const id of [
   "tx-account",
   "tx-type",
   "tx-from",
+  "tx-to",
+  "tx-currency",
+  "tx-observable",
+  "tx-status",
 ])
   $("#" + id).addEventListener("change", () => {
     txOffset = 0;

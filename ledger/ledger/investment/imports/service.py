@@ -111,6 +111,19 @@ def normalize(store, conn, row):
                     for p in store.catalog.products.values()
                     if p.asset_observable_id == target["target_id"]
                 ]
+                matching_listings = [
+                    l
+                    for l in store.catalog.listings.values()
+                    if l.product_id in candidates
+                    and (not raw.get("venue_id") or l.venue_id == raw["venue_id"])
+                    and (
+                        not raw.get("venue_segment")
+                        or l.venue_segment == raw["venue_segment"]
+                    )
+                    and (not listing or l.listing_id == listing)
+                ]
+                if raw.get("venue_id") or raw.get("venue_segment") or listing:
+                    candidates = sorted({l.product_id for l in matching_listings})
                 if len(candidates) != 1:
                     raise LedgerError(
                         "AMBIGUOUS_REFERENCE",
@@ -118,6 +131,10 @@ def normalize(store, conn, row):
                         candidates=candidates,
                     )
                 product = candidates[0]
+                if (raw.get("venue_id") or raw.get("venue_segment")) and len(
+                    matching_listings
+                ) == 1:
+                    listing = matching_listings[0].listing_id
         try:
             fees = json.loads(raw.get("fees") or "[]")
         except (ValueError, TypeError):

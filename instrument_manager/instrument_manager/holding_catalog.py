@@ -94,6 +94,7 @@ class HoldingCatalog:
                     raise CatalogError("Duplicate Currency code")
                 currencies[code] = obs.observable_id
         products = {}
+        self.holding_legs = {}
         holding_leg_ids = set()
         all_products = {r["id"] for r in universe.products}
         for row in universe.products:
@@ -129,6 +130,7 @@ class HoldingCatalog:
                 raise CatalogError(
                     "MVP HoldingLeg cannot carry a direction/notional override"
                 )
+            self.holding_legs[row["id"]] = leg
             products[row["id"]] = HoldingProduct(
                 row["id"], row.get("name", ""), asset, quote
             )

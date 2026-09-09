@@ -1,5 +1,7 @@
 # Persistence & C++ core
 
+> Historical PostgreSQL design. The runtime persistence model is superseded by [75-file-persistence](75-file-persistence.md), ADR-24/25: per-entity JSON is authoritative and SQLite is derived. This file is not a runtime migration guide.
+
 ## 0. Scope and how this fits the stack
 
 This document owns the **persistence shape** and the **C++ core** for `instrument_manager` v2: where the database boundary sits, how a strongly-typed payout composition is stored in PostgreSQL without losing either type safety or SQL queryability, the concrete schema skeleton for L1 and L3, the C++ source layout (`core` / `registry` / `pricing` / `validation` / `symbology` / `serde` / `bindings`), the snapshot-load model on the hot path, and the validation single-source-of-truth shared to Python via pybind11.

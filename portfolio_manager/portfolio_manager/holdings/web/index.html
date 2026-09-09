@@ -90,6 +90,7 @@
                   <th>Currency</th>
                   <th>Native Balance</th>
                   <th>Historical Book Carrying Value (HKD)</th>
+                  <th>Market FX (HKD per unit)</th>
                   <th>Functional Market Value (HKD)</th>
                   <th>Quote As Of / Valuation Status</th>
                 </tr>
@@ -108,6 +109,10 @@
                   <th>Financial Account</th>
                   <th>Quantity</th>
                   <th>Historical Cost (HKD)</th>
+                  <th>Average Historical Cost (HKD)</th>
+                  <th>Market Price</th>
+                  <th>Price Currency</th>
+                  <th>Market Value (Price Currency)</th>
                   <th>Functional Market Value (HKD)</th>
                   <th>Unrealized Difference (HKD)</th>
                   <th>Quote As Of / Valuation Status</th>
@@ -144,6 +149,24 @@
                 <option value="REVERSAL">Reversal</option>
               </select></label
             ><label>From Date<input type="date" id="tx-from" /></label>
+            <label>To Date<input type="date" id="tx-to" /></label>
+            <label
+              >Asset / Observable<select id="tx-observable">
+                <option value="">All</option>
+              </select></label
+            >
+            <label
+              >Currency<select id="tx-currency">
+                <option value="">All</option>
+              </select></label
+            >
+            <label
+              >Status<select id="tx-status">
+                <option value="">All</option>
+                <option value="ACTIVE">Active</option>
+                <option value="REVERSED">Reversed</option>
+              </select></label
+            >
           </div>
           <button id="refresh-transactions">Refresh</button
           ><button id="tx-prev">Previous</button><span id="tx-page"></span

@@ -1,4 +1,6 @@
 # Portfolio Holdings & Accounting System
+
+> 2026-09-08 实施补充：Transaction Status 中 Reversed 表示截至 As Of 已被冲销的原交易；Active 表示未被冲销的记录，包含 Reversal 记录本身（可同时用 Transaction Type 筛选）。From Date / To Date 是包含端点的日期范围，并与全局 As Of 同时生效。
 ## Web & Data Entry MVP Specification
 
 **Status:** FINAL — MVP Application Scope  

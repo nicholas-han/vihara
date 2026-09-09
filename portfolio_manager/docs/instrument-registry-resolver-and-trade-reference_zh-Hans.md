@@ -1,5 +1,7 @@
 # Portfolio Manager Instrument Registry、Resolver 与 Trade Reference
 
+> Legacy scope: this document describes `portfolio_manager.records` / `ledger_bridge`, not the new Portfolio Holdings MVP. Holdings uses Instrument Manager references and an authoritative SQLite database owned by `ledger.investment`; it must not be deleted or rebuilt from these CSVs. See [current module boundaries](../../docs/Project%20-%20Portfolio%20Holdings%20MVP/MODULE_BOUNDARIES.md).
+
 ## 1. 文档目的
 
 本文档整理当前 `portfolio_manager` 中与 Instrument 身份相关的真实实现，重点回答三个问题：
