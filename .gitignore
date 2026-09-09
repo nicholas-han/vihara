@@ -39,3 +39,6 @@ strategies/iv_rv_arb/data/chains/
 *.user
 *.VC.db
 Browse.VC.*
+
+# --- Claude Code local config ---
+.claude/
