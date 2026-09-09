@@ -1,0 +1,14 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+[project]
+name = "vihara-plumber"
+version = "0.1.0"
+description = "Broker and exchange connectivity contracts and adapters"
+requires-python = ">=3.11"
+dependencies = []
+[project.optional-dependencies]
+futu = ["futu-api==10.10.7008"]
+dev = ["pytest>=7.4"]
+[tool.setuptools.packages.find]
+include = ["plumber*"]

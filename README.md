@@ -16,7 +16,7 @@ The platform is organized into three layers.
 | `instrument_manager` | Static / reference data and layered instrument definitions — the contracts, observables, and identifiers everything else prices, trades, and reports against. C++17 core + Python serde over per-entity JSON files. | in progress (v3) |
 | `portfolio_manager` | Portfolio analysis, valuation and the Holdings Web/API; also a backtesting engine with swappable adapters. Live execution adapters remain future work. Canonical Accounting and Position Ledgers belong to `ledger`. | in progress (`vol-arb-v1`) |
 | `forecaster` | Quant-research model library: econometrics, time-series, and ML / DL / RL behind one fit/predict interface, with leakage-safe validation (purged / embargoed CV). Feeds forecasts to strategies and the backtester. | in progress (`vol-arb-v1`) |
-| `plumber` | Infrastructure and data pipelines. | planned |
+| `plumber` | Broker/exchange connectivity contracts, Futu adapter, and deterministic testing adapter. Accounts are injected from private external configuration. | implemented; live verification pending |
 | `ledger` | Accounting and Position Ledgers: `ledger.investment` owns canonical investment SQLite storage, atomic commands, lots, reversals, imports and validation. Generic personal bookkeeping remains a separate entry point/database. | generic v3 + Investment Ledger MVP |
 | `matching_engine` | Order matching. | planned |
 | `clearing_and_settlement` | Clearing and settlement. | planned |
@@ -26,7 +26,11 @@ The platform is organized into three layers.
 
 ### Product layer
 
-The packaged offerings exposed to end users (exchange / broker products). To be defined.
+| Module | Role | Status |
+|---|---|---|
+| [`customized_orders`](customized_orders/README.md) | Client-orchestrated orders. Limit with MOC: HK limit-to-closing-auction conversion, durable worker, private configuration, recovery and CLI. | implemented; live verification pending |
+
+Trading accounts remain outside Git. See [private configuration](docs/limit-with-moc/CONFIGURATION.md).
 
 ### Project layer — business initiatives on top of the stack
 
