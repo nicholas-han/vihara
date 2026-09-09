@@ -16,11 +16,27 @@ def prepare_key(output):
         raise ValueError("Key directory must be private and owned by you")
     # Reserve before generating; cannot overwrite an existing key or follow a link.
     fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o600)
-    with os.fdopen(fd, "w") as handle:
-        wallet = Account.create()
-        handle.write("0x" + wallet.key.hex().removeprefix("0x") + "\n")
-        handle.flush()
-        os.fsync(handle.fileno())
+    reserved = os.fstat(fd)
+    try:
+        handle = os.fdopen(fd, "w")
+        fd = None  # The handle now owns the descriptor.
+        with handle:
+            wallet = Account.create()
+            handle.write("0x" + wallet.key.hex().removeprefix("0x") + "\n")
+            handle.flush()
+            os.fsync(handle.fileno())
+    except BaseException:
+        try:
+            if fd is not None:
+                os.close(fd)
+        finally:
+            try:
+                current = path.lstat()
+                if (current.st_dev, current.st_ino) == (reserved.st_dev, reserved.st_ino):
+                    path.unlink()
+            except FileNotFoundError:
+                pass
+        raise
     return wallet.address
 
 

@@ -1,7 +1,7 @@
 """Connection object with separate read, trade and funds capabilities."""
 from plumber.models import Unavailable, UnknownResult
 from .config import HyperliquidConfig
-from ._sdk import load_sdk, make_info, close_info
+from ._sdk import load_sdk, make_info, close_resources
 
 
 class HyperliquidClient:
@@ -76,10 +76,8 @@ class HyperliquidClient:
         if self._closed:
             return
         self._closed = True
-        close_info(self.info)
-        if self._exchange:
-            close_info(getattr(self._exchange, "info", None))
-        self._exchange = None
+        exchange, self._exchange = self._exchange, None
+        close_resources(self.info, getattr(exchange, "info", None), exchange)
 
     def __enter__(self):
         return self

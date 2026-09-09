@@ -29,6 +29,7 @@ def sdk(monkeypatch):
         def __init__(self, url, skip_ws=True, timeout=None):
             self.ws_manager = None if skip_ws else object()
             self.disconnected = 0
+            self.session = NS(close=lambda:calls.append(("info_session_close",)))
             calls.append(('info',url,skip_ws,timeout))
         def user_role(self,address):return {'role':'user'}
         def disconnect_websocket(self):self.disconnected += 1
@@ -40,7 +41,8 @@ def sdk(monkeypatch):
     class Exchange:
         def __init__(self,wallet,url,account_address=None,timeout=None):
             self.wallet,self.account_address=wallet,account_address
-            self.info=NS(ws_manager=None)
+            self.info=NS(ws_manager=None, session=NS(close=lambda:calls.append(("exchange_info_close",))))
+            self.session=NS(close=lambda:calls.append(("exchange_session_close",)))
             calls.append(('exchange',url,timeout))
         def __getattr__(self,name):
             def call(*args,**kw):
@@ -51,7 +53,7 @@ def sdk(monkeypatch):
     monkeypatch.setattr(client_module,'load_sdk',factory)
     monkeypatch.setattr(ws_service,'load_sdk',factory)
     from plumber.hyperliquid import _websocket
-    monkeypatch.setattr(_websocket,'connect_manager',lambda cfg:NS(finished=threading.Event()))
+    monkeypatch.setattr(_websocket,'connect_manager',lambda cfg:NS(finished=threading.Event(), stop=lambda:None))
     return calls,Info,Exchange
 
 
@@ -325,3 +327,82 @@ def test_socket_setup_failure_closes_connected_transport():
     sock.settimeout=fail
     with pytest.raises(RuntimeError):cls(HyperliquidConfig(),lambda *a,**kw:sock,TimeoutError)
     assert events==['connect','shutdown']
+
+
+def test_client_closes_all_http_sessions_once(sdk):
+    client = HyperliquidClient(config(), allow_trading=True)
+    client.close()
+    client.close()
+    for event in ('info_session_close', 'exchange_info_close', 'exchange_session_close'):
+        assert sdk[0].count((event,)) == 1
+
+
+def test_http_cleanup_survives_websocket_failure(sdk):
+    client = HyperliquidClient(config(), allow_trading=True)
+    client.info.ws_manager = object()
+    def fail():
+        raise RuntimeError('socket shutdown failed')
+    client.info.disconnect_websocket = fail
+    with pytest.raises(RuntimeError):
+        client.close()
+    for event in ('info_session_close', 'exchange_info_close', 'exchange_session_close'):
+        assert sdk[0].count((event,)) == 1
+    client.close()
+
+
+def test_startup_failure_closes_metadata_session(sdk, monkeypatch):
+    monkeypatch.setattr(sdk[1], 'user_role', lambda *_: {'role': 'missing'})
+    with pytest.raises(Unavailable):
+        HyperliquidClient(config(), allow_trading=True)
+    assert sdk[0].count(('info_session_close',)) == 1
+
+
+def test_ws_service_closes_http_session_once(sdk):
+    service = WsService()
+    service.close()
+    service.close()
+    assert sdk[0].count(('info_session_close',)) == 1
+
+
+@pytest.mark.parametrize('failure', ['create', 'fdopen', 'write', 'flush', 'fsync'])
+def test_failed_key_creation_cleans_up_and_can_retry(tmp_path, monkeypatch, failure):
+    output = tmp_path / 'agent.key'
+    wallet = NS(key=b'\x03'*32, address=AGENT)
+    account = NS(create=lambda:wallet)
+    monkeypatch.setitem(sys.modules, 'eth_account', NS(Account=account))
+    def fail(*args):
+        raise OSError('injected failure')
+    real_fdopen = os.fdopen
+    class FailingHandle:
+        def __init__(self, fd, mode): self.handle = real_fdopen(fd, mode)
+        def __enter__(self): return self
+        def __exit__(self, *args): self.handle.close()
+        def write(self, value):
+            if failure == 'write':
+                self.handle.write(value[:4])
+                fail()
+            return self.handle.write(value)
+        def flush(self):
+            if failure == 'flush': fail()
+            self.handle.flush()
+        def fileno(self): return self.handle.fileno()
+    with monkeypatch.context() as patch:
+        if failure == 'create': patch.setattr(account, 'create', fail)
+        elif failure == 'fdopen': patch.setattr(os, 'fdopen', fail)
+        elif failure == 'fsync': patch.setattr(os, 'fsync', fail)
+        else: patch.setattr(os, 'fdopen', FailingHandle)
+        with pytest.raises(OSError): prepare_agent.prepare_key(output)
+    assert not output.exists()
+    assert prepare_agent.prepare_key(output) == AGENT
+    assert output.read_text().strip() == '0x' + '03'*32
+
+
+def test_failed_key_creation_preserves_replacement(tmp_path, monkeypatch):
+    output = tmp_path / 'agent.key'
+    def replace_and_fail():
+        output.rename(tmp_path / 'reserved.key')
+        output.write_text('replacement')
+        raise OSError('injected failure')
+    monkeypatch.setitem(sys.modules, 'eth_account', NS(Account=NS(create=replace_and_fail)))
+    with pytest.raises(OSError): prepare_agent.prepare_key(output)
+    assert output.read_text() == 'replacement'

@@ -17,9 +17,30 @@ def load_sdk():
         raise Unavailable("Install vihara-plumber[hyperliquid] with the pinned SDK") from None
 
 
+def close_resources(*objects):
+    """Attempt every owned resource, even when an earlier close fails."""
+    errors = []
+    seen = set()
+    for obj in objects:
+        if obj is None:
+            continue
+        manager = getattr(obj, "ws_manager", None)
+        session = getattr(obj, "session", None)
+        for resource, close in ((manager, getattr(obj, "disconnect_websocket", None)),
+                                (session, getattr(session, "close", None))):
+            if resource is None or id(resource) in seen or not callable(close):
+                continue
+            seen.add(id(resource))
+            try:
+                close()
+            except BaseException as exc:
+                errors.append(exc)
+    if errors:
+        raise errors[0]
+
+
 def close_info(info):
-    if info is not None and getattr(info, "ws_manager", None) is not None:
-        info.disconnect_websocket()
+    close_resources(info)
 
 
 def make_info(cls, config, *, skip_ws=True):

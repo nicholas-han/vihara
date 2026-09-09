@@ -82,7 +82,8 @@ execution semantics and risk controls.
 
 Use clients and `WsService` as context managers or explicitly call `close()`.
 WebSocket `run()` exits when another thread calls `close()` or on Ctrl-C; SDK
-threads are shut down. Metadata initialization completes before connecting; the
+threads and owned HTTP sessions are shut down. HTTP cleanup is still attempted
+if WebSocket shutdown fails. Metadata initialization completes before connecting; the
 socket connects synchronously before the receiver starts, so a delayed receiver
 cannot reconnect after close. Callbacks must return promptly; a callback that
 prevents shutdown raises an explicit error. This closes the connection, not open
@@ -124,7 +125,9 @@ python -m plumber.hyperliquid.prepare_agent \
 ```
 
 This creates a new private file without overwriting existing files and prints
-only the public agent address. It makes no network request and does not authorize
+only the public agent address. If generation or persistence fails, the newly
+created file is removed when it still identifies the reserved file, allowing a
+retry without overwriting an existing key. It makes no network request and does not authorize
 the agent. Authorize that public address through the official exchange API-wallet
 UI on the intended network using your wallet's normal signing flow. Then point
 `private_key_file` at the generated file and set `account_address` to the funded
@@ -148,8 +151,8 @@ queries, testnet rejection/placement/cancellation/fill handling, and WebSocket
 shutdown against the pinned installed SDK. Never interpret the offline suite as
 mainnet certification.
 
-Integration verification on this branch: **465 repository tests passed**, including
-**43 Hyperliquid tests**. The plumber wheel built offline and includes both Futu
+Integration verification on this branch: **475 repository tests passed**, including
+**53 Hyperliquid tests**. The plumber wheel built offline and includes both Futu
 and Hyperliquid plus the pinned optional-extra metadata; no `.env` or key files
 were included. Private Hyperliquid config paths are also covered by gitignore
 regression tests. The installed optional SDK/network behavior remains unverified.
