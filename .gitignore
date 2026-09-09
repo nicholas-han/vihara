@@ -53,6 +53,7 @@ Browse.VC.*
 **/config/trading.toml
 **/config/accounts.toml
 **/config/connections.toml
+**/config/hyperliquid.toml
 /private/
 /state/
 /logs/

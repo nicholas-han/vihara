@@ -2,7 +2,10 @@
 
 Broker/exchange connectivity for Vihara. The package provides exact normalized
 orders/deals and a `BrokerGateway` protocol, a deterministic fake, and the optional
-Futu adapter. It neither owns custom order strategy nor loads or stores accounts.
+Futu adapter, plus optional Hyperliquid-specific services. It does not own custom
+order strategy or persist real accounts in the repository. Adapters receive
+explicit configuration; the Hyperliquid helper reads only external private files
+when explicitly invoked.
 
 `FutuGateway` receives an in-memory connection from its caller. Only the
 application configuration boundary may resolve an account alias to a broker
@@ -36,3 +39,9 @@ a cancellation request succeeded.
 
 Read [private configuration](../docs/limit-with-moc/CONFIGURATION.md) and
 [Futu verification](../docs/limit-with-moc/futu-live-behavior.md).
+
+
+Hyperliquid is available as the `hyperliquid` optional dependency extra and the
+`plumber.hyperliquid` subpackage. It defaults to read-only testnet access, separates
+trading from funds operations, and does not implement HK custom-order semantics.
+See [Hyperliquid setup, privacy and migration](HYPERLIQUID.md).
