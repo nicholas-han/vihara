@@ -67,3 +67,18 @@ def test_absent_sdk_remark_is_optional(remark):
     order = gateway._order(row)
     assert order.id == 'known'
     assert order.intent == ''
+
+
+def test_drain_keeps_good_events_before_stream_failure():
+    from decimal import Decimal
+    from queue import SimpleQueue
+    from plumber.models import Order, Unavailable
+    gateway = FutuGateway.__new__(FutuGateway)
+    gateway.events = SimpleQueue()
+    order = Order('one','intent','HK.00700','BUY','LIMIT',Decimal(100),Decimal(100),Decimal(0),'SUBMITTED',False)
+    gateway.events.put(order)
+    gateway.events.put(Unavailable('transport'))
+    with pytest.raises(Unavailable):
+        gateway.drain()
+    assert gateway.drain().orders == (order,)
+    assert not gateway.drain().orders

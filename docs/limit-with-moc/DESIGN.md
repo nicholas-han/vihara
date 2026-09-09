@@ -63,3 +63,17 @@ CLI creation performs read-only preflight and enqueues the parent.
 
 Missing calendar data isolates the affected parent in MANUAL_REVIEW while
 read-only reconciliation continues. Other parents continue processing normally.
+
+## PR review hardening
+
+Cancellation intent and invocation phases are persisted independently. Only a
+known pre-attempt intent resumes automatically; a crash after ATTEMPTING is
+ambiguous even if no network call actually happened. A working snapshot alone
+cannot prove non-delivery. Unknown outcomes require broker-side manual handling.
+
+LIVE account exclusivity uses a shared private HMAC identity lock independent of
+config/alias/state paths, limited to a single host/user. Temporary push transport
+failures use a persisted recovery gate and fresh quiet-period reconciliation;
+malformed evidence remains manual and is scoped to its known parent when possible.
+CAS acceptance begins at the session's actual start, not the conversion timer.
+Successful explicit reconciliation does not suspend the normal worker lifecycle.

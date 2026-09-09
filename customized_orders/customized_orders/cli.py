@@ -9,7 +9,7 @@ from plumber.models import Unavailable, decimal
 from .calendar import Calendar, HKT
 from .config import load, ConfigError, outside_git
 from .engine import Engine
-from .runtime import make_gateway, run, worker_lock
+from .runtime import make_gateway, run, worker_lock, live_account_lock
 from .store import Store
 
 
@@ -62,14 +62,18 @@ def main(argv=None):
         if args.command == "status":
             p = store.status(args.parent_order_id)
             p["remaining"] = str(decimal(p["quantity"])-decimal(p["filled"]))
-            session = calendar.session(p["day"])
+            try:
+                session = calendar.session(p["day"])
+            except ValueError:
+                session = None
+                p["calendar_warning"] = "CALENDAR_UNAVAILABLE"
             p["next_action"] = {
                 "ARMED":"Submit limit order", "LIMIT_WORKING":"Reconcile and cancel at transition",
                 "TRANSITION_DUE":"Request cancellation", "CANCEL_REQUESTED":"Confirm child terminal state",
                 "RECONCILING":"Confirm stable remaining quantity", "AUCTION_SUBMITTING":"Query submission identity",
                 "AUCTION_WORKING":"Track auction and reconcile close", "MANUAL_REVIEW":"Manual action required; monitoring continues",
             }.get(p["state"],"No automatic action")
-            p["conversion_window_hkt"] = [session.transition.isoformat(),session.deadline.isoformat()]
+            p["conversion_window_hkt"] = [session.transition.isoformat(),session.deadline.isoformat()] if session else None
             print(json.dumps(p,indent=2))
             return 2 if p["state"] == "MANUAL_REVIEW" else 0
         if args.command in {"cancel","reconcile","acknowledge"}:
@@ -82,7 +86,7 @@ def main(argv=None):
                     raise ConfigError("LIVE requires local live_enabled=true and --confirm-live at every worker startup")
                 if input("LIVE may execute real trades and fees. Type LIVE to start: ") != "LIVE":
                     return 1
-            with worker_lock(directory / "worker.lock"):
+            with live_account_lock(cfg), worker_lock(directory / "worker.lock"):
                 gateway = make_gateway(cfg,mutations=True)
                 engine = Engine(store,gateway,cfg,calendar,lambda: datetime.now(HKT))
                 return run(engine,once=args.once)

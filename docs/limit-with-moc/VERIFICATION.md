@@ -2,7 +2,7 @@
 
 Branch: `feat/limit-with-moc`.
 
-Full repository regression: **405 passed**, no skips. One existing
+Full repository regression: **422 passed**, no skips. One existing
 Starlette/httpx deprecation warning. Command (use your checkout's absolute path):
 
 ```sh
@@ -26,7 +26,7 @@ restart recovery, pushes arriving during submission preflight, SDK boolean login
 state and intraday query boundaries, optional submission remarks, transient
 health failures after transition, explicit cancellation after external edits or
 overfill, and isolation/monitoring of orders with missing historical calendars.
-The two new modules' tests report **79 passed**.
+The two new modules' tests report **96 passed**.
 
 `git diff --check` passed. Repository `git check-ignore --no-index` tests confirm
 private configuration, .env variants, credentials, logs, database sidecars and
@@ -37,3 +37,9 @@ real OpenD connection, shadow trading session or live trade was performed.
 
 Release state remains **IMPLEMENTED_NOT_LIVE_VERIFIED**. Real environment
 verification requirements are tracked in `futu-live-behavior.md`.
+
+PR #15 follow-up adds 17 regression cases for cancellation crash phases and legacy
+migration, cross-directory LIVE account locks and private fingerprints, historical
+calendar status, normal/half-day carry-forward, childless cancellation, deadline
+scheduling, durable push recovery, scoped parse errors and buffered push retention.
+All checks use synthetic data and offline gateways; no broker session was opened.

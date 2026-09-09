@@ -107,7 +107,7 @@ class Engine:
                     raise EvidenceError("EXTERNAL_ORDER_MODIFICATION")
                 if not for_cancel:
                     allowed_kind = {c["role"]}
-                    if c["role"] == "LIMIT" and self.time() >= self.calendar.session(p["day"]).transition:
+                    if c["role"] == "LIMIT" and self.time() >= self.calendar.session(p["day"]).cas_start:
                         allowed_kind.add("AUCTION_LIMIT")
                     if (o.kind not in allowed_kind or o.quantity != decimal(c["quantity"])
                         or (c["role"] == "LIMIT" and o.price != decimal(c["price"]))):
@@ -236,15 +236,30 @@ class Engine:
         # A successful return is not enough: validate broker state on the next snapshot.
 
     def request_cancel(self, pid, c):
-        if c["cancel_sent"]:
+        c = next(child for child in self.store.children(pid) if child["id"] == c["id"])
+        if c["cancel_phase"] in {"ATTEMPTING", "UNKNOWN"}:
+            self.manual(pid, "CANCELLATION_RESULT_UNKNOWN_CHECK_BROKER")
             return
+        if c["cancel_phase"] == "ACKNOWLEDGED":
+            return
+        if c["cancel_phase"] == "NONE":
+            with self.store.tx() as db:
+                db.execute("UPDATE children SET cancel_sent=1,cancel_phase='INTENT' WHERE id=?", (c["id"],))
+                self.store.change(db,pid,"CANCEL_REQUESTED","CANCEL_INTENT_PERSISTED",self.time().isoformat())
+        # INTENT is definitely pre-call and can resume. Once ATTEMPTING commits,
+        # a crash has an ambiguous outcome; never infer that a working order means
+        # the broker did not receive the request.
         with self.store.tx() as db:
-            db.execute("UPDATE children SET cancel_sent=1 WHERE id=?", (c["id"],))
-            self.store.change(db,pid,"CANCEL_REQUESTED","CANCEL_INTENT_PERSISTED",self.time().isoformat())
+            db.execute("UPDATE children SET cancel_phase='ATTEMPTING' WHERE id=?", (c["id"],))
         try:
             self.gateway.cancel(c["broker_id"])
         except Unavailable:
-            pass
+            with self.store.tx() as db:
+                db.execute("UPDATE children SET cancel_phase='UNKNOWN' WHERE id=?", (c["id"],))
+            self.manual(pid, "CANCELLATION_RESULT_UNKNOWN_CHECK_BROKER")
+        else:
+            with self.store.tx() as db:
+                db.execute("UPDATE children SET cancel_phase='ACKNOWLEDGED' WHERE id=?", (c["id"],))
 
     def step(self, pid):
         p = self.store.parent(pid)
@@ -279,10 +294,10 @@ class Engine:
         session = self.calendar.session(p["day"])
         children = self.store.children(pid)
         if not children:
-            if p["state"] == "MANUAL_REVIEW":
-                return
             if p["cancel_user"]:
                 self.state(pid,"CANCELLED_BY_USER","NO_CHILD_SUBMITTED")
+            elif p["state"] == "MANUAL_REVIEW":
+                return
             elif p["state"] == "ARMED":
                 self.submit(pid,"LIMIT")
             return
@@ -410,10 +425,10 @@ class Engine:
         for cmd in self.store.db.execute("SELECT * FROM commands WHERE done=0 ORDER BY rowid").fetchall():
             pid = cmd["parent"]
             if cmd["action"] == "reconcile":
-                read_only.add(pid)
                 try:
                     self.reconcile(pid)
                 except (ValueError, Unavailable):
+                    read_only.add(pid)
                     self.manual(pid,"RECONCILIATION_UNCERTAIN")
             with self.store.tx() as db:
                 if cmd["action"] == "cancel":

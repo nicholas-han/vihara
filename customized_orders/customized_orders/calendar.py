@@ -17,6 +17,10 @@ class Session:
     no_cancel: datetime
     close: datetime
 
+    @property
+    def cas_start(self):
+        return self.transition.replace(minute=0, second=0, microsecond=0)
+
     def continuous(self, now):
         now = now.astimezone(HKT)
         if now.date().isoformat() != self.day:

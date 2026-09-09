@@ -3,20 +3,25 @@ from contextlib import contextmanager
 from dataclasses import asdict
 from datetime import datetime
 import fcntl
+import hashlib
+import hmac
+import secrets
 import json
 import os
 from pathlib import Path
 import signal
 import threading
 from plumber.fake import FakeGateway
-from plumber.models import Order, Deal, Snapshot, Unavailable, decimal
+from plumber.models import Order, Deal, Snapshot, Unavailable, PushEvidenceError, decimal
+from .config import outside_git, private_file
 from .calendar import HKT
 
 
 @contextmanager
 def worker_lock(path):
-    with open(path, "a+") as handle:
-        os.chmod(path, 0o600)
+    fd = os.open(path, os.O_RDWR | os.O_CREAT | os.O_NOFOLLOW, 0o600)
+    with os.fdopen(fd, "a+") as handle:
+        os.fchmod(handle.fileno(), 0o600)
         try:
             fcntl.flock(handle, fcntl.LOCK_EX | fcntl.LOCK_NB)
         except BlockingIOError:
@@ -25,6 +30,34 @@ def worker_lock(path):
             yield
         finally:
             fcntl.flock(handle, fcntl.LOCK_UN)
+
+
+@contextmanager
+def live_account_lock(settings):
+    """One LIVE worker per broker account on this host/user, across configs."""
+    if settings.mode != "LIVE":
+        yield
+        return
+    # Deliberately independent of config path, aliases, state_dir and OpenD port.
+    directory = outside_git(Path.home() / ".local/state/vihara/account-locks")
+    directory.mkdir(parents=True, exist_ok=True, mode=0o700)
+    info = directory.stat()
+    if info.st_uid != os.getuid() or info.st_mode & 0o077:
+        raise ValueError("Account lock directory must be private and owned by you")
+    with worker_lock(directory / "registry.lock"):
+        key_path = directory / "identity.key"
+        if not key_path.exists():
+            fd = os.open(key_path, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o600)
+            with os.fdopen(fd, "wb") as handle:
+                handle.write(secrets.token_bytes(32))
+                handle.flush()
+                os.fsync(handle.fileno())
+        key = private_file(key_path).read_bytes()
+        if len(key) != 32:
+            raise ValueError("Invalid account lock identity key")
+        fingerprint = hmac.new(key, ("futu:REAL:" + str(settings.connection.account_id)).encode(), hashlib.sha256).hexdigest()
+    with worker_lock(directory / (fingerprint + ".lock")):
+        yield
 
 
 class PaperGateway(FakeGateway):
@@ -109,6 +142,52 @@ def emit(p,at,reason=None):
                       "filled":p["filled"],"level":"ERROR" if p["state"] == "MANUAL_REVIEW" or reason else "INFO"}),flush=True)
 
 
+def hold_push_recovery(engine, ids):
+    with engine.store.tx() as db:
+        for pid in ids:
+            db.execute("INSERT INTO push_recovery(parent,since) VALUES (?,NULL) ON CONFLICT(parent) DO UPDATE SET since=NULL", (pid,))
+            db.execute("UPDATE parents SET quiet_since=NULL,signature=NULL WHERE id=?", (pid,))
+            p = engine.store.parent(pid)
+            if p["state"] != "MANUAL_REVIEW":
+                try:
+                    expired = engine.time() >= engine.calendar.session(p["day"]).deadline
+                except ValueError:
+                    engine.store.change(db, pid, "MANUAL_REVIEW", "CALENDAR_UNAVAILABLE", engine.time().isoformat())
+                else:
+                    engine.store.change(db, pid, "MANUAL_REVIEW" if expired else p["state"],
+                                        "PUSH_RECOVERY_DEADLINE" if expired else "PUSH_STREAM_RECOVERING", engine.time().isoformat())
+
+
+def recover_push_stream(engine, pid):
+    row = engine.store.db.execute("SELECT since FROM push_recovery WHERE parent=?", (pid,)).fetchone()
+    if row is None:
+        return True
+    p = engine.store.parent(pid)
+    try:
+        engine.reconcile(pid, for_cancel=bool(p["cancel_user"]))
+        if not engine.gateway.healthy(p["symbol"], engine.time()):
+            raise Unavailable("MARKET_UNVERIFIED")
+    except (ValueError, Unavailable):
+        hold_push_recovery(engine, [pid])
+        if engine.time() >= engine.calendar.session(p["day"]).deadline:
+            engine.manual(pid, "PUSH_RECOVERY_DEADLINE")
+        return False
+    # observe() clears quiet_since for any new durable push. Do not reuse a
+    # quiet interval if evidence changed during recovery or process restart.
+    p = engine.store.parent(pid)
+    signature = json.dumps([(c["broker_id"], c["status"], c["filled"]) for c in engine.store.children(pid)])
+    if row[0] is None or p["quiet_since"] is None or p["signature"] != signature:
+        with engine.store.tx() as db:
+            db.execute("UPDATE push_recovery SET since=? WHERE parent=?", (engine.time().isoformat(), pid))
+            db.execute("UPDATE parents SET quiet_since=?,signature=? WHERE id=?", (engine.time().isoformat(), signature, pid))
+        return False
+    if engine.time() - datetime.fromisoformat(row[0]) < engine.quiet:
+        return False
+    with engine.store.tx() as db:
+        db.execute("DELETE FROM push_recovery WHERE parent=?", (pid,))
+    return True
+
+
 def run(engine, *, once=False, interval=5):
     stop = threading.Event()
     old = {}
@@ -124,11 +203,32 @@ def run(engine, *, once=False, interval=5):
             try:
                 events = engine.gateway.drain()
                 engine.observe(events)
+            except PushEvidenceError as exc:
+                # An identified, unrelated order cannot poison our parents. An
+                # unidentified parse failure may affect the whole account.
+                affected = ids if exc.order_id is None else [pid for pid in ids if any(
+                    child["broker_id"] == exc.order_id for child in engine.store.children(pid))]
+                if exc.order_id is not None and not affected and any(
+                    child["broker_id"] is None for pid in ids for child in engine.store.children(pid)):
+                    affected = ids  # Submission identity has not yet been recovered.
+                for pid in affected:
+                    engine.manual(pid,"PUSH_EVIDENCE_INVALID")
+                # A failed drain may still contain buffered events: no actions
+                # until a clean drain has delivered all evidence.
+                hold_push_recovery(engine, ids)
+                skip.update(ids)
             except Unavailable:
-                for pid in ids:
-                    engine.manual(pid,"PUSH_STREAM_UNCERTAIN")
+                hold_push_recovery(engine, ids)
+                skip.update(ids)
             for pid in ids:
                 if pid in skip:
+                    p = engine.store.parent(pid)
+                    key = (p["state"], p["reason"], p["filled"])
+                    if last.get(pid) != key:
+                        emit(p, engine.time())
+                        last[pid] = key
+                    if p["state"] == "MANUAL_REVIEW":
+                        failed = True
                     continue
                 p = engine.store.parent(pid)
                 try:
@@ -150,7 +250,8 @@ def run(engine, *, once=False, interval=5):
                                 o = engine.gateway.orders[c["broker_id"]]
                                 if not o.terminal:
                                     engine.gateway.finish(o.id, "CANCELLED_PART" if o.filled else "CANCELLED_ALL")
-                    engine.step(pid)
+                    if recover_push_stream(engine, pid):
+                        engine.step(pid)
                 p = engine.store.parent(pid)
                 key = (p["state"],p["reason"],p["filled"])
                 if last.get(pid) != key:

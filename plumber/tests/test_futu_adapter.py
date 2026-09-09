@@ -84,3 +84,19 @@ def test_id_only_submission_response_preserves_identity_without_assuming_accepta
     g.trade=NS(place_order=lambda **_: (0,Frame([{'order_id':'known-id'}])))
     o=g.submit(Request('i','HK.00700','BUY','LIMIT',Decimal(100),Decimal(100)))
     assert o.id == 'known-id' and o.status == 'SUBMITTING' and not o.terminal
+
+
+@pytest.mark.parametrize('transport',[False,True])
+def test_push_errors_classify_transport_and_scoped_evidence(transport):
+    from plumber.models import PushEvidenceError
+    g=gateway()
+    class Handler:
+        def on_recv_rsp(self,pb):
+            data=row(trd_env='REAL');data['qty']='invalid'
+            return (1 if transport else 0),Frame([data])
+    g.sdk.TradeOrderHandlerBase=Handler;g.sdk.TradeDealHandlerBase=Handler
+    handlers=[];g.trade=NS(set_handler=handlers.append);g._handlers()
+    handlers[0].on_recv_rsp(NS(s2c=NS(header=NS(accID=123456789))))
+    with pytest.raises(Unavailable) as error:g.drain()
+    assert isinstance(error.value,PushEvidenceError) is (not transport)
+    if not transport:assert error.value.order_id=='o1'

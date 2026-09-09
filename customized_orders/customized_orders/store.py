@@ -70,6 +70,13 @@ class Store:
         self.db.execute("PRAGMA journal_mode=WAL")
         self.db.execute("PRAGMA synchronous=FULL")
         self.db.executescript(SCHEMA)
+        with self.tx() as db:
+            columns = {r[1] for r in db.execute("PRAGMA table_info(children)")}
+            if "cancel_phase" not in columns:
+                db.execute("ALTER TABLE children ADD COLUMN cancel_phase TEXT NOT NULL DEFAULT 'NONE'")
+                # Legacy cancel_sent cannot prove whether the broker was called.
+                db.execute("UPDATE children SET cancel_phase='UNKNOWN' WHERE cancel_sent=1")
+            db.execute("CREATE TABLE IF NOT EXISTS push_recovery(parent TEXT PRIMARY KEY REFERENCES parents(id), since TEXT)")
 
     @contextmanager
     def tx(self):

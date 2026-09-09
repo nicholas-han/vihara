@@ -19,6 +19,13 @@ class Unavailable(RuntimeError):
     """Authoritative evidence unavailable; messages contain only safe reason codes."""
 
 
+class PushEvidenceError(Unavailable):
+    """Uninterpretable evidence; optionally isolate a known broker order."""
+    def __init__(self, reason, order_id=None):
+        super().__init__(reason)
+        self.order_id = order_id
+
+
 class UnknownResult(Unavailable):
     """A mutation may have reached the broker. Never blindly retry."""
 

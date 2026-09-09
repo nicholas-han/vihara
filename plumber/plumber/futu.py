@@ -7,7 +7,7 @@ import logging
 import os
 from queue import SimpleQueue, Empty
 from zoneinfo import ZoneInfo
-from .models import Deal, Order, Snapshot, Unavailable, UnknownResult, decimal
+from .models import Deal, Order, Snapshot, Unavailable, UnknownResult, PushEvidenceError, decimal
 
 HKT = ZoneInfo("Asia/Hong_Kong")
 TERMINAL = {"FILLED_ALL", "CANCELLED_PART", "CANCELLED_ALL", "SUBMIT_FAILED", "FAILED", "DISABLED", "DELETED"}
@@ -93,16 +93,28 @@ class FutuGateway:
 
     def _handlers(self):
         owner, sdk = self, self.sdk
+        def collect(pb, data, parse):
+            try:
+                if int(pb.s2c.header.accID) != owner._connection.account_id:
+                    return
+                rows = data.to_dict("records")
+            except Exception:
+                owner.events.put(PushEvidenceError("INVALID_PUSH_HEADER"))
+                return
+            for row in rows:
+                if row.get("trd_env") != sdk.TrdEnv.REAL:
+                    continue
+                try:
+                    owner.events.put(parse(row))
+                except Exception:
+                    oid = row.get("order_id")
+                    owner.events.put(PushEvidenceError("INVALID_PUSH_EVIDENCE", str(oid) if oid else None))
+
         class Orders(sdk.TradeOrderHandlerBase):
             def on_recv_rsp(self, pb):
                 ret, data = super().on_recv_rsp(pb)
                 if ret == sdk.RET_OK:
-                    try:
-                        for r in data.to_dict("records"):
-                            if int(pb.s2c.header.accID) == owner._connection.account_id and r.get("trd_env") == sdk.TrdEnv.REAL:
-                                owner.events.put(owner._order(r))
-                    except Exception:
-                        owner.events.put(Unavailable("INVALID_ORDER_PUSH"))
+                    collect(pb, data, owner._order)
                 else:
                     owner.events.put(Unavailable("ORDER_PUSH_FAILED"))
                 return ret, data
@@ -110,12 +122,7 @@ class FutuGateway:
             def on_recv_rsp(self, pb):
                 ret, data = super().on_recv_rsp(pb)
                 if ret == sdk.RET_OK:
-                    try:
-                        for r in data.to_dict("records"):
-                            if int(pb.s2c.header.accID) == owner._connection.account_id and r.get("trd_env") == sdk.TrdEnv.REAL:
-                                owner.events.put(owner._deal(r))
-                    except Exception:
-                        owner.events.put(Unavailable("INVALID_DEAL_PUSH"))
+                    collect(pb, data, owner._deal)
                 else:
                     owner.events.put(Unavailable("DEAL_PUSH_FAILED"))
                 return ret, data
@@ -123,7 +130,10 @@ class FutuGateway:
         self.trade.set_handler(Deals())
 
     def drain(self):
-        orders, deals = [], []
+        # Preserve already-drained evidence when a later item reports an error.
+        # The next clean drain returns it together with subsequent events.
+        pending = getattr(self, "_pending_pushes", [])
+        self._pending_pushes = pending
         while True:
             try:
                 item = self.events.get_nowait()
@@ -131,8 +141,11 @@ class FutuGateway:
                 break
             if isinstance(item, Exception):
                 raise item
-            (orders if isinstance(item, Order) else deals).append(item)
-        return Snapshot(tuple(orders),tuple(deals))
+            pending.append(item)
+        result = Snapshot(tuple(x for x in pending if isinstance(x, Order)),
+                          tuple(x for x in pending if isinstance(x, Deal)))
+        self._pending_pushes = []
+        return result
 
     def snapshot(self, day):
         args = self._args()

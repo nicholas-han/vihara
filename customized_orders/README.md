@@ -44,12 +44,14 @@ vihara-order --account paper acknowledge PARENT_ID --resolution "Reviewed in bro
 `create` displays the mode, conversion window, risk result, and unpriced-auction
 warning and requires `CONFIRM`. It queues an `ARMED` parent; the worker submits.
 `cancel` queues a request, never reports premature cancellation success.
-`reconcile` is a query-only worker command. `acknowledge` stores a note and does
+`reconcile` is a query-only worker command; successful reconciliation does not
+skip the normal authorized order lifecycle for that cycle. `acknowledge` stores a note and does
 not resolve uncertainty or alter broker orders. Keep notes free of credentials.
 
 ## Runtime
 
-One locked worker per account alias/mode owns mutations; CLI commands use a SQLite
+One locked worker per account alias/mode owns mutations; LIVE also acquires a
+shared account-identity lock across configurations on the same host/user. CLI commands use a SQLite
 queue. Order state is separate from the investment ledger. The worker uses HKT,
 an explicit calendar (including half days), fresh order/deal queries, Decimal
 arithmetic, and an append-only transition/event journal. It polls every 5 seconds;
@@ -91,3 +93,22 @@ Tests cover cancellation races, unknown submissions, restart recovery, deadlines
 partial/unfilled auctions, duplicate events, private config and Git exclusions.
 For live prerequisites and the explicit manual test sequence see
 [Futu verification](../docs/limit-with-moc/futu-live-behavior.md).
+
+Cancellation persists separate INTENT, ATTEMPTING, ACKNOWLEDGED and UNKNOWN phases.
+A restart can resume INTENT safely. ATTEMPTING/UNKNOWN with an order still working
+requires checking and cancelling in the broker app; it is never blindly retried.
+Legacy cancel markers migrate to UNKNOWN. Broker acknowledgement still requires
+terminal order/deal reconciliation. A childless parent in review can be cancelled.
+
+CAS starts at 16:00 (12:00 on half days), separately from the conversion window.
+A carried-forward AUCTION_LIMIT is allowed from CAS start with the original
+identity/price/quantity checks. The actual Futu reporting timing remains unverified.
+Missing dated calendar records do not hide durable `status` data; only the
+conversion window is unavailable.
+
+Transient push failures pause mutations durably, emit PUSH_STREAM_RECOVERING and
+require a clean drain, healthy broker and two agreeing queries across a quiet
+period before resuming. Restart/new evidence resets the quiet period. Persistent
+failures at the deadline require review. Malformed evidence for a known order
+requires review for that parent; unidentified malformed evidence requires account
+review. Already-drained valid events are retained for the next clean drain.

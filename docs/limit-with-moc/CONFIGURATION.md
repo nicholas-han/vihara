@@ -28,9 +28,13 @@ Controls enforced by the application:
   0700, database/paper journal/lock use 0600; the CLI sets umask 077.
 - An HMAC account binding detects accidental alias remapping without storing the
   account ID. Its random key remains in private runtime storage. Duplicate LIVE
-  aliases for the same account in one configuration are rejected. Use one
-  configuration file per runtime; do not run overlapping account workers from
-  different private configurations.
+  aliases for the same account in one configuration are rejected. A second LIVE
+  worker for the same broker account is also blocked across configuration files,
+  aliases, OpenD ports and state directories using a shared HMAC-named lock in
+  `~/.local/state/vihara/account-locks/`. The directory/key/locks are private and
+  outside Git; actual account IDs do not appear in filenames or contents. This
+  scope is one host and OS user, not distributed multi-host coordination. Do not
+  delete or relocate these files while workers are running.
 - SQLite stores only the alias, intended security/order data, broker order/deal
   IDs, safe evidence and user notes. It is an execution journal, not a secret store.
 - LIVE is off by default. Each startup and each order require explicit confirmation.
