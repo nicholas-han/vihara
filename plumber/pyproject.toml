@@ -9,6 +9,7 @@ requires-python = ">=3.11"
 dependencies = []
 [project.optional-dependencies]
 futu = ["futu-api==10.10.7008"]
+hyperliquid = ["hyperliquid-python-sdk==0.24.0", "eth-account>=0.10.0,<0.14.0"]
 dev = ["pytest>=7.4"]
 [tool.setuptools.packages.find]
 include = ["plumber*"]

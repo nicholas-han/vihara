@@ -1,6 +1,11 @@
+from __future__ import annotations
 from typing import Any, Literal
 
-from hyperliquid.utils.types import Cloid
+from typing import TYPE_CHECKING
+from plumber.models import decimal
+
+if TYPE_CHECKING:
+    from hyperliquid.utils.types import Cloid
 
 from .client import HyperliquidClient
 
@@ -32,9 +37,11 @@ class ExchangeService:
 
         tif: Gtc (good-til-cancel), Ioc (immediate-or-cancel), Alo (add-liquidity-only)
         """
-        exchange = self._client.require_exchange()
+        validate_order(side, size, price)
+        if tif not in {"Gtc", "Ioc", "Alo"} or type(reduce_only) is not bool:
+            raise ValueError("Invalid order options")
         order_type = {"limit": {"tif": tif}}
-        return exchange.order(
+        return self._client.mutate("order",
             coin,
             side == "buy",
             size,
@@ -56,8 +63,9 @@ class ExchangeService:
 
         slippage: fraction of mid price (default 5%)
         """
-        exchange = self._client.require_exchange()
-        return exchange.market_open(coin, side == "buy", size, slippage=slippage)
+        validate_order(side, size)
+        validate_slippage(slippage)
+        return self._client.mutate("market_open",coin, side == "buy", size, slippage=slippage)
 
     def close_position(
         self,
@@ -70,24 +78,25 @@ class ExchangeService:
 
         If size is None, closes the entire position.
         """
-        exchange = self._client.require_exchange()
-        return exchange.market_close(coin, sz=size, slippage=slippage)
+        if size is not None:
+            validate_order("buy", size)
+        validate_slippage(slippage)
+        return self._client.mutate("market_close",coin, sz=size, slippage=slippage)
 
     def cancel_order(self, coin: str, order_id: int) -> dict[str, Any]:
         """Cancel a single order by OID."""
-        exchange = self._client.require_exchange()
-        return exchange.cancel(coin, order_id)
+        return self._client.mutate("cancel",coin, order_id)
 
     def cancel_order_by_cloid(self, coin: str, cloid: Cloid) -> dict[str, Any]:
         """Cancel a single order by client order ID."""
-        exchange = self._client.require_exchange()
-        return exchange.cancel_by_cloid(coin, cloid)
+        return self._client.mutate("cancel_by_cloid",coin, cloid)
 
     def cancel_all_orders(self, coin: str | None = None) -> list[dict[str, Any]]:
         """
         Cancel all open orders, optionally filtered to a single coin.
         Returns list of cancel responses.
         """
+        self._client.require_capability()
         from .info_service import InfoService
         info = InfoService(self._client)
         address = self._client.address
@@ -114,9 +123,11 @@ class ExchangeService:
         reduce_only: bool = False,
     ) -> dict[str, Any]:
         """Modify an existing order in place."""
-        exchange = self._client.require_exchange()
+        validate_order(side, size, price)
+        if tif not in {"Gtc", "Ioc", "Alo"} or type(reduce_only) is not bool:
+            raise ValueError("Invalid order options")
         order_type = {"limit": {"tif": tif}}
-        return exchange.modify_order(
+        return self._client.mutate("modify_order",
             order_id, coin, side == "buy", size, price, order_type, reduce_only=reduce_only
         )
 
@@ -129,22 +140,25 @@ class ExchangeService:
         is_cross: bool = True,
     ) -> dict[str, Any]:
         """Set leverage for a coin. is_cross=True for cross margin, False for isolated."""
-        exchange = self._client.require_exchange()
-        return exchange.update_leverage(leverage, coin, is_cross)
+        if type(leverage) is not int or leverage <= 0 or type(is_cross) is not bool:
+            raise ValueError("Invalid leverage options")
+        return self._client.mutate("update_leverage",leverage, coin, is_cross)
 
     def set_isolated_margin(self, coin: str, amount: float) -> dict[str, Any]:
         """Adjust isolated margin for a position. Positive amount adds, negative removes."""
-        exchange = self._client.require_exchange()
-        return exchange.update_isolated_margin(amount, coin)
+        if decimal(amount) == 0:
+            raise ValueError("Margin adjustment must be nonzero")
+        return self._client.mutate("update_isolated_margin",amount, coin)
 
-    # ── Transfers ─────────────────────────────────────────────────────────────
 
-    def transfer_usd(self, amount: float, destination: str) -> dict[str, Any]:
-        """Transfer USDC to another address on Hyperliquid L1."""
-        exchange = self._client.require_exchange()
-        return exchange.usd_transfer(amount, destination)
 
-    def withdraw_from_bridge(self, amount: float, destination: str) -> dict[str, Any]:
-        """Withdraw USDC back to L1 Ethereum via the bridge."""
-        exchange = self._client.require_exchange()
-        return exchange.withdraw_from_bridge(amount, destination)
+def validate_order(side, size, price=None):
+    if side not in {"buy", "sell"} or isinstance(size, bool) or decimal(size) <= 0:
+        raise ValueError("Invalid order side or size")
+    if price is not None and (isinstance(price, bool) or decimal(price) <= 0):
+        raise ValueError("Invalid limit price")
+
+
+def validate_slippage(slippage):
+    if isinstance(slippage, bool) or not 0 < decimal(slippage) < 1:
+        raise ValueError("Slippage must be in (0, 1)")

@@ -1,0 +1,12 @@
+# Copy outside Git to ~/.config/vihara/hyperliquid.toml; chmod 600.
+network = "testnet"
+trading_enabled = false
+funds_enabled = false
+timeout = 10.0
+
+# Add ONLY in your private copy when required:
+# account_address = "your funded main account address for agent signing"
+# private_key_file = "~/.config/vihara/hyperliquid-agent.key"
+# Alternatively select a secret injected into the process environment:
+# private_key_env = "VIHARA_HL_PRIVATE_KEY"
+# Never put the private key directly in TOML or shell history.
