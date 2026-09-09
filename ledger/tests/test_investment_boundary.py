@@ -22,7 +22,7 @@ from ledger.investment.application.service import Service
 from ledger.investment.validation import validate
 store = Store(sys.argv[1], HoldingCatalog(sys.argv[2]))
 store.initialize()
-account = store.create_account('TEST', 'Test Account')['financial_account_id']
+account = store.create_account('TEST', 'Test Account', institution_type='BROKER-DEALER')['financial_account_id']
 service = Service(store)
 service.submit('CASH_TRANSFER', {'effective_date': '2026-09-01', 'currency': 'HKD', 'amount': '100', 'destination_account_id': account}, 'deposit')
 assert service.balances()['cash'][0]['quantity'] == '100'

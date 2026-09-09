@@ -19,15 +19,21 @@ from ledger.investment.application.service import Service
 from .analysis import HoldingsService
 
 
+class ScopeInput(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    scope_code: StrictStr
+    display_name: StrictStr
+    tax_scheme_id: StrictStr | None = None
+
+
 class AccountInput(BaseModel):
     model_config = ConfigDict(extra="forbid")
     account_code: StrictStr
     display_name: StrictStr
-
-
-class AccountRename(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-    display_name: StrictStr
+    institution_type: Literal["BANK", "BROKER-DEALER", "INSURER"]
+    country_or_region: StrictStr | None = None
+    position_scopes: list[ScopeInput] | None = None
+    external_account_numbers: list[StrictStr] = []
 
 
 class ImportInput(BaseModel):
@@ -57,6 +63,7 @@ class TradeInput(BaseModel):
     model_config = ConfigDict(extra="forbid")
     effective_date: StrictStr
     account_id: StrictStr
+    position_scope_id: StrictStr
     product_id: StrictStr
     listing_id: StrictStr | None = None
     side: StrictStr
@@ -172,15 +179,26 @@ def create_app(settings: Settings | None = None):
 
     @app.post("/api/accounts", status_code=201)
     def create_account(payload: AccountInput):
-        return store.create_account(payload.account_code, payload.display_name)
+        return store.create_account(
+            payload.account_code,
+            payload.display_name,
+            payload.institution_type,
+            payload.country_or_region,
+            (
+                [s.model_dump() for s in payload.position_scopes]
+                if payload.position_scopes is not None
+                else None
+            ),
+            payload.external_account_numbers,
+        )
 
-    @app.patch("/api/accounts/{account_id}")
-    def rename_account(account_id: int, payload: AccountRename):
-        store.rename_account(account_id, payload.display_name)
-        return {
-            "financial_account_id": str(account_id),
-            "display_name": payload.display_name.strip(),
-        }
+    @app.get("/api/accounts/{account_id}/position-scopes")
+    def position_scopes(account_id: int):
+        return store.position_scopes(account_id)
+
+    @app.get("/api/accounts/{account_id}/external-account-references")
+    def external_account_references(account_id: int):
+        return store.external_account_references(account_id)
 
     @app.get("/api/instruments/search")
     def search(q: str = Query(default="", max_length=200)):

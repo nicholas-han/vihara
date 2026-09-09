@@ -48,56 +48,38 @@ def test_backup_restore_all_facts_and_ids(store, setup, tmp_path):
         backup(store, destination)
 
 
-def test_v1_upgrade_retains_account_and_reference_data(tmp_path, monkeypatch):
-    import ledger.investment.persistence.store as module
-
+@pytest.mark.parametrize("version", [1, 6])
+def test_pre_scope_database_is_rejected_without_migration(tmp_path, version):
     target = Store(tmp_path / "old.sqlite3", HoldingCatalog(SEED))
-    with monkeypatch.context() as patch:
-        patch.setattr(module, "VERSION", 1)
-        patch.setattr(Store, "_migrate", lambda self, conn: None)
-        target.initialize()
-        created = target.create_account("OLD", "Preserved")
-    target.initialize()
-    assert target.accounts() == [created]
-    assert validate(target)["transaction_count"] == 0
-
-
-def test_migration_failure_preserves_prior_version_and_facts(tmp_path, monkeypatch):
-    import ledger.investment.persistence.store as module
-
-    target = Store(tmp_path / "old.sqlite3", HoldingCatalog(SEED))
-    with monkeypatch.context() as patch:
-        patch.setattr(module, "VERSION", 1)
-        patch.setattr(Store, "_migrate", lambda self, conn: None)
-        target.initialize()
-        target.create_account("KEEP", "Preserved")
-    original = module._execute_migration
-
-    def fail(conn, text):
-        original(conn, text)
-        raise RuntimeError("upgrade fault")
-
-    with monkeypatch.context() as patch:
-        patch.setattr(module, "_execute_migration", fail)
-        with pytest.raises(RuntimeError):
-            target.initialize()
     with sqlite3.connect(target.path) as conn:
-        assert (
-            conn.execute("SELECT MAX(version) FROM schema_migrations").fetchone()[0]
-            == 1
+        conn.executescript(
+            "CREATE TABLE holdings_metadata(key TEXT PRIMARY KEY,value TEXT);"
+            "INSERT INTO holdings_metadata VALUES ('application','vihara.portfolio-holdings');"
+            "CREATE TABLE schema_migrations(version INTEGER PRIMARY KEY);"
+            "CREATE TABLE financial_accounts(financial_account_id INTEGER PRIMARY KEY,account_code TEXT,display_name TEXT);"
+            "INSERT INTO financial_accounts VALUES (1,'KEEP','Preserved');"
         )
-        assert (
-            conn.execute("SELECT account_code FROM financial_accounts").fetchone()[0]
-            == "KEEP"
+        conn.execute("INSERT INTO schema_migrations VALUES (?)", (version,))
+    before = target.path.read_bytes()
+    with pytest.raises(LedgerError, match="separate new database"):
+        target.initialize()
+    assert target.path.read_bytes() == before
+
+
+def test_current_version_marker_cannot_hide_an_old_schema(tmp_path):
+    target = Store(tmp_path / "incomplete.sqlite3", HoldingCatalog(SEED))
+    with sqlite3.connect(target.path) as conn:
+        conn.executescript(
+            "CREATE TABLE holdings_metadata(key TEXT PRIMARY KEY,value TEXT);"
+            "INSERT INTO holdings_metadata VALUES ('application','vihara.portfolio-holdings');"
+            "CREATE TABLE schema_migrations(version INTEGER PRIMARY KEY);"
+            "INSERT INTO schema_migrations VALUES (7);"
+            "CREATE TABLE financial_accounts(financial_account_id INTEGER PRIMARY KEY,account_code TEXT,display_name TEXT);"
         )
-        assert (
-            conn.execute(
-                "SELECT name FROM sqlite_master WHERE name='journal_lines'"
-            ).fetchone()
-            is None
-        )
-    target.initialize()
-    assert validate(target)["valid"]
+    before = target.path.read_bytes()
+    with pytest.raises(LedgerError, match="schema is incomplete"):
+        target.initialize()
+    assert target.path.read_bytes() == before
 
 
 def test_product_variants_share_observable_position(tmp_path):
@@ -115,7 +97,9 @@ def test_product_variants_share_observable_position(tmp_path):
     st = Store(tmp_path / "db.sqlite3", HoldingCatalog(master))
     st.initialize()
     s = Service(st)
-    a = st.create_account("A", "A")["financial_account_id"]
+    a = st.create_account("A", "A", institution_type="BROKER-DEALER")[
+        "financial_account_id"
+    ]
     funding(st, s, a)
     trade(s, a)
     trade(s, a, product=row["id"])

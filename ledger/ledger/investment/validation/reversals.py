@@ -59,7 +59,7 @@ def check_reversal(conn, tx, require):
                 r["line_type"],
                 Decimal(r["quantity_delta"]) * (-1 if inverse else 1),
                 r["owner_id"],
-                r["financial_account_id"],
+                r["position_scope_id"],
             )
             for r in conn.execute(
                 "SELECT l.* FROM position_lines l JOIN position_entries e USING(position_entry_id) WHERE e.source_transaction_id=?",

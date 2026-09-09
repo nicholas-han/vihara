@@ -13,6 +13,7 @@ from ..numbers import decimal_text, decimal_value
 from . import trades, cash_events
 from ..accounting import cash
 from ..position import ledger as position
+from ..persistence.references import scopes
 
 
 class Service:
@@ -169,6 +170,15 @@ class Service:
                 continue
             if row["transaction_type"] == "TRADE":
                 event["data"] = trades.load(conn, row["transaction_id"])
+                scope = conn.execute(
+                    "SELECT financial_account_id FROM position_scopes WHERE position_scope_id=?",
+                    (event["data"]["position_scope_id"],),
+                ).fetchone()
+                if scope is None or event["accounts"] != {"ACCOUNT": scope[0]}:
+                    raise LedgerError(
+                        "INTEGRITY_ERROR",
+                        "Stored Trade Position Scope and Financial Account do not match.",
+                    )
                 position.prepare_position(conn, event, self.store.catalog)
                 result.append(event)
                 continue
@@ -308,6 +318,11 @@ class Service:
                 state, lines, evidence = self.replay(conn, candidate=event)
                 if preview:
                     return {
+                        "position_scope_id": (
+                            str(event["data"]["position_scope_id"])
+                            if kind == "TRADE"
+                            else None
+                        ),
                         "journal": serialize_lines(lines),
                         "effective_date": event["effective_date"],
                         "allocations": [
@@ -652,7 +667,7 @@ def serialize_lines(lines):
 def investment_rows(conn, state, catalog, accounts):
     buckets = {}
     for lot in state.lots.values():
-        key = (lot["position_id"], lot["account_id"])
+        key = (lot["position_id"], lot["scope_id"])
         q, b = buckets.get(key, (Decimal(0), Decimal(0)))
         buckets[key] = (q + lot["remaining_quantity"], b + lot["remaining_basis"])
     actual = {}
@@ -660,7 +675,7 @@ def investment_rows(conn, state, catalog, accounts):
     if state.as_of:
         sql += " AND t.effective_date<=?"
     for line in conn.execute(sql, (state.as_of,) if state.as_of else ()):
-        key = (line["position_id"], line["financial_account_id"])
+        key = (line["position_id"], line["position_scope_id"])
         actual[key] = actual.get(key, Decimal(0)) + Decimal(line["quantity_delta"])
     if {k: v for k, v in actual.items() if v} != {
         k: v[0] for k, v in buckets.items() if v[0]
@@ -668,6 +683,23 @@ def investment_rows(conn, state, catalog, accounts):
         raise LedgerError(
             "INTEGRITY_ERROR",
             "Position and Cost Basis Lot quantities are inconsistent.",
+        )
+    owners = {}
+    sql = "SELECT l.* FROM position_lines l JOIN position_entries e USING(position_entry_id) JOIN transactions t ON t.transaction_id=e.source_transaction_id WHERE l.line_type='OWNERSHIP'"
+    if state.as_of:
+        sql += " AND t.effective_date<=?"
+    for line in conn.execute(sql, (state.as_of,) if state.as_of else ()):
+        if line["owner_id"] != 1:
+            raise LedgerError("INTEGRITY_ERROR", "Unsupported Position owner.")
+        owners[line["position_id"]] = owners.get(
+            line["position_id"], Decimal(0)
+        ) + Decimal(line["quantity_delta"])
+    totals = {}
+    for (pid, sid), q in actual.items():
+        totals[pid] = totals.get(pid, Decimal(0)) + q
+    if {k: v for k, v in owners.items() if v} != {k: v for k, v in totals.items() if v}:
+        raise LedgerError(
+            "INTEGRITY_ERROR", "Ownership and Location quantities do not balance."
         )
     investment = {}
     sql = "SELECT l.* FROM journal_lines l JOIN journal_entries e USING(journal_entry_id) JOIN transactions t ON t.transaction_id=e.source_transaction_id WHERE ledger_account_code='INVESTMENT'"
@@ -695,20 +727,41 @@ def investment_rows(conn, state, catalog, accounts):
         r["position_id"]: r["observable_id"]
         for r in conn.execute("SELECT * FROM positions")
     }
+    scope_map = {int(r["position_scope_id"]): r for r in scopes(conn)}
+    grouped = {}
+    for (pid, sid), (q, b) in sorted(buckets.items()):
+        if not q and not getattr(state, "include_zero", False):
+            continue
+        scope = scope_map[sid]
+        account = int(scope["financial_account_id"])
+        key = (pid, account)
+        if key not in grouped:
+            observable = catalog.observables[positions[pid]]
+            grouped[key] = {
+                "observable_id": positions[pid],
+                "name": observable.name,
+                "code": observable.code,
+                "asset_class": observable.asset_class,
+                "position_id": str(pid),
+                "financial_account_id": str(account),
+                "account_name": accounts[account]["display_name"],
+                "quantity": Decimal(0),
+                "book_value": Decimal(0),
+                "scopes": [],
+            }
+        row = grouped[key]
+        row["quantity"] += q
+        row["book_value"] += b
+        row["scopes"].append(
+            {**scope, "quantity": decimal_text(q), "book_value": decimal_text(b)}
+        )
     return [
         {
-            "observable_id": positions[pid],
-            "name": catalog.observables[positions[pid]].name,
-            "code": catalog.observables[positions[pid]].code,
-            "asset_class": catalog.observables[positions[pid]].asset_class,
-            "position_id": str(pid),
-            "financial_account_id": str(account),
-            "account_name": accounts[account]["display_name"],
-            "quantity": decimal_text(q),
-            "book_value": decimal_text(b),
+            **r,
+            "quantity": decimal_text(r["quantity"]),
+            "book_value": decimal_text(r["book_value"]),
         }
-        for (pid, account), (q, b) in sorted(buckets.items())
-        if q or getattr(state, "include_zero", False)
+        for _, r in sorted(grouped.items())
     ]
 
 

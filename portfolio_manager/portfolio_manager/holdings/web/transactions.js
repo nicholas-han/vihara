@@ -7,7 +7,9 @@ let prepared = null,
   txOffset = 0,
   previewSequence = 0,
   refreshSequence = 0,
-  detailSequence = 0;
+  detailSequence = 0,
+  scopeSequence = 0;
+let currentScopes = [];
 const labels = {
   CASH: "Cash",
   EXTERNAL_CAPITAL_FLOW: "External Capital Flow",
@@ -140,8 +142,46 @@ async function options() {
     dividend.elements.observable_id,
     observables.rows.map((o) => [o.observable_id, o.name]),
   );
-  await productDetails();
+  await Promise.all([productDetails(), positionScopes()]);
 }
+async function positionScopes() {
+  const sequence = ++scopeSequence;
+  const accountId = trade.elements.account_id.value;
+  invalidate();
+  currentScopes = [];
+  selectOptions(trade.elements.position_scope_id, [["", "Select Position Scope"]]);
+  trade.querySelector('button[type="submit"]').disabled = true;
+  $("#trade-scope-label").hidden = true;
+  $("#trade-scope-description").textContent = "Loading position holdings…";
+  if (!accountId) {
+    $("#trade-scope-description").textContent = "Create a Financial Account first.";
+    return;
+  }
+  const rows = await api(`/api/accounts/${accountId}/position-scopes`);
+  if (sequence !== scopeSequence || trade.elements.account_id.value !== accountId) return;
+  currentScopes = rows;
+  selectOptions(trade.elements.position_scope_id, [
+    ...(rows.length === 1 ? [] : [["", "Select Position Scope"]]),
+    ...rows.map(s => [s.position_scope_id, s.scope_code === "DEFAULT" ? "Account default holdings" : s.display_name]),
+  ]);
+  trade.elements.position_scope_id.value = rows.length === 1 ? rows[0].position_scope_id : "";
+  $("#trade-scope-label").hidden = rows.length === 0 || (rows.length === 1 && rows[0].scope_code === "DEFAULT");
+  trade.querySelector('button[type="submit"]').disabled = rows.length === 0;
+  scopeDescription();
+}
+function scopeDescription() {
+  const selected = currentScopes.find(s => s.position_scope_id === trade.elements.position_scope_id.value);
+  $("#trade-scope-description").textContent = !currentScopes.length
+    ? "This account has no position holdings. Complete its reference setup before entering a Trade."
+    : selected?.tax_scheme_name ? "Tax classification: " + selected.tax_scheme_name
+    : currentScopes.length > 1 && !selected ? "Choose exactly one Position Scope." : "";
+}
+trade.elements.account_id.addEventListener("change", () =>
+  positionScopes().catch(e => message(e.message, true)));
+trade.elements.position_scope_id.addEventListener("change", () => {
+  invalidate();
+  scopeDescription();
+});
 async function productDetails() {
   if (!trade.elements.product_id.value) return;
   const id = trade.elements.product_id.value;
@@ -219,6 +259,14 @@ async function preview(body, path) {
     if (sequence !== previewSequence) return;
     prepared = { body, path };
     journal($("#cash-preview"), result.journal);
+    if (result.position_scope_id) {
+      const scope = currentScopes.find(s => s.position_scope_id === result.position_scope_id);
+      if (scope && (scope.scope_code !== "DEFAULT" || scope.tax_scheme_name)) {
+        const p = document.createElement("p");
+        p.textContent = (scope.scope_code === "DEFAULT" ? "Account default holdings" : "Position Scope: " + scope.display_name) + (scope.tax_scheme_name ? " · " + scope.tax_scheme_name : "");
+        $("#cash-preview").prepend(p);
+      }
+    }
     if (result.allocations?.length)
       table(
         $("#cash-preview"),
@@ -307,6 +355,10 @@ async function detail(id) {
       ? api("/api/instruments/" + economic.data.product_id)
       : null,
   ]);
+  const scopeRows = economic.data.position_scope_id
+    ? await api(`/api/accounts/${economic.accounts.ACCOUNT}/position-scopes`) : [];
+  const scopeNames = new Map(scopeRows.map(s => [s.position_scope_id,
+    s.scope_code === "DEFAULT" ? "Account default holdings" : s.display_name]));
   if (sequence !== detailSequence) return;
   const accountNames = new Map(
     accountRows.map((a) => [
@@ -373,6 +425,10 @@ async function detail(id) {
       accountNames.get(accountId) || accountId,
     ]);
   }
+  const selectedScope = scopeRows.find(s => s.position_scope_id === economic.data.position_scope_id);
+  if (selectedScope?.scope_code !== "DEFAULT" && selectedScope)
+    identities.push(["Position Scope", selectedScope.display_name]);
+  if (selectedScope?.tax_scheme_name) identities.push(["Tax Classification", selectedScope.tax_scheme_name]);
   if (identities.length) table(container, ["Field", "Value"], identities);
   const desc = document.createElement("p");
   const fieldLabels = {
@@ -428,7 +484,7 @@ async function detail(id) {
       tx.position_lines.map((l) => [
         l.line_type === "OWNERSHIP"
           ? "Ownership / SELF"
-          : "Location / Financial Account " + l.financial_account_id,
+          : "Location / " + (scopeNames.get(l.position_scope_id) || l.position_scope_id),
         l.quantity_delta,
       ]),
     );
@@ -614,6 +670,19 @@ async function refresh() {
     cell(tr, r.unrealized_difference ?? "—").className = "numeric";
     cell(tr, marketStatus(r));
     inv.append(tr);
+    if (r.scopes?.some(s => s.scope_code !== "DEFAULT")) {
+      const details = document.createElement("details"), summary = document.createElement("summary");
+      summary.textContent = "Position holdings";
+      details.append(summary);
+      table(details, ["Position Scope", "Quantity", "Historical Cost (HKD)", "Functional Market Value (HKD)"],
+        r.scopes.map(s => [
+          (s.scope_code === "DEFAULT" ? "Account default holdings" : s.display_name) + (s.tax_scheme_name ? " · " + s.tax_scheme_name : ""),
+          s.quantity, s.book_value, s.market_value ?? "Unavailable"]));
+      const scopeRow = document.createElement("tr");
+      cell(scopeRow, "").colSpan = 11;
+      scopeRow.firstChild.append(details);
+      inv.append(scopeRow);
+    }
   }
   $("#investment-panel").hidden = !holdings.investments.length;
   $("#holdings-empty").hidden = holdings.transaction_count > 0;
@@ -739,12 +808,14 @@ async function holdingDetail(path) {
       [
         "BUY Transaction",
         "Financial Account",
+        "Position Holdings",
         "Remaining Quantity",
         "Remaining Cost (HKD)",
       ],
       r.lots.map((l) => [
         l.buy_transaction_id,
         l.financial_account_id,
+        l.scope_code === "DEFAULT" ? "Account default holdings" : l.scope_name,
         l.remaining_quantity,
         l.remaining_book_cost,
       ]),

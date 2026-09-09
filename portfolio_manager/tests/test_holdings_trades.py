@@ -27,6 +27,9 @@ def trade(
     payload = {
         "effective_date": day,
         "account_id": account,
+        "position_scope_id": service.store.position_scopes(account)[0][
+            "position_scope_id"
+        ],
         "product_id": product,
         "side": side,
         "quantity": quantity,

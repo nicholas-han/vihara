@@ -154,7 +154,9 @@ def test_observable_import_preserves_listing_context(tmp_path, context):
     )
     store = Store(tmp_path / "holdings.sqlite3", HoldingCatalog(master))
     store.initialize()
-    account = store.create_account("A", "Account A")["financial_account_id"]
+    account = store.create_account("A", "Account A", institution_type="BROKER-DEALER")[
+        "financial_account_id"
+    ]
     service = Service(store)
     funding(store, service, account)
     context = {k: listing.venue_id if v == "MATCH" else v for k, v in context.items()}

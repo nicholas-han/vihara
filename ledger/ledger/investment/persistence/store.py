@@ -3,17 +3,18 @@
 from contextlib import contextmanager
 from datetime import date
 from pathlib import Path
-import re
 import sqlite3
 
 from ledger.investment.accounting import ACCOUNT_DEFINITIONS
 from instrument_manager.holding_catalog import CatalogError
 from ..errors import LedgerError
 from ..numbers import decimal_text
+from . import references
 
 APPLICATION = "vihara.portfolio-holdings"
-VERSION = 6
+VERSION = 7
 IMMUTABLE_TABLES = (
+    "external_account_references",
     "currencies",
     "owners",
     "ledger_account_definitions",
@@ -75,17 +76,36 @@ class Store:
                 "INTEGRITY_ERROR",
                 "This is not a Portfolio Holdings database. Use a separate new database.",
             ) from None
-        if (
-            not marker
-            or marker[0] != APPLICATION
-            or (
-                version not in range(1, VERSION + 1)
-                or (not allow_upgrade and version != VERSION)
-            )
-        ):
+        if not marker or marker[0] != APPLICATION or (version != VERSION):
             raise LedgerError(
-                "INTEGRITY_ERROR", "Database type or version does not match."
+                "INTEGRITY_ERROR",
+                "Database type or version does not match. Financial Account v7 requires a separate new database; existing databases are not migrated.",
             )
+        for table, required in {
+            "financial_accounts": {"institution_type", "country_or_region"},
+            "position_scopes": {
+                "position_scope_id",
+                "financial_account_id",
+                "tax_scheme_id",
+            },
+            "tax_schemes": {"tax_scheme_id", "scheme_code"},
+            "external_account_references": {
+                "external_account_number",
+                "financial_account_id",
+            },
+            "trades": {"position_scope_id"},
+            "position_lines": {"position_scope_id"},
+            "position_cost_basis_lots": {"position_scope_id"},
+        }.items():
+            columns = {r["name"] for r in conn.execute(f"PRAGMA table_info({table})")}
+            if not required <= columns or (
+                table in {"position_lines", "position_cost_basis_lots"}
+                and "financial_account_id" in columns
+            ):
+                raise LedgerError(
+                    "INTEGRITY_ERROR",
+                    "Financial Account schema is incomplete or incompatible.",
+                )
         for pin in conn.execute("SELECT * FROM reference_catalog_pins"):
             try:
                 fingerprint = self.catalog.fingerprint(
@@ -116,8 +136,7 @@ class Store:
                 "SELECT name FROM sqlite_master WHERE type='table'"
             ).fetchall()
             if tables:
-                self._validate(conn, allow_upgrade=True)
-                self._migrate(conn)
+                self._validate(conn)
                 conn.commit()
                 return
             if "HKD" not in self.catalog.currencies:
@@ -217,6 +236,8 @@ class Store:
                 conn, Path(__file__).with_name("006_imports.sql").read_text()
             )
             conn.execute("INSERT INTO schema_migrations VALUES (6)")
+        if version < 7:
+            conn.execute("INSERT INTO schema_migrations VALUES (7)")
 
     @contextmanager
     def transaction(self):
@@ -271,49 +292,53 @@ class Store:
                 )
             ]
 
-    def create_account(self, code, name):
-        code, name = code.strip(), name.strip()
-        if (
-            not re.fullmatch(r"[A-Z0-9][A-Z0-9_-]{0,63}", code)
-            or not name
-            or len(name) > 200
-        ):
-            raise LedgerError(
-                "VALIDATION_ERROR",
-                "Account code must use uppercase letters, digits, underscores or hyphens; display name is required.",
-            )
+    def create_account(
+        self,
+        code,
+        name,
+        institution_type,
+        country_or_region=None,
+        position_scopes=None,
+        external_account_numbers=None,
+    ):
         try:
             with self.transaction() as conn:
-                account_id = conn.execute(
-                    "INSERT INTO financial_accounts(account_code,display_name) VALUES (?,?)",
-                    (code, name),
-                ).lastrowid
-        except sqlite3.IntegrityError:
+                return references.create_account(
+                    conn,
+                    code,
+                    name,
+                    institution_type,
+                    country_or_region,
+                    position_scopes,
+                    external_account_numbers,
+                )
+        except sqlite3.IntegrityError as exc:
             raise LedgerError(
                 "VALIDATION_ERROR",
-                "Financial Account code already exists.",
-                "DUPLICATE_ACCOUNT",
-            ) from None
-        return {
-            "financial_account_id": str(account_id),
-            "account_code": code,
-            "display_name": name,
-        }
+                "Duplicate or invalid Financial Account reference data.",
+            ) from exc
 
-    def rename_account(self, account_id, name):
-        name = name.strip()
-        if not name or len(name) > 200:
+    def position_scopes(self, account_id):
+        with self.read() as conn:
+            return references.scopes(
+                conn, references.identity(str(account_id), "financial_account_id")
+            )
+
+    def external_account_references(self, account_id):
+        with self.read() as conn:
+            return references.external_references(
+                conn, references.identity(str(account_id), "financial_account_id")
+            )
+
+    def import_references(self, document):
+        try:
+            with self.transaction() as conn:
+                return references.bootstrap(conn, document)
+        except (sqlite3.IntegrityError, TypeError) as exc:
             raise LedgerError(
                 "VALIDATION_ERROR",
-                "Financial Account name is required and must not exceed 200 characters.",
-            )
-        with self.transaction() as conn:
-            result = conn.execute(
-                "UPDATE financial_accounts SET display_name=? WHERE financial_account_id=?",
-                (name, account_id),
-            )
-            if result.rowcount != 1:
-                raise LedgerError("REFERENCE_NOT_FOUND", "Financial Account not found.")
+                "Conflicting or incomplete reference data; nothing was imported.",
+            ) from exc
 
     def add_book_fx(self, base, effective_date, rate, source):
         return self.import_book_fx(

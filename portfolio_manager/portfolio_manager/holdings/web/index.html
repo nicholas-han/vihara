@@ -234,6 +234,8 @@
                 type="date"
                 required /></label
             ><label>Financial Account<select name="account_id"></select></label
+            ><label id="trade-scope-label" hidden>Position Scope<select name="position_scope_id" required></select></label
+            ><p id="trade-scope-description" role="status"></p
             ><label>Product<select name="product_id"></select></label
             ><label
               >Listing (Optional)<select name="listing_id">
@@ -353,8 +355,7 @@
         <div class="panel">
           <h2>Financial Accounts</h2>
           <p>
-            Financial Accounts identify custody locations. Each account can hold
-            multiple currencies.
+            Financial Accounts group the assets you manage together. Cash is grouped by currency; position holdings can have separate scopes.
           </p>
           <form id="account-form">
             <label
@@ -370,6 +371,11 @@
                 required
                 maxlength="200"
                 placeholder="e.g. Interactive Brokers" /></label
+            ><label>Institution Type<select name="institution_type" required>
+                <option>BROKER-DEALER</option><option>BANK</option><option>INSURER</option>
+              </select></label
+            ><label>Country or Region (Optional)<input name="country_or_region" maxlength="64" placeholder="e.g. HK" /></label
+            ><label><span>Position Holdings</span><span><input id="account-has-positions" type="checkbox" checked /> Create default position holdings</span></label
             ><button class="primary" type="submit">
               Create Financial Account
             </button>
@@ -380,7 +386,7 @@
                 <tr>
                   <th>Account Code</th>
                   <th>Display Name</th>
-                  <th>Action</th>
+                  <th>Institution Type</th><th>Country / Region</th><th>References</th>
                 </tr>
               </thead>
               <tbody id="accounts"></tbody>
