@@ -1,0 +1,31 @@
+# EXAMPLE ONLY. Copy outside Git to ~/.config/vihara/trading.toml; chmod 600.
+# Never put actual broker accounts or secrets in this file or any repository file.
+state_dir = "~/.local/state/vihara/orders"
+calendar = "~/.config/vihara/trading-calendar.json"
+sdk_version = "10.10.7008"
+
+[accounts.paper]
+mode = "DRY_RUN"  # Offline paper broker; SHADOW reads OpenD; LIVE can trade.
+max_quantity = "300"
+max_notional = "50000"
+live_enabled = false
+
+[accounts.paper.instruments."HK.00000"]
+# Fictional security and stale date intentionally prevent accidental LIVE use.
+cas = true
+verified_for = "2000-01-03"
+source = "EXAMPLE_ONLY_REPLACE_WITH_VERIFIED_SOURCE"
+lot_size = 100
+tick_size = "1"
+tick_lower = "1"
+tick_upper = "1000"
+auction_risk_price = "110"
+
+# Add this ONLY in your private copy, with real values supplied locally:
+# [connections.my_futu]
+# host = "127.0.0.1"
+# port = 11111
+# account_id = 0                  # Placeholder; real value never belongs in Git.
+# unlock_env = "VIHARA_FUTU_UNLOCK_PASSWORD"
+# Then add connection = "my_futu" under the private account profile.
+# Keep the password in that environment variable; never in this TOML.
