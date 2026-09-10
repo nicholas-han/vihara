@@ -50,3 +50,9 @@ python3 -m pip wheel --no-deps --no-build-isolation ./ledger ./portfolio_manager
 正文集中在根 `docs/`，按 modules/projects/products/strategies/research 分类；根目录与模块 README 保留导航，测试 fixture 与许可证保留原位置。85 份集中后的 Markdown 正文及 400 个本地文件链接已核查，无断链；77 份原文档移动，9 个模块 README 入口保留。完整迁移规则见 [文档维护指南](../../DOCUMENTATION_GUIDE.md)。
 
 按 PRD 的 fresh-database 要求，本版本拒绝 v1–v6，而不迁移或覆盖旧数据。使用已有旧库的环境须配置新的独立 v7 数据库路径。复杂账户通过 [Runbook](RUNBOOK.md) 的参考数据 JSON 一次建立，普通页面不编辑历史 reference。导入字段和来源 namespace 规则见 [CSV 合同](CSV_IMPORT.md)。
+
+## 2026-09-10 PR review 后续处理
+
+Codex 的 scope tax-assignment trigger 建议依原 PRD §35 保持不变：MVP 不要求数据库不可变约束，也不提供编辑 workflow。已在原评论说明。
+
+Cursor 的 source_system/external_transaction_id 空白去重问题已修复：生成 key 前统一去除首尾空白，保留 raw provenance、大小写和内部字符；非空但全空白的标识拒绝，缺省可选字段继续使用文件去重。新增 13 项回归覆盖重复、经济冲突、校验与空可选字段。相关测试 57 passed，全仓 519 passed，仍只有既有 Starlette/httpx 弃用提示；本次未改 UI。

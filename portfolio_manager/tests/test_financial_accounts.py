@@ -753,3 +753,94 @@ def test_external_number_equal_to_internal_id_does_not_collide(store, scoped):
         "COMMITTED",
         "COMMITTED",
     ]
+
+
+@pytest.mark.parametrize(
+    "field,value",
+    [
+        ("source_system", " broker"),
+        ("source_system", "broker "),
+        ("source_system", "\tbroker\t"),
+        ("external_transaction_id", " same"),
+        ("external_transaction_id", "same "),
+        ("external_transaction_id", "\tsame\t"),
+    ],
+)
+def test_source_identifier_whitespace_preserves_dedup_and_conflicts(
+    store, scoped, field, value
+):
+    s, aid, _, _, _, _ = scoped
+    move(s, destination=aid, amount="100")
+    first = trade_row(
+        scoped,
+        position_scope_code="NISA",
+        source_system="broker",
+        external_transaction_id="same",
+    )
+    im, batch = upload(store, [first])
+    im.preview(batch)
+    assert im.canonicalize(batch)["rows"][0]["status"] == "COMMITTED"
+    _, again = upload(store, [{**first, field: value}])
+    im.preview(again)
+    duplicate = im.canonicalize(again)["rows"][0]
+    assert duplicate["status"] == "DUPLICATE"
+    assert duplicate["raw"][field] == value
+    _, conflict = upload(store, [{**first, field: value, "quantity": "2"}])
+    assert im.preview(conflict)["rows"][0]["error"]["reason"] == "IMPORT_CONFLICT"
+    assert im.canonicalize(conflict)["rows"][0]["status"] == "ERROR"
+    assert s.balances()["investments"][0]["quantity"] == "1"
+    assert store.configuration()["transaction_count"] == 2
+
+
+@pytest.mark.parametrize(
+    "system,external",
+    [
+        (" ", "same"),
+        ("\t", "same"),
+        ("", "same"),
+        ("broker", " "),
+        ("broker", "\t"),
+        (" ", " "),
+    ],
+)
+def test_blank_source_identifiers_cannot_bypass_validation(
+    store, scoped, system, external
+):
+    s, aid, _, _, _, _ = scoped
+    move(s, destination=aid, amount="100")
+    im, batch = upload(
+        store,
+        [
+            trade_row(
+                scoped,
+                position_scope_code="NISA",
+                source_system=system,
+                external_transaction_id=external,
+            )
+        ],
+    )
+    row = im.preview(batch)["rows"][0]
+    assert row["status"] == "ERROR"
+    assert row["error"]["code"] == "VALIDATION_ERROR"
+    assert im.canonicalize(batch)["rows"][0]["status"] == "ERROR"
+    assert store.configuration()["transaction_count"] == 1
+    assert s.balances()["investments"] == []
+
+
+def test_empty_optional_source_fields_keep_file_dedup(store, scoped):
+    s, aid, _, _, _, _ = scoped
+    move(s, destination=aid, amount="100")
+    im, batch = upload(
+        store,
+        [
+            trade_row(
+                scoped,
+                position_scope_code="NISA",
+                source_system="",
+                external_transaction_id="",
+            )
+        ],
+    )
+    im.preview(batch)
+    assert im.canonicalize(batch)["rows"][0]["status"] == "COMMITTED"
+    assert store.configuration()["transaction_count"] == 2

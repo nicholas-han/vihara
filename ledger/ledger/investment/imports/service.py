@@ -254,8 +254,20 @@ def normalize(store, conn, row):
             for k in ("transaction_type", "effective_date", "memo", "accounts", "data")
         }
     )
-    external = raw.get("external_transaction_id")
-    system = raw.get("source_system")
+    external = (raw.get("external_transaction_id") or "").strip()
+    system = (raw.get("source_system") or "").strip()
+    for field, normalized in (
+        ("external_transaction_id", external),
+        ("source_system", system),
+    ):
+        if raw.get(field) and not normalized:
+            raise LedgerError(
+                "VALIDATION_ERROR",
+                f"{field} must not contain only whitespace.",
+                field_errors={
+                    field: "Use a nonblank source identifier or leave the field empty."
+                },
+            )
     if external and not system:
         raise LedgerError(
             "VALIDATION_ERROR", "An external transaction ID requires source_system."

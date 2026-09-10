@@ -14,7 +14,7 @@
 | FX_CONVERSION | account_code,sell_currency,sell_amount,buy_currency,buy_amount | memo |
 | DIVIDEND_RECEIPT | account_code,observable_id,currency,amount | memo |
 
-source_system,external_transaction_id,source_account_namespace 为来源去重字段。给出 external_transaction_id 时必须同时给 source_system。去重范围按 source_account_namespace → 规范化 external_account_number（同时带稳定账户 ID） → 解析后稳定 account ID（现金移动为 source/destination ID）取首个可用值；来自不同外部账户、存在同号交易的来源应保留外部号码或显式命名空间。相同来源范围和编号、相同内容只关联原交易；不同内容报冲突。
+source_system,external_transaction_id,source_account_namespace 为来源去重字段。source_system 与 external_transaction_id 在生成 key 前去除首尾空白，保持大小写及内部字符不变，raw 行不改写。非空但仅含空白的字段拒绝；空字符串或未提供仍视为可选缺省。给出 external_transaction_id 时必须同时给有效的 source_system。去重范围按 source_account_namespace → 规范化 external_account_number（同时带稳定账户 ID） → 解析后稳定 account ID（现金移动为 source/destination ID）取首个可用值；来自不同外部账户、存在同号交易的来源应保留外部号码或显式命名空间。相同来源范围和编号、相同内容只关联原交易；不同内容报冲突。
 
 没有来源编号时用文件 hash、行号、规范化内容防止同文件重复。不同文件相同经济内容仅提示潜在重复，仍由用户确认是否创建，避免吞掉真实的两笔相同交易。
 
