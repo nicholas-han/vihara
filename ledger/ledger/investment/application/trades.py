@@ -8,11 +8,13 @@ from ..numbers import decimal_text, decimal_value, book_amount
 from ..errors import LedgerError
 from ..accounting.cash import dispose
 from ..position import ledger as position
+from ..persistence.references import scope_for_trade
 
 FEE_TYPES = {"COMMISSION", "EXCHANGE_FEE", "REGULATORY_FEE", "OTHER"}
 FIELDS = (
     "product_id",
     "listing_id",
+    "position_scope_id",
     "side",
     "quantity",
     "price",
@@ -69,12 +71,15 @@ def normalize(conn, catalog, payload, day):
             raise LedgerError("VALIDATION_ERROR", "Invalid fee type.")
         fees[fee["fee_type"]] += decimal_value(fee.get("amount"))
     fees = {k: decimal_text(v) for k, v in fees.items() if v}
+    account_id = account(conn, payload.get("account_id"))
+    scope_id = scope_for_trade(conn, payload.get("position_scope_id"), account_id)
     data = dict(
         zip(
             FIELDS,
             (
                 product.product_id,
                 payload.get("listing_id"),
+                scope_id,
                 side,
                 quantity,
                 price,
@@ -85,7 +90,7 @@ def normalize(conn, catalog, payload, day):
         )
     )
     data["fees"] = fees
-    return data, {"ACCOUNT": account(conn, payload.get("account_id"))}, product
+    return data, {"ACCOUNT": account_id}, product
 
 
 def build(event, state, rates):
@@ -144,7 +149,7 @@ def save(conn, event, effect, line_ids, lines, catalog):
     conn.execute(
         "INSERT INTO trades(transaction_id,"
         + ",".join(FIELDS)
-        + ") VALUES (?,?,?,?,?,?,?,?,?)",
+        + ") VALUES (?,?,?,?,?,?,?,?,?,?)",
         (tid, *(data[k] for k in FIELDS)),
     )
     conn.executemany(

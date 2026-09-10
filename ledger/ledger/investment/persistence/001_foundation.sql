@@ -4,7 +4,15 @@ INSERT INTO holdings_metadata VALUES ('application', 'vihara.portfolio-holdings'
 CREATE TABLE currencies(currency_code TEXT PRIMARY KEY, observable_id TEXT NOT NULL UNIQUE);
 CREATE TABLE owners(owner_id INTEGER PRIMARY KEY, owner_code TEXT NOT NULL UNIQUE, display_name TEXT NOT NULL);
 CREATE TABLE financial_accounts(financial_account_id INTEGER PRIMARY KEY AUTOINCREMENT,
- account_code TEXT NOT NULL UNIQUE, display_name TEXT NOT NULL CHECK(length(trim(display_name))>0));
+ account_code TEXT NOT NULL UNIQUE CHECK(length(trim(account_code))>0), display_name TEXT NOT NULL CHECK(length(trim(display_name))>0),
+ country_or_region TEXT, institution_type TEXT NOT NULL CHECK(institution_type IN ('BANK','BROKER-DEALER','INSURER')));
+CREATE TABLE tax_schemes(tax_scheme_id INTEGER PRIMARY KEY AUTOINCREMENT, scheme_code TEXT NOT NULL UNIQUE CHECK(length(trim(scheme_code))>0), display_name TEXT NOT NULL CHECK(length(trim(display_name))>0), country_or_region TEXT);
+CREATE TABLE position_scopes(position_scope_id INTEGER PRIMARY KEY AUTOINCREMENT, financial_account_id INTEGER NOT NULL REFERENCES financial_accounts(financial_account_id), scope_code TEXT NOT NULL CHECK(length(trim(scope_code))>0), display_name TEXT NOT NULL CHECK(length(trim(display_name))>0), tax_scheme_id INTEGER REFERENCES tax_schemes(tax_scheme_id), UNIQUE(financial_account_id,scope_code));
+CREATE TABLE external_account_references(external_account_reference_id INTEGER PRIMARY KEY AUTOINCREMENT, financial_account_id INTEGER NOT NULL REFERENCES financial_accounts(financial_account_id), external_account_number TEXT NOT NULL CHECK(typeof(external_account_number)='text' AND length(trim(external_account_number))>0), UNIQUE(financial_account_id,external_account_number));
+CREATE TRIGGER scope_identity_immutable BEFORE UPDATE OF position_scope_id,financial_account_id ON position_scopes
+BEGIN SELECT RAISE(ABORT,'Position Scope identity and account are immutable'); END;
+CREATE TRIGGER tax_identity_immutable BEFORE UPDATE OF tax_scheme_id ON tax_schemes
+BEGIN SELECT RAISE(ABORT,'TaxScheme identity is immutable'); END;
 CREATE TABLE accounting_config(singleton INTEGER PRIMARY KEY CHECK(singleton=1),
  functional_currency TEXT NOT NULL REFERENCES currencies(currency_code));
 CREATE TABLE ledger_account_definitions(ledger_account_code TEXT PRIMARY KEY,
@@ -32,7 +40,7 @@ CREATE TABLE book_fx_observations(observation_id INTEGER PRIMARY KEY AUTOINCREME
 CREATE TABLE book_fx_evidence(transaction_id INTEGER NOT NULL REFERENCES transactions(transaction_id),
  observation_id INTEGER NOT NULL REFERENCES book_fx_observations(observation_id),
  PRIMARY KEY(transaction_id,observation_id));
-CREATE TRIGGER account_identity_immutable BEFORE UPDATE OF financial_account_id,account_code ON financial_accounts
+CREATE TRIGGER account_identity_immutable BEFORE UPDATE OF financial_account_id ON financial_accounts
 BEGIN SELECT RAISE(ABORT,'Account identity is immutable'); END;
 CREATE TRIGGER config_locked BEFORE UPDATE ON accounting_config WHEN EXISTS(SELECT 1 FROM transactions)
 BEGIN SELECT RAISE(ABORT,'Functional currency is locked'); END;

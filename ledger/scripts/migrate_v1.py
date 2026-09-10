@@ -19,7 +19,7 @@ Conventions applied:
 - datetime truncates to date, the time survives as ``time:`` metadata;
 - location -> ``location:`` metadata; old Trx_ID -> ``legacy_trx_id:``;
 - the static account map below is the v1 -> v2 chart-of-accounts decision
-  (documented in docs/30-account-taxonomy.md).
+  (documented in docs/modules/ledger/30-account-taxonomy.md).
 """
 
 from __future__ import annotations

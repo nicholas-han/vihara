@@ -2,6 +2,7 @@
 
 import argparse
 import csv
+import json
 from datetime import date
 import os
 from pathlib import Path
@@ -30,7 +31,13 @@ def main(argv=None):
     serve.add_argument("--port", type=int, default=8643)
     fx = subs.add_parser("import-book-fx")
     fx.add_argument("file", type=Path)
-    for name in ("backup", "restore", "import-market-prices", "import-market-fx"):
+    for name in (
+        "backup",
+        "restore",
+        "import-market-prices",
+        "import-market-fx",
+        "import-references",
+    ):
         command = subs.add_parser(name)
         command.add_argument("file", type=Path)
     args = parser.parse_args(argv)
@@ -62,6 +69,10 @@ def main(argv=None):
             backup(store, args.file)
             if args.command == "backup"
             else backup(Store(args.file, store.catalog), settings.db_path)
+        )
+    elif args.command == "import-references":
+        print(
+            store.import_references(json.loads(args.file.read_text(encoding="utf-8")))
         )
     elif args.command.startswith("import-market-"):
         from .integrations.market import import_rows

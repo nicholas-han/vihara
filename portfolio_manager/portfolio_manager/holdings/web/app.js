@@ -53,80 +53,44 @@ async function accounts() {
   body.replaceChildren();
   if (!rows.length) {
     const tr = document.createElement("tr");
-    cell(tr, "No Financial Accounts").colSpan = 3;
+    cell(tr, "No Financial Accounts").colSpan = 5;
     body.append(tr);
   }
   for (const account of rows) {
     const tr = document.createElement("tr");
     cell(tr, account.account_code);
-    const nameCell = cell(tr, account.display_name);
-    const actions = cell(tr, "");
+    cell(tr, account.display_name);
+    cell(tr, account.institution_type);
+    cell(tr, account.country_or_region || "—");
+    const info = cell(tr, "");
     const button = document.createElement("button");
     button.type = "button";
-    button.textContent = "Rename";
-    button.addEventListener("click", () => {
+    button.textContent = "View References";
+    button.addEventListener("click", async () => {
       button.disabled = true;
-      const form = document.createElement("form");
-      form.className = "account-rename-form";
-      const input = document.createElement("input");
-      input.name = "display_name";
-      input.value = account.display_name;
-      input.required = true;
-      input.maxLength = 200;
-      input.setAttribute("aria-label", "Financial Account Display Name");
-      const save = document.createElement("button");
-      save.type = "submit";
-      save.textContent = "Save";
-      const cancel = document.createElement("button");
-      cancel.type = "button";
-      cancel.textContent = "Cancel";
-      const close = () => {
-        nameCell.textContent = account.display_name;
+      try {
+        const [scopes, references] = await Promise.all([
+          api(`/api/accounts/${account.financial_account_id}/position-scopes`),
+          api(`/api/accounts/${account.financial_account_id}/external-account-references`),
+        ]);
+        const details = document.createElement("p");
+        details.textContent = "Position holdings: " + (scopes.map(s =>
+          (s.scope_code === "DEFAULT" ? "Account default holdings" : s.display_name) +
+          (s.tax_scheme_name ? " · " + s.tax_scheme_name : "")).join("; ") || "None") +
+          ". External references: " + (references.map(r => r.external_account_number).join(", ") || "None");
+        info.append(details);
+      } catch (e) {
+        message(e.message, true);
         button.disabled = false;
-        button.focus();
-      };
-      cancel.addEventListener("click", close);
-      form.addEventListener("keydown", (event) => {
-        if (event.key === "Escape" && !cancel.disabled) {
-          event.preventDefault();
-          close();
-        }
-      });
-      input.addEventListener("input", () => input.setCustomValidity(""));
-      form.addEventListener("submit", async (event) => {
-        event.preventDefault();
-        if (save.disabled) return;
-        const value = input.value.trim();
-        if (!value) {
-          input.setCustomValidity("Enter a Financial Account Display Name.");
-          input.reportValidity();
-          return;
-        }
-        input.disabled = save.disabled = cancel.disabled = true;
-        try {
-          await api(`/api/accounts/${account.financial_account_id}`, {
-            method: "PATCH",
-            body: JSON.stringify({ display_name: value }),
-          });
-          account.display_name = value;
-          close();
-          window.dispatchEvent(new Event("accounts-changed"));
-          message("Financial Account name updated.");
-        } catch (e) {
-          message(e.message, true);
-          input.disabled = save.disabled = cancel.disabled = false;
-          input.focus();
-        }
-      });
-      form.append(input, save, cancel);
-      nameCell.replaceChildren(form);
-      input.focus();
-      input.select();
+      }
     });
-    actions.append(button);
+    info.append(button);
     body.append(tr);
   }
 }
+$("#account-form [name=institution_type]").addEventListener("change", event => {
+  $("#account-has-positions").checked = event.target.value === "BROKER-DEALER";
+});
 $("#account-form").addEventListener("submit", async (event) => {
   event.preventDefault();
   const form = event.currentTarget,
@@ -135,7 +99,14 @@ $("#account-form").addEventListener("submit", async (event) => {
   try {
     await api("/api/accounts", {
       method: "POST",
-      body: JSON.stringify(Object.fromEntries(new FormData(form))),
+      body: JSON.stringify({
+        account_code: form.elements.account_code.value,
+        display_name: form.elements.display_name.value,
+        institution_type: form.elements.institution_type.value,
+        country_or_region: form.elements.country_or_region.value.trim() || null,
+        position_scopes: $("#account-has-positions").checked
+          ? [{scope_code: "DEFAULT", display_name: "Default"}] : [],
+      }),
     });
     form.reset();
     await accounts();

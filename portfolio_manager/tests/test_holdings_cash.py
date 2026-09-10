@@ -14,8 +14,12 @@ from ledger.investment.validation import validate
 
 @pytest.fixture
 def setup(store):
-    a = store.create_account("A", "Account A")["financial_account_id"]
-    b = store.create_account("B", "Account B")["financial_account_id"]
+    a = store.create_account("A", "Account A", institution_type="BROKER-DEALER")[
+        "financial_account_id"
+    ]
+    b = store.create_account("B", "Account B", institution_type="BROKER-DEALER")[
+        "financial_account_id"
+    ]
     return Service(store), a, b
 
 

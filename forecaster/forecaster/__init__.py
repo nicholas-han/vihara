@@ -2,7 +2,7 @@
 
 Econometrics, time-series, and ML/DL/RL models behind one fit/predict interface,
 plus leakage-safe validation (purged / embargoed walk-forward). See
-``portfolio_manager/docs/decisions.md`` ADR-5 (validation split) and ADR-6
+``docs/modules/portfolio_manager/decisions.md`` ADR-5 (validation split) and ADR-6
 (one module, paradigm sub-packages, optional heavy deps).
 
 Sub-packages

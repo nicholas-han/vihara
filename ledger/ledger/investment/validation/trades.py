@@ -29,6 +29,15 @@ def check_trade(conn, tx, catalog, require):
         "Invalid Trade account role.",
     )
     account = roles[0]["financial_account_id"]
+    scope = conn.execute(
+        "SELECT financial_account_id FROM position_scopes WHERE position_scope_id=?",
+        (trade["position_scope_id"],),
+    ).fetchone()
+    require(
+        scope is not None and scope[0] == account,
+        "Trade Position Scope does not belong to its Financial Account.",
+    )
+    scope_id = trade["position_scope_id"]
     for fee in conn.execute(
         "SELECT * FROM trade_fees WHERE trade_transaction_id=?", (tid,)
     ):
@@ -39,8 +48,8 @@ def check_trade(conn, tx, catalog, require):
     ).fetchall()
     require(len(lines) == 2, "Invalid Trade Position line count.")
     require(
-        {(r["line_type"], r["owner_id"], r["financial_account_id"]) for r in lines}
-        == {("OWNERSHIP", 1, None), ("LOCATION", None, account)},
+        {(r["line_type"], r["owner_id"], r["position_scope_id"]) for r in lines}
+        == {("OWNERSHIP", 1, None), ("LOCATION", None, scope_id)},
         "Invalid Position dimensions.",
     )
     delta = q if trade["side"] == "BUY" else -q
@@ -76,8 +85,8 @@ def check_trade(conn, tx, catalog, require):
         )
         lot = lots[0]
         require(
-            (lot["position_id"], lot["owner_id"], lot["financial_account_id"])
-            == (pid, 1, account),
+            (lot["position_id"], lot["owner_id"], lot["position_scope_id"])
+            == (pid, 1, scope_id),
             "Invalid BUY Cost Basis Lot dimensions.",
         )
         require(
@@ -99,8 +108,8 @@ def check_trade(conn, tx, catalog, require):
                 (allocation["source_cost_basis_lot_id"],),
             ).fetchone()
             require(
-                (lot["position_id"], lot["owner_id"], lot["financial_account_id"])
-                == (pid, 1, account),
+                (lot["position_id"], lot["owner_id"], lot["position_scope_id"])
+                == (pid, 1, scope_id),
                 "SELL allocation crosses Cost Basis Lot dimensions.",
             )
         require(
@@ -119,7 +128,7 @@ def reconcile(conn, require):
         if r["line_type"] == "OWNERSHIP":
             ownership[r["position_id"]] += Decimal(r["quantity_delta"])
         else:
-            location[(r["position_id"], r["financial_account_id"])] += Decimal(
+            location[(r["position_id"], r["position_scope_id"])] += Decimal(
                 r["quantity_delta"]
             )
     for r in conn.execute(
@@ -150,12 +159,12 @@ def reconcile(conn, require):
             q >= 0 and b >= 0 and (q == 0) == (b == 0),
             "Invalid remaining Cost Basis Lot quantity or cost.",
         )
-        lotq[(lot["position_id"], lot["financial_account_id"])] += q
+        lotq[(lot["position_id"], lot["position_scope_id"])] += q
         lotb[lot["position_id"]] += b
     require(
         {k: v for k, v in location.items() if v}
         == {k: v for k, v in lotq.items() if v},
-        "Financial Account positions and Cost Basis Lot quantities differ.",
+        "Position Scope positions and Cost Basis Lot quantities differ.",
     )
     for pid, q in ownership.items():
         require(
@@ -165,7 +174,7 @@ def reconcile(conn, require):
         )
     require(
         all(v >= 0 for v in location.values()),
-        "Financial Account position is negative.",
+        "Position Scope position is negative.",
     )
     require(
         {k: v for k, v in investment.items() if v}

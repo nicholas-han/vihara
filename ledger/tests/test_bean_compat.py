@@ -2,7 +2,7 @@
 
 Runs only when the beancount package (a dev extra) is installed. The
 average.beancount golden is excluded by design: our AVERAGE_POOL semantics
-for booking "NONE" are engine-specific (see docs/20-model-and-booking.md).
+for booking "NONE" are engine-specific (see docs/modules/ledger/20-model-and-booking.md).
 """
 
 from pathlib import Path

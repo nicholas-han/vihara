@@ -7,7 +7,7 @@ trades). Cost basis + realized P&L support average/FIFO/LIFO/lowest-cost-first,
 dividend cash flows are recorded per account, and summaries convert across
 currencies via the manually maintained fx_rates table.
 
-Swap seams for v3 (see docs/portfolio-records-v2_zh-Hans.md):
+Swap seams for v3 (see docs/modules/portfolio_manager/portfolio-records-v2_zh-Hans.md):
 - providers.RecordsStore — replace instrument methods with an
   instrument_manager adapter (id mapping via identity.py + instrument_aliases).
 - fx.FxProvider — replace the manual fx_rates table with a live source.

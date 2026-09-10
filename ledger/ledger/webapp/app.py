@@ -2,7 +2,7 @@
 
 Every request opens its own SQLite connection (thread-safe by
 construction) and rebooks the ledger — the full-rebuild envelope from
-docs/40-pipeline-and-index.md makes that cheap at personal scale.
+docs/modules/ledger/40-pipeline-and-index.md makes that cheap at personal scale.
 
 Views default to the canonical stream (latest snapshot + entries after
 it); ``?full=1`` switches to the complete historical record. Writes are

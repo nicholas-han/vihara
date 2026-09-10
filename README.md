@@ -4,6 +4,12 @@ A monorepo of quantitative-finance modules — built as independent but composab
 pieces — spanning the full stack from pricing and reference data up through
 matching, clearing, and risk, to the products and strategies that run on top.
 
+## Documentation
+
+Start with the [documentation index](docs/README.md). Design, usage and project documents live under root `docs/`, grouped by module, product, project, strategy and research. Module READMEs remain lightweight entry points.
+
+Financial Account: [PRD](docs/projects/portfolio-holdings/Financial_Account_PRD.md) · [implementation design](docs/projects/portfolio-holdings/FINANCIAL_ACCOUNT_DESIGN.md) · [acceptance](docs/projects/portfolio-holdings/FINANCIAL_ACCOUNT_ACCEPTANCE.md).
+
 ## System layers
 
 The platform is organized into three layers.
@@ -28,13 +34,13 @@ The platform is organized into three layers.
 
 | Module | Role | Status |
 |---|---|---|
-| [`customized_orders`](customized_orders/README.md) | Client-orchestrated orders. Limit with MOC: HK limit-to-closing-auction conversion, durable worker, private configuration, recovery and CLI. | implemented; live verification pending |
+| [`customized_orders`](docs/modules/customized_orders/README.md) | Client-orchestrated orders. Limit with MOC: HK limit-to-closing-auction conversion, durable worker, private configuration, recovery and CLI. | implemented; live verification pending |
 
-Trading accounts remain outside Git. See [private configuration](docs/limit-with-moc/CONFIGURATION.md).
+Trading accounts remain outside Git. See [private configuration](docs/products/limit-with-moc/CONFIGURATION.md).
 
 ### Project layer — business initiatives on top of the stack
 
-- Portfolio Holdings MVP: [project plan](<docs/Project - Portfolio Holdings MVP/PROJECT_PLAN.md>) and [runbook](<docs/Project - Portfolio Holdings MVP/RUNBOOK.md>). Canonical investment records use a dedicated SQLite database; the default Portfolio web launcher opens this application.
+- Portfolio Holdings MVP: [project plan](<docs/projects/portfolio-holdings/PROJECT_PLAN.md>) and [runbook](<docs/projects/portfolio-holdings/RUNBOOK.md>). Canonical investment records use a dedicated SQLite database; the default Portfolio web launcher opens this application.
 
 - Trading strategy: implied-vs-realized volatility statistical arbitrage (`strategies/iv_rv_arb`, in progress on `vol-arb-v1`)
 - Broker: Hyperliquid Builder
@@ -60,4 +66,4 @@ Non-commercial use is permitted.
   
 Commercial use (including trading systems, exchanges, market-making, brokerages, financial infrastructure, and hosted services) requires explicit permission.  
   
-See LICENSE for details.
+See [LICENSE.md](LICENSE.md) for details.

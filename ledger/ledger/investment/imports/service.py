@@ -15,6 +15,7 @@ from instrument_manager.holding_catalog import CatalogError
 KINDS = {"TRADE", "CASH_TRANSFER", "FX_CONVERSION", "DIVIDEND_RECEIPT"}
 ALLOWED_OVERRIDES = {
     "account_code",
+    "position_scope_code",
     "source_account_code",
     "destination_account_code",
     "product_id",
@@ -73,8 +74,80 @@ def normalize(store, conn, row):
             destination_account_id=account(raw.get("destination_account_code"), False),
         )
     else:
-        payload["account_id"] = account(raw.get("account_code"))
+        account_code = raw.get("account_code")
+        number = raw.get("external_account_number")
+        if account_code:
+            payload["account_id"] = account(account_code)
+        elif number:
+            matches = conn.execute(
+                "SELECT financial_account_id FROM external_account_references WHERE external_account_number=?",
+                (number.strip(),),
+            ).fetchall()
+            if len(matches) != 1:
+                raise LedgerError(
+                    "AMBIGUOUS_REFERENCE" if matches else "REFERENCE_NOT_FOUND",
+                    "External account number does not resolve to exactly one Financial Account; map the account explicitly.",
+                )
+            payload["account_id"] = str(matches[0][0])
+        else:
+            payload["account_id"] = account(account_code)
+        if (
+            number
+            and not conn.execute(
+                "SELECT 1 FROM external_account_references WHERE financial_account_id=? AND external_account_number=?",
+                (payload["account_id"], number.strip()),
+            ).fetchone()
+        ):
+            raise LedgerError(
+                "REFERENCE_NOT_FOUND",
+                "External account number is not registered for this Financial Account.",
+            )
     if kind == "TRADE":
+        from ..persistence.references import scopes
+
+        candidates = scopes(conn, int(payload["account_id"]))
+        explicit = raw.get("position_scope_code")
+        label = raw.get("source_tax_label")
+        # Source labels may identify a scope directly or a tax classification shared by scopes.
+        labelled = [
+            c
+            for c in candidates
+            if label
+            and label.strip()
+            in (
+                c["scope_code"],
+                c["display_name"],
+                c["tax_scheme_code"],
+                c["tax_scheme_name"],
+            )
+        ]
+        if explicit:
+            selected = [c for c in candidates if c["scope_code"] == explicit.strip()]
+            if not selected:
+                raise LedgerError(
+                    "REFERENCE_NOT_FOUND",
+                    "Position Scope code not found in this Financial Account.",
+                )
+            if labelled and selected[0] not in labelled:
+                raise LedgerError(
+                    "VALIDATION_ERROR",
+                    "Explicit Position Scope conflicts with the source tax label.",
+                )
+        elif label:
+            selected = labelled
+        else:
+            selected = candidates
+        if len(selected) != 1:
+            raise LedgerError(
+                (
+                    "AMBIGUOUS_REFERENCE"
+                    if selected or candidates
+                    else "REFERENCE_NOT_FOUND"
+                ),
+                "Trade requires exactly one Position Scope; map the scope explicitly.",
+                candidates=candidates,
+            )
+        payload["position_scope_id"] = selected[0]["position_scope_id"]
         product, listing = raw.get("product_id"), raw.get("listing_id") or None
         if not product:
             try:
@@ -181,19 +254,40 @@ def normalize(store, conn, row):
             for k in ("transaction_type", "effective_date", "memo", "accounts", "data")
         }
     )
-    external = raw.get("external_transaction_id")
-    system = raw.get("source_system")
+    external = (raw.get("external_transaction_id") or "").strip()
+    system = (raw.get("source_system") or "").strip()
+    for field, normalized in (
+        ("external_transaction_id", external),
+        ("source_system", system),
+    ):
+        if raw.get(field) and not normalized:
+            raise LedgerError(
+                "VALIDATION_ERROR",
+                f"{field} must not contain only whitespace.",
+                field_errors={
+                    field: "Use a nonblank source identifier or leave the field empty."
+                },
+            )
     if external and not system:
         raise LedgerError(
             "VALIDATION_ERROR", "An external transaction ID requires source_system."
         )
     if external:
-        scope = (
-            raw.get("source_account_namespace")
-            or raw.get("account_code")
-            or raw.get("source_account_code")
-            or raw.get("destination_account_code")
+        # Keep provenance untouched, but use the same normalized identity as resolution.
+        # Tag inferred namespaces so external number "1" cannot collide with account ID 1.
+        account_id = (
+            payload.get("account_id")
+            or payload.get("source_account_id")
+            or payload.get("destination_account_id")
         )
+        explicit_namespace = (raw.get("source_account_namespace") or "").strip()
+        external_number = (raw.get("external_account_number") or "").strip()
+        if explicit_namespace:
+            scope = ["explicit", explicit_namespace]
+        elif external_number:
+            scope = ["external", account_id, external_number]
+        else:
+            scope = ["account", account_id]
         key = "source:" + digest([system, scope, external])
     else:
         file_hash = conn.execute(
@@ -293,7 +387,7 @@ class Imports:
         ):
             raise LedgerError(
                 "VALIDATION_ERROR",
-                "Only Financial Account, Product and Observable mappings can be changed.",
+                "Only Financial Account, Position Scope, Product and Observable mappings can be changed.",
             )
         with self.store.transaction() as conn:
             row = conn.execute(

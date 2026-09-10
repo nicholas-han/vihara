@@ -46,15 +46,15 @@ def compare_lots(a, b):
 def matches(conn, event, effect):
     tid = event["transaction_id"]
     pid = event["position_id"]
-    account_id = event["accounts"]["ACCOUNT"]
+    scope_id = event["data"]["position_scope_id"]
     rows = conn.execute(
         "SELECT l.* FROM position_lines l JOIN position_entries e USING(position_entry_id) WHERE e.source_transaction_id=?",
         (tid,),
     ).fetchall()
-    expected = {("OWNERSHIP", 1, None), ("LOCATION", None, account_id)}
+    expected = {("OWNERSHIP", 1, None), ("LOCATION", None, scope_id)}
     if (
         len(rows) != 2
-        or {(r["line_type"], r["owner_id"], r["financial_account_id"]) for r in rows}
+        or {(r["line_type"], r["owner_id"], r["position_scope_id"]) for r in rows}
         != expected
     ):
         return False
@@ -74,10 +74,10 @@ def matches(conn, event, effect):
         if (
             lot["position_id"],
             lot["owner_id"],
-            lot["financial_account_id"],
+            lot["position_scope_id"],
             Decimal(lot["quantity_acquired"]),
             Decimal(lot["book_cost_basis"]),
-        ) != (pid, 1, account_id, *effect["lot"]):
+        ) != (pid, 1, scope_id, *effect["lot"]):
             return False
     elif lots:
         return False
@@ -124,12 +124,12 @@ def detail(conn, tid):
 def acquire(event, state, recognition):
     tid = event["transaction_id"]
     pid = event["position_id"]
-    account_id = event["accounts"]["ACCOUNT"]
+    scope_id = event["data"]["position_scope_id"]
     q = Decimal(event["data"]["quantity"])
     state.lots[tid] = {
         "source": tid,
         "position_id": pid,
-        "account_id": account_id,
+        "scope_id": scope_id,
         "quantity": q,
         "basis": recognition,
         "remaining_quantity": q,
@@ -145,22 +145,23 @@ def acquire(event, state, recognition):
 def allocate(event, state):
     tid = event["transaction_id"]
     pid = event["position_id"]
-    account_id = event["accounts"]["ACCOUNT"]
+    scope_id = event["data"]["position_scope_id"]
     q = Decimal(event["data"]["quantity"])
     eligible = [
         lot
         for lot in state.lots.values()
         if lot["position_id"] == pid
-        and lot["account_id"] == account_id
+        and lot["scope_id"] == scope_id
         and lot["remaining_quantity"]
     ]
     available = sum((lot["remaining_quantity"] for lot in eligible), Decimal(0))
     if available < q:
         raise LedgerError(
             "INSUFFICIENT_POSITION",
-            "Insufficient position in this Financial Account.",
+            "Insufficient position in this Position Scope.",
             required=decimal_text(q),
             available=decimal_text(available),
+            position_scope_id=str(scope_id),
         )
     allocations = []
     remaining = q
@@ -191,26 +192,26 @@ def allocate(event, state):
 def save(conn, event, effect, line_ids, lines):
     tid = event["transaction_id"]
     pid = event["position_id"]
-    account_id = event["accounts"]["ACCOUNT"]
+    scope_id = event["data"]["position_scope_id"]
     entry = conn.execute(
         "INSERT INTO position_entries(source_transaction_id) VALUES (?)", (tid,)
     ).lastrowid
     delta = decimal_text(effect["quantity_delta"])
     conn.executemany(
-        "INSERT INTO position_lines(position_entry_id,position_id,line_type,quantity_delta,owner_id,financial_account_id) VALUES (?,?,?,?,?,?)",
+        "INSERT INTO position_lines(position_entry_id,position_id,line_type,quantity_delta,owner_id,position_scope_id) VALUES (?,?,?,?,?,?)",
         [
             (entry, pid, "OWNERSHIP", delta, 1, None),
-            (entry, pid, "LOCATION", delta, None, account_id),
+            (entry, pid, "LOCATION", delta, None, scope_id),
         ],
     )
     if effect["lot"]:
         conn.execute(
-            "INSERT INTO position_cost_basis_lots(source_transaction_id,position_id,owner_id,financial_account_id,quantity_acquired,book_cost_basis) VALUES (?,?,?,?,?,?)",
+            "INSERT INTO position_cost_basis_lots(source_transaction_id,position_id,owner_id,position_scope_id,quantity_acquired,book_cost_basis) VALUES (?,?,?,?,?,?)",
             (
                 tid,
                 pid,
                 1,
-                account_id,
+                scope_id,
                 *(decimal_text(v, positive=True) for v in effect["lot"]),
             ),
         )
@@ -247,14 +248,14 @@ def reverse(conn, tid, new):
         ).lastrowid
         for line in position_lines:
             conn.execute(
-                "INSERT INTO position_lines(position_entry_id,position_id,line_type,quantity_delta,owner_id,financial_account_id) VALUES (?,?,?,?,?,?)",
+                "INSERT INTO position_lines(position_entry_id,position_id,line_type,quantity_delta,owner_id,position_scope_id) VALUES (?,?,?,?,?,?)",
                 (
                     entry,
                     line["position_id"],
                     line["line_type"],
                     decimal_text(-Decimal(line["quantity_delta"])),
                     line["owner_id"],
-                    line["financial_account_id"],
+                    line["position_scope_id"],
                 ),
             )
 
@@ -293,7 +294,7 @@ def read_state(conn, as_of=None):
         lot = {
             "source": row["source_transaction_id"],
             "position_id": row["position_id"],
-            "account_id": row["financial_account_id"],
+            "scope_id": row["position_scope_id"],
             "quantity": quantity,
             "basis": basis,
             "remaining_quantity": quantity,

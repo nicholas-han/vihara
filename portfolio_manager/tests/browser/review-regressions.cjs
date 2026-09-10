@@ -112,6 +112,14 @@ async function pageFixture(t, override = () => undefined) {
         case "/api/accounts":
           body = [account, destination];
           break;
+        case "/api/accounts/1/position-scopes":
+          body = [{position_scope_id: "10",financial_account_id: "1",scope_code: "DEFAULT",display_name: "Default",tax_scheme_id: null}];
+          break;
+        case "/api/accounts/2/position-scopes":
+        case "/api/accounts/1/external-account-references":
+        case "/api/accounts/2/external-account-references":
+          body = [];
+          break;
         case "/api/configuration":
           body = {
             functional_currency: "HKD",
@@ -388,4 +396,76 @@ test("valuation renders actual zero price and distinguishes missing market FX", 
   assert.equal(cash[4], "Unavailable");
   assert.equal(cash[5], "Incomplete Valuation");
   assert.match(cash[6], /Missing USD Market FX/);
+});
+
+test("DEFAULT scope is hidden but submitted, and cash-only accounts disable trades", async (t) => {
+  const p = await pageFixture(t);
+  const scope = p.locator('#trade-form [name=position_scope_id]');
+  await p.waitForFunction(() => document.querySelector('#trade-form [name=position_scope_id]').value === '10');
+  assert.equal(await scope.inputValue(), '10');
+  assert(await p.locator('#trade-scope-label').evaluate(el => el.hidden));
+  const data = await p.locator('#trade-form').evaluate(form => Object.fromEntries(new FormData(form)));
+  assert.equal(data.position_scope_id, '10');
+  await p.locator('#trade-form [name=account_id]').selectOption('2', {force:true});
+  await p.waitForFunction(() => document.querySelector('#trade-scope-description').textContent.includes('no position holdings'));
+  assert(await p.locator('#trade-form button[type=submit]').isDisabled());
+  assert.equal(await scope.inputValue(), '');
+});
+
+test("multiple scopes require an explicit selection and expose the selected tax scheme", async (t) => {
+  const p = await pageFixture(t, url => url === '/api/accounts/1/position-scopes' ? [
+    {position_scope_id:'11',financial_account_id:'1',scope_code:'NISA',display_name:'NISA',tax_scheme_name:'Japan NISA'},
+    {position_scope_id:'12',financial_account_id:'1',scope_code:'TOKUTEI',display_name:'Specified',tax_scheme_name:'Japan Specified'}
+  ] : undefined);
+  await p.waitForFunction(() => document.querySelector('#trade-form [name=position_scope_id]').options.length === 3);
+  const scope = p.locator('#trade-form [name=position_scope_id]');
+  assert.equal(await scope.inputValue(), '');
+  assert.equal(await p.locator('#trade-scope-label').evaluate(el => el.hidden), false);
+  assert.equal(await scope.evaluate(el => el.validity.valueMissing), true);
+  await scope.selectOption('12', {force:true});
+  assert((await p.locator('#trade-scope-description').textContent()).includes('Japan Specified'));
+  const data = await p.locator('#trade-form').evaluate(form => Object.fromEntries(new FormData(form)));
+  assert.equal(data.position_scope_id, '12');
+});
+
+test("late scope response cannot restore a previous account selection", async (t) => {
+  const held = deferred(), entered = deferred();
+  const p = await pageFixture(t, async url => {
+    if(url === '/api/accounts/2/position-scopes') {
+      entered.resolve(); await held.promise;
+      return [{position_scope_id:'20',financial_account_id:'2',scope_code:'DEFAULT',display_name:'Bank holdings'}];
+    }
+  });
+  await p.waitForFunction(() => document.querySelector('#trade-form [name=position_scope_id]').value === '10');
+  await p.locator('#trade-form [name=account_id]').selectOption('2', {force:true});
+  await entered.promise;
+  assert(await p.locator('#trade-form button[type=submit]').isDisabled());
+  await p.locator('#trade-form [name=account_id]').selectOption('1', {force:true});
+  await p.waitForFunction(() => document.querySelector('#trade-form [name=position_scope_id]').value === '10');
+  const response = p.waitForResponse(r => r.url().endsWith('/accounts/2/position-scopes'));
+  held.resolve(); await response;
+  await p.waitForTimeout(50);
+  assert.equal(await p.locator('#trade-form [name=position_scope_id]').inputValue(), '10');
+  assert.equal(await p.locator('#trade-form [name=account_id]').inputValue(), '1');
+});
+
+test("lowercase imported trade still offers scope mapping", async (t) => {
+  let mapping;
+  const scopedBatch = batch('101');
+  scopedBatch.rows[0].status = 'ERROR';
+  scopedBatch.rows[0].raw = {transaction_type:' trade ', effective_date:'2026-09-02',account_code:'BROKER'};
+  const p = await pageFixture(t, (url, req) => {
+    if(url === '/api/accounts/1/position-scopes') return [
+      {position_scope_id:'11',financial_account_id:'1',scope_code:'NISA',display_name:'NISA'},
+      {position_scope_id:'12',financial_account_id:'1',scope_code:'TOKUTEI',display_name:'Specified'}];
+    if(url === '/api/import-rows/101') {mapping = req.postDataJSON().mapping; return scopedBatch.rows[0];}
+    if(url === '/api/imports/101' || url === '/api/imports/101/preview') return scopedBatch;
+  });
+  await p.locator('[data-page=imports]').click();
+  await p.getByRole('button', {name:'#101 101.csv',exact:true}).click();
+  await p.getByRole('button', {name:'Adjust Mapping',exact:true}).click();
+  await p.locator('#import-result [name=position_scope_code]').selectOption('NISA');
+  await p.getByRole('button', {name:'Save Mapping and Preview',exact:true}).click();
+  await p.waitForResponse(r => r.url().endsWith('/imports/101/preview'));
+  assert.equal(mapping.position_scope_code, 'NISA');
 });

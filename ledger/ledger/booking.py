@@ -15,7 +15,7 @@ AVERAGE_POOL      all lots merge into one pool per (commodity, cost currency);
                   reductions consume proportional pool cost. Journal files
                   declare this as booking "NONE" (a beancount-legal string;
                   beancount performs no matching for NONE, we give it pool
-                  semantics — see docs/20-model-and-booking.md). "AVERAGE"
+                  semantics — see docs/modules/ledger/20-model-and-booking.md). "AVERAGE"
                   is accepted as an alias.
 
 Weight rules (beancount-compatible)

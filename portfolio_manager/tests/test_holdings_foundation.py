@@ -42,7 +42,9 @@ def test_initialization_is_empty_and_restart_preserves_accounts(store):
     assert store.configuration()["functional_currency"] == "HKD"
     assert store.configuration()["owner"] == "SELF"
     assert store.accounts() == []
-    created = store.create_account("IBKR", "Interactive Brokers")
+    created = store.create_account(
+        "IBKR", "Interactive Brokers", institution_type="BROKER-DEALER"
+    )
     store.initialize()
     reopened = Store(store.path, HoldingCatalog(SEED))
     assert reopened.accounts() == [created]
@@ -93,7 +95,7 @@ def test_transaction_rollback_and_read_only_connection(store):
     with pytest.raises(RuntimeError):
         with store.transaction() as conn:
             conn.execute(
-                "INSERT INTO financial_accounts(account_code,display_name) VALUES ('TEMP','Temporary')"
+                "INSERT INTO financial_accounts(account_code,display_name,institution_type) VALUES ('TEMP','Temporary','BANK')"
             )
             conn.execute(
                 "INSERT INTO transactions(transaction_type,effective_date) VALUES ('TRADE','2026-09-06')"
@@ -103,18 +105,23 @@ def test_transaction_rollback_and_read_only_connection(store):
     assert store.configuration()["transaction_count"] == 0
     with store.read() as conn, pytest.raises(sqlite3.OperationalError):
         conn.execute(
-            "INSERT INTO financial_accounts(account_code,display_name) VALUES ('NO','No')"
+            "INSERT INTO financial_accounts(account_code,display_name,institution_type) VALUES ('NO','No','BANK')"
         )
 
 
 def test_canonical_immutability_fk_and_account_identity(store):
-    account = store.create_account("IBKR", "First name")
-    store.rename_account(account["financial_account_id"], "New name")
+    account = store.create_account(
+        "IBKR", "First name", institution_type="BROKER-DEALER"
+    )
+    with store.transaction() as conn:
+        conn.execute(
+            "UPDATE financial_accounts SET display_name='New name',account_code='CORRECTED'"
+        )
     assert store.accounts()[0]["display_name"] == "New name"
     for sql in [
         "UPDATE currencies SET currency_code='XYZ' WHERE currency_code='USD'",
         "DELETE FROM owners",
-        "UPDATE financial_accounts SET account_code='OTHER'",
+        "UPDATE financial_accounts SET financial_account_id=999",
         "DELETE FROM accounting_config",
         "INSERT INTO book_fx_evidence VALUES (999,999)",
     ]:
@@ -125,7 +132,9 @@ def test_canonical_immutability_fk_and_account_identity(store):
 def test_duplicate_account_concurrency(store):
     def attempt(_):
         try:
-            return store.create_account("IBKR", "Broker")["account_code"]
+            return store.create_account(
+                "IBKR", "Broker", institution_type="BROKER-DEALER"
+            )["account_code"]
         except LedgerError as exc:
             return exc.reason
 
@@ -220,7 +229,7 @@ def test_legacy_tools_cannot_destroy_canonical_database(store, tmp_path):
     from portfolio_manager.records.sample_db import create_sample_db
     from ledger.store.db import connect, init_schema
 
-    store.create_account("KEEP", "Preserved account")
+    store.create_account("KEEP", "Preserved account", institution_type="BROKER-DEALER")
     for action in [
         lambda: create_sample_db(store.path),
         lambda: create_schema(store.path),
@@ -242,7 +251,12 @@ def test_api_accounts_validation_references_and_no_economic_shortcuts(store):
         assert client.get("/").status_code == 200
         assert client.get("/static/app.js").status_code == 200
         created = client.post(
-            "/api/accounts", json={"account_code": "IBKR", "display_name": "Broker"}
+            "/api/accounts",
+            json={
+                "account_code": "IBKR",
+                "display_name": "Broker",
+                "institution_type": "BROKER-DEALER",
+            },
         )
         assert created.status_code == 201
         account_id = created.json()["financial_account_id"]
@@ -250,7 +264,11 @@ def test_api_accounts_validation_references_and_no_economic_shortcuts(store):
         assert (
             client.post(
                 "/api/accounts",
-                json={"account_code": "IBKR", "display_name": "Duplicate"},
+                json={
+                    "account_code": "IBKR",
+                    "display_name": "Duplicate",
+                    "institution_type": "BROKER-DEALER",
+                },
             ).status_code
             == 409
         )
@@ -258,14 +276,14 @@ def test_api_accounts_validation_references_and_no_economic_shortcuts(store):
             client.patch(
                 "/api/accounts/" + account_id, json={"display_name": "Renamed"}
             ).status_code
-            == 200
+            == 404
         )
         assert (
             client.patch(
                 "/api/accounts/" + account_id,
                 json={"account_code": "OTHER", "display_name": "No"},
             ).status_code
-            == 422
+            == 404
         )
         assert (
             client.patch(
@@ -273,7 +291,7 @@ def test_api_accounts_validation_references_and_no_economic_shortcuts(store):
             ).status_code
             == 404
         )
-        assert client.delete("/api/accounts/" + account_id).status_code == 405
+        assert client.delete("/api/accounts/" + account_id).status_code == 404
         products = client.get("/api/instruments/search", params={"q": "AAPL"}).json()[
             "rows"
         ]

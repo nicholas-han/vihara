@@ -147,4 +147,39 @@ def value(conn, result, catalog):
             "investment_unrealized_subtotal": format(unrealized, "f"),
             "investment_unrealized_complete": investment_unvalued == 0,
         }
+    # Scope values inherit the exact parent quote; totals above count parent rows only.
+    with localcontext() as context:
+        context.prec = 120
+        for row in result["investments"]:
+            for scope in row.get("scopes", []):
+                q, cost = Decimal(scope["quantity"]), Decimal(scope["book_value"])
+                for field in (
+                    "market_price",
+                    "valuation_currency",
+                    "market_fx_rate",
+                    "price_as_of",
+                    "fx_as_of",
+                    "valuation_status",
+                ):
+                    scope[field] = row.get(field)
+                scope["average_historical_cost"] = format(cost / q, "f") if q else None
+                native = (
+                    q * Decimal(row["market_price"])
+                    if row["market_price"] is not None
+                    else None
+                )
+                amount = (
+                    native * Decimal(row["market_fx_rate"])
+                    if native is not None and row["market_fx_rate"] is not None
+                    else None
+                )
+                scope["native_market_value"] = (
+                    format(native, "f") if native is not None else None
+                )
+                scope["market_value"] = (
+                    format(amount, "f") if amount is not None else None
+                )
+                scope["unrealized_difference"] = (
+                    format(amount - cost, "f") if amount is not None else None
+                )
     return result

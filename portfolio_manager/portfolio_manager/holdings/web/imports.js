@@ -113,6 +113,9 @@ async function show(id) {
         buy_amount: "Buy Amount",
         buy_currency: "Buy Currency",
         effective_date: "Effective Date",
+        position_scope_id: "Position Scope ID",
+        external_account_number: "External Account Number",
+        source_tax_label: "Source Tax Label",
       };
       p.textContent = Object.entries(data)
         .filter(([k]) => labels[k])
@@ -153,12 +156,13 @@ async function mapping(row) {
   ]);
   if (current !== batchId || sequence !== viewSequence) return;
   const merged = { ...row.raw, ...row.override };
+  const kind = String(row.raw.transaction_type || "").trim().toUpperCase();
   const fields =
-    row.raw.transaction_type === "CASH_TRANSFER"
+    kind === "CASH_TRANSFER"
       ? ["source_account_code", "destination_account_code"]
       : ["account_code"];
-  if (row.raw.transaction_type === "TRADE") fields.push("product_id");
-  if (row.raw.transaction_type === "DIVIDEND_RECEIPT")
+  if (kind === "TRADE") fields.push("product_id");
+  if (kind === "DIVIDEND_RECEIPT")
     fields.push("observable_id");
   for (const field of fields) {
     const label = document.createElement("label");
@@ -181,6 +185,29 @@ async function mapping(row) {
     select.value = merged[field] || "";
     label.append(select);
     panel.append(label);
+  }
+  if (kind === "TRADE") {
+    const label = document.createElement("label"), select = document.createElement("select");
+    label.textContent = "Position Scope";
+    select.name = "position_scope_code";
+    label.append(select); panel.append(label);
+    let scopeRequest = 0;
+    const loadScopes = async (initial = false) => {
+      const request = ++scopeRequest;
+      select.replaceChildren(new Option("Keep Original Mapping", ""));
+      select.disabled = true;
+      const code = panel.elements.account_code.value || merged.account_code;
+      const account = accounts.find(a => a.account_code === code);
+      if (!account) return;
+      const scopes = await api(`/api/accounts/${account.financial_account_id}/position-scopes`);
+      if (request !== scopeRequest) return;
+      for (const s of scopes) select.add(new Option(s.scope_code === "DEFAULT" ? "Account default holdings" : s.display_name, s.scope_code));
+      select.value = initial ? merged.position_scope_code || "" : "";
+      select.disabled = false;
+    };
+    panel.elements.account_code.addEventListener("change", () => loadScopes().catch(e => message(e.message,true)));
+    await loadScopes(true);
+    if (current !== batchId || sequence !== viewSequence) return;
   }
   const save = document.createElement("button");
   save.textContent = "Save Mapping and Preview";

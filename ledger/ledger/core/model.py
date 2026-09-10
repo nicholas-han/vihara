@@ -6,7 +6,7 @@ at file:line. This module holds parsed, unbooked data only — booking results
 live in ``ledger.booking``.
 
 Syntax is a beancount-compatible subset; extensions ride on metadata
-(see docs/10-syntax-subset.md).
+(see docs/modules/ledger/10-syntax-subset.md).
 """
 
 from __future__ import annotations

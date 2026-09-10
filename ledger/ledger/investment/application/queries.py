@@ -5,6 +5,7 @@ from .service import Service, serialize_ids
 from ..errors import LedgerError
 from ..position.ledger import read_state
 from ..numbers import decimal_text
+from ..persistence.references import scopes
 
 
 def position(store, pid, as_of=None):
@@ -18,13 +19,19 @@ def position(store, pid, as_of=None):
                 raise LedgerError("REFERENCE_NOT_FOUND", "Position not found.")
             service = Service(store)
             state = read_state(conn, as_of)
+            scope_map = {int(s["position_scope_id"]): s for s in scopes(conn)}
             lots = []
             for lot in state.lots.values():
                 if lot["position_id"] == pid:
                     lots.append(
                         {
                             "buy_transaction_id": str(lot["source"]),
-                            "financial_account_id": str(lot["account_id"]),
+                            "financial_account_id": scope_map[lot["scope_id"]][
+                                "financial_account_id"
+                            ],
+                            "position_scope_id": str(lot["scope_id"]),
+                            "scope_code": scope_map[lot["scope_id"]]["scope_code"],
+                            "scope_name": scope_map[lot["scope_id"]]["display_name"],
                             "quantity_acquired": decimal_text(lot["quantity"]),
                             "book_cost_basis": decimal_text(lot["basis"]),
                             "remaining_quantity": decimal_text(
