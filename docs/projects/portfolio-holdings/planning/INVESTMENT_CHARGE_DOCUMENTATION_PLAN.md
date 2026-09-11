@@ -1,6 +1,6 @@
 # Investment Charge — 文档影响与更新计划
 
-日期：2026-09-12。状态：本轮实现与文档已同步，验收与独立审查中。
+日期：2026-09-12。状态：本轮实现与文档已同步，本地验收和独立审查通过。
 权威输入：[Investment Charge PRD v1.0 FINAL](../design/INVESTMENT_CHARGE_PRD.md) 与 [已确认补充 D-IC-001/002](DECISIONS.md#d-ic-001--investment-charge-依据与实施授权2026-09-12)。实现方案：[技术设计与评估](../design/INVESTMENT_CHARGE_TECHNICAL_DESIGN.md)。运行代码为 v8；原正式库未自动切换。
 
 ## 1. 推荐策略
@@ -54,14 +54,14 @@
 
 ## 4. 提交前检查清单
 
-- [ ] 新 PRD 原文及版本、技术实现、schema marker 对齐；预扣税扩展引用已确认 D-IC-002，覆盖独立税款及仅净额到账两种情形。
-- [ ] 当前合同无 FEE_CHARGE、FEE_EXPENSE、FEE_FOR、REFUND_OF、旧费用维度和旧资本化残留；历史文档保留但有边界说明。
-- [ ] Category 是 reference table；UI/CSV 不写死旧四类；mapping 不以 source_system/market 等额外字段作 key。
-- [ ] REVERSES 查询全部按 type 筛选；CHARGE_FOR 可编辑但不影响重复导入、request retry 或会计结果。
-- [ ] 新 API、CSV 模板、运行命令与实际执行结果一致；旧 fees 给出明确错误。
-- [ ] Gross/net/未实现标签一致；报表不按多对多关联重复统计。
-- [ ] 文档本地链接、截图、代码路径有效；没有真实个人数据/密码混入提交。
-- [ ] 新验收覆盖 PRD 15 条及技术设计补充场景；账户/reference 保留与发布备份证据完备。
+- [x] 新 PRD 原文及版本、技术实现、schema marker 对齐；预扣税扩展引用已确认 D-IC-002，覆盖独立税款及仅净额到账两种情形。
+- [x] 当前合同无 FEE_CHARGE、FEE_EXPENSE、FEE_FOR、REFUND_OF、旧费用维度和旧资本化残留；历史文档保留但有边界说明。
+- [x] Category 是 reference table；UI/CSV 不写死旧四类；mapping 不以 source_system/market 等额外字段作 key。
+- [x] REVERSES 查询全部按 type 筛选；CHARGE_FOR 可编辑但不影响重复导入、request retry 或会计结果。
+- [x] 新 API、CSV 模板、运行命令与实际执行结果一致；旧 fees 给出明确错误。
+- [x] Gross/net/未实现标签一致；报表不按多对多关联重复统计。
+- [x] 文档本地链接、截图、代码路径有效；没有真实个人数据/密码混入提交。
+- [x] 新验收覆盖 PRD 合同及技术设计补充场景；账户/reference 保留与准备工具备份测试通过。正式库切换未执行，按 RUNBOOK 单独操作。
 
 ## 本轮执行结果
 

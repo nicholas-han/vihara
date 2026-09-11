@@ -1,6 +1,6 @@
 # Investment Charge v8 — 验收记录
 
-日期：2026-09-12。状态：实现完成，独立审查中。PRD 原文 SHA256：`72e1d747c7309d8a88c7ebda4e23b9b6f53f43ac33be44b26744e6dbdde41c5f`。
+日期：2026-09-12。状态：实现完成，通过全仓库验收及两次独立 Codex 审查。PRD 原文 SHA256：`72e1d747c7309d8a88c7ebda4e23b9b6f53f43ac33be44b26744e6dbdde41c5f`。
 
 依据：[FINAL PRD](../design/INVESTMENT_CHARGE_PRD.md)、[D-IC-001/002/003](../planning/DECISIONS.md)、[实现设计](../design/INVESTMENT_CHARGE_TECHNICAL_DESIGN.md)。初始分类为原文九类加用户确认的 DIVIDEND_WITHHOLDING_TAX，共十类。
 
@@ -31,4 +31,4 @@ IM_PYBIND_DIR="$PWD/build/holdings-im" python3 -m pytest
 
 正式数据库和 `.env` 未改动；这是代码及独立升级准备工具的交付。正式切换按 [RUNBOOK](../guides/RUNBOOK.md) 停止旧服务、准备/核对新库、显式更改路径后完成。没有长期双政策运行时、带交易 v7 的自动 converter、通用 PDF/OCR 提取器或税前股息推算。存在旧交易时明确阻止 reference-only 路线，不能保留旧资本化分录继续运行。
 
-独立 review、PR 与机器人意见处理以本轮 review-pr-flow 台账及 PR 为准；不得把本记录当成 GitHub 已批准或已合并。
+代码实现提交为 `ccd29cd`。`codex review --uncommitted` 与 `codex review --base 1899e754990260edc26fed217d3ba94a75e74081` 均退出 0、无 actionable findings；后者包含此前文档整理及路径修复提交。报告与评论台账保存在 Git 元数据目录；后续 GitHub review/CI 以 PR 最新 head 为准，不代表已获 GitHub 批准或已合并。

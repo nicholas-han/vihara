@@ -1,6 +1,6 @@
 # Portfolio Holdings — 阅读入口
 
-当前实现为统一 Investment Ledger + Portfolio Manager 分析/Web；Financial Account v1.0 已实现。Investment Charge v1.0 FINAL PRD 已收到，技术设计与股息预扣税口径已收口，功能已实现，正在完成验收与独立审查。文档按用途分层，避免把设计草稿、操作步骤和历史验收当成同一种资料。
+当前实现为统一 Investment Ledger + Portfolio Manager 分析/Web；Financial Account v1.0 已实现。Investment Charge v1.0 FINAL PRD 已收到，技术设计与股息预扣税口径已收口，功能已实现并通过本地验收与独立审查。文档按用途分层，避免把设计草稿、操作步骤和历史验收当成同一种资料。
 
 | 目录 | 用途 | 入口 |
 |---|---|---|

@@ -1,6 +1,6 @@
 # Investment Charge — 技术设计与实现评估
 
-日期：2026-09-12。状态：**已实现 / 验收与独立审查中**。
+日期：2026-09-12。状态：**已实现 / 本地验收及独立审查通过**。
 依据：[Investment Charge & Trade Cost Policy PRD v1.0 FINAL](INVESTMENT_CHARGE_PRD.md)。原代码基线：`f3450c4`，schema v7；本轮目标实现为 schema v8 / PRINCIPAL_ONLY_V1。严格按新 PRD 及 [用户补充决定 D-IC-001/002](../planning/DECISIONS.md#d-ic-001--investment-charge-依据与实施授权2026-09-12) 设计；若与过去文档存在尚未解决的业务冲突，先列明冲突并请用户决定，不自行取舍或混合规则。本文中 API 名称、物理表名、实现步骤属于工程选择，不改变 PRD 的已确认语义。
 
 ## 1. 评估结论与确认边界
