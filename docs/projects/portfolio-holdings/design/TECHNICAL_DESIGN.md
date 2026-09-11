@@ -1,6 +1,6 @@
 # Portfolio Holdings MVP — Technical Design Document
 
-> 2026-09-09 target update: [Financial Account PRD v1.0](Financial_Account_PRD.md) governs account aggregation, PositionScope and cost-basis boundaries. [Implementation design](FINANCIAL_ACCOUNT_DESIGN.md) and [Financial Account acceptance](FINANCIAL_ACCOUNT_ACCEPTANCE.md) describe the implemented increment; S0–S10 reports remain historical records.
+> 2026-09-09 target update: [Financial Account PRD v1.0](Financial_Account_PRD.md) governs account aggregation, PositionScope and cost-basis boundaries. [Implementation design](FINANCIAL_ACCOUNT_DESIGN.md) and [Financial Account acceptance](../history/FINANCIAL_ACCOUNT_ACCEPTANCE.md) describe the implemented increment; S0–S10 reports remain historical records.
 
 
 **版本：** v1.1  
@@ -8,7 +8,7 @@
 **状态：** S0～S10 已实现并通过工程验收  
 **代码审查基准：** `12b80c956abdb024a2a0542530c03b6e5c501d3b`
 
-推进入口：[PROJECT_PLAN](PROJECT_PLAN.md)。仓库依据：[GAP_ANALYSIS](GAP_ANALYSIS.md)。确认状态：[DECISIONS](DECISIONS.md)。
+推进入口：[PROJECT_PLAN](../planning/PROJECT_PLAN.md)。仓库依据：[GAP_ANALYSIS](../history/GAP_ANALYSIS.md)。确认状态：[DECISIONS](../planning/DECISIONS.md)。
 
 本文决定实现方式，不重定义领域模型。Q-001～Q-003 已于 2026-09-06 获用户确认并同步 canonical 文档。旧数据迁移不在范围，采用独立空库。
 
@@ -421,7 +421,7 @@ HTTP 422 表示输入/引用形状错误，409 表示容量、历史依赖或幂
 
 ## 16. 进入开发的条件与后续产物
 
-实施设计与 Q-001～Q-003 已确认，按 [PROJECT_PLAN](PROJECT_PLAN.md) 进入 S0；阶段结果持续记录。
+实施设计与 Q-001～Q-003 已确认，按 [PROJECT_PLAN](../planning/PROJECT_PLAN.md) 进入 S0；阶段结果持续记录。
 
 后续运行方式、CSV 模板说明、阶段验收证据均作为本专项目录内文档维护。无需复制 PRD 的整套业务公式；发生业务口径变化先同步 canonical 文档，再改实现。
 
@@ -431,7 +431,7 @@ IM 的 `holding_catalog.py` 从现有 C++ loader 已校验的 JSON 构建只读�
 
 S0 接口集中在 `holdings/api.py`；Book FX 与事务基础在 `persistence/store.py`。随着切片增长再拆分 application / integrations 等包。交易根表及关系表仅为后续预留；Journal、Position、Lot 和经济 command 从 S1/S2 起实现，该时点没有经济写入接口。完整原子性与独立经济对账已在后续阶段验收，见下节。
 
-验收、环境前提与启动方式见 [S0_ACCEPTANCE](S0_ACCEPTANCE.md)。
+验收、环境前提与启动方式见 [S0_ACCEPTANCE](../history/S0_ACCEPTANCE.md)。
 
 ## 18. 最终实际落点与验收
 
@@ -441,8 +441,8 @@ Holdings 现金读取原始 CASH 行、数量读取 LOCATION 行，分别与有�
 
 新增 imports staging + 单笔 command/link 同事务；顺序预览使用临时数据库 snapshot，以避免建立第二套经济算法。JSON 仅用于技术 staging / payload hash，不用于 canonical Transaction。默认 Web 启动已切换，旧 mock UI 明确另名保留，并补上误用新库保护。
 
-运行说明：[RUNBOOK](RUNBOOK.md)。CSV：[CSV_IMPORT](CSV_IMPORT.md)。验收：[STAGE_ACCEPTANCE](STAGE_ACCEPTANCE.md)。没有引入原设计范围外的券商同步、衍生品、多所有者或新市场数据平台。
+运行说明：[RUNBOOK](../guides/RUNBOOK.md)。CSV：[CSV_IMPORT](../guides/CSV_IMPORT.md)。验收：[STAGE_ACCEPTANCE](../history/STAGE_ACCEPTANCE.md)。没有引入原设计范围外的券商同步、衍生品、多所有者或新市场数据平台。
 
 ## Financial Account v1.0 增量
 
-本轮补充 [FINANCIAL_ACCOUNT_DESIGN](FINANCIAL_ACCOUNT_DESIGN.md)，已完成实现与 [专项验收](FINANCIAL_ACCOUNT_ACCEPTANCE.md)。新增 institution_type/country_or_region、ExternalAccountReference、TaxScheme、PositionScope；Trade、LOCATION、Lot 改用 scope。原 §3/§17/§18 的 schema v6 及 S0–S10 为旧实现记录，不能用来宣称本增量已验收。
+本轮补充 [FINANCIAL_ACCOUNT_DESIGN](FINANCIAL_ACCOUNT_DESIGN.md)，已完成实现与 [专项验收](../history/FINANCIAL_ACCOUNT_ACCEPTANCE.md)。新增 institution_type/country_or_region、ExternalAccountReference、TaxScheme、PositionScope；Trade、LOCATION、Lot 改用 scope。原 §3/§17/§18 的 schema v6 及 S0–S10 为旧实现记录，不能用来宣称本增量已验收。

@@ -1,6 +1,6 @@
 # Portfolio Holdings & Accounting System
 
-> 2026-09-09 target update: [Financial Account PRD v1.0](Financial_Account_PRD.md) governs account aggregation, PositionScope and cost-basis boundaries. [Implementation design](FINANCIAL_ACCOUNT_DESIGN.md) and [Financial Account acceptance](FINANCIAL_ACCOUNT_ACCEPTANCE.md) describe the implemented increment; S0–S10 reports remain historical records.
+> 2026-09-09 target update: [Financial Account PRD v1.0](../design/Financial_Account_PRD.md) governs account aggregation, PositionScope and cost-basis boundaries. [Implementation design](../design/FINANCIAL_ACCOUNT_DESIGN.md) and [Financial Account acceptance](FINANCIAL_ACCOUNT_ACCEPTANCE.md) describe the implemented increment; S0–S10 reports remain historical records.
 
 ## Codex Handoff Brief
 
@@ -2009,10 +2009,10 @@ The final product should be a small, rigorous, internally consistent personal Po
 
 # 36. Confirmed Execution Baseline (2026-09-06)
 
-用户已确认 Q-001～Q-003，适用 PRD §79、Logical Schema §85、Web Spec §66。专项以 [PROJECT_PLAN](PROJECT_PLAN.md) 为执行入口；技术方案见 [TECHNICAL_DESIGN](TECHNICAL_DESIGN.md)，决策见 [DECISIONS](DECISIONS.md)。所有新增专项设计、阶段记录、验收说明保存在本目录，不分散到模块 docs。
+用户已确认 Q-001～Q-003，适用 PRD §79、Logical Schema §85、Web Spec §66。专项以 [PROJECT_PLAN](../planning/PROJECT_PLAN.md) 为执行入口；技术方案见 [TECHNICAL_DESIGN](../design/TECHNICAL_DESIGN.md)，决策见 [DECISIONS](../planning/DECISIONS.md)。所有新增专项设计、阶段记录、验收说明保存在本目录，不分散到模块 docs。
 
 第一版从零开始，无旧 mock 迁移要求。历史补录保护已批准。进入 S0 开发，无需重新确认上述规则。
 
 ## Financial Account v1.0 implementation handoff
 
-按 [设计与实施顺序](FINANCIAL_ACCOUNT_DESIGN.md) 的 FA-1～FA-5 推进；该增量已实现，验收见 [Financial Account acceptance](FINANCIAL_ACCOUNT_ACCEPTANCE.md)。新建 target schema，不自动重写或删除已有数据库。新增三类 reference entities、Trade scope，替换 LOCATION/lot bucket；Accounting CASH 和 TransactionAccount 继续使用 FinancialAccount。
+按 [设计与实施顺序](../design/FINANCIAL_ACCOUNT_DESIGN.md) 的 FA-1～FA-5 推进；该增量已实现，验收见 [Financial Account acceptance](FINANCIAL_ACCOUNT_ACCEPTANCE.md)。新建 target schema，不自动重写或删除已有数据库。新增三类 reference entities、Trade scope，替换 LOCATION/lot bucket；Accounting CASH 和 TransactionAccount 继续使用 FinancialAccount。

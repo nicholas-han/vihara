@@ -1,3 +1,5 @@
+> 2026-09-10：以下为历史验收记录。当前路径与配置以 [RUNBOOK](../guides/RUNBOOK.md) 和 [数据存储约定](../../../operations/DATA_STORAGE.md) 为准；正式库已按用户要求重新初始化为 v7 空库。
+
 # Portfolio Holdings MVP — S0 验收与启动说明
 
 日期：2026-09-06。状态：S0 已完成；S1～S10 尚未完成。
@@ -38,11 +40,11 @@ Python 测试有一条现有 Starlette/httpx 弃用警告，无测试失败。�
 ```sh
 export PYTHONPATH="$PWD/instrument_manager:$PWD/portfolio_manager:$PWD/ledger"
 export IM_PYBIND_DIR=/tmp/vihara-holdings-im-build
-python3 -m portfolio_manager.holdings --db "$PWD/state/holdings.sqlite3" init
-python3 -m portfolio_manager.holdings --db "$PWD/state/holdings.sqlite3" serve --port 8643
+python3 -m portfolio_manager.holdings --db "$PORTFOLIO_HOLDINGS_DB_PATH" init
+python3 -m portfolio_manager.holdings --db "$PORTFOLIO_HOLDINGS_DB_PATH" serve --port 8643
 ```
 
-打开 http://127.0.0.1:8643 。`state/holdings.sqlite3` 是明确选择的新库示例；初始化可重复执行，不会清空已有记录。`serve` 不会自动初始化。也可设置 `PORTFOLIO_HOLDINGS_DB_PATH` 代替每次传入 `--db`，不会回退旧 Portfolio 数据路径。默认 catalog 使用打包的受控参考 JSON；需要替换时通过 `--catalog` 明确指定符合规范的目录。
+打开 http://127.0.0.1:8643 。上述命令使用显式配置的 `PORTFOLIO_HOLDINGS_DB_PATH`；初始化可重复执行，不会清空已有记录。`serve` 不会自动初始化。也可设置 `PORTFOLIO_HOLDINGS_DB_PATH` 代替每次传入 `--db`，不会回退旧 Portfolio 数据路径。默认 catalog 使用打包的受控参考 JSON；需要替换时通过 `--catalog` 明确指定符合规范的目录。
 
 如果需要重新构建 binding，使用独立构建目录，避免旧 CMake 缓存路径冲突：
 
@@ -66,7 +68,7 @@ USDT,2026-09-06,7.8,operator-example
 这只是格式示例，不是实际汇率。rate 表示每单位 base_currency 对应的 HKD，必须正数；以真实受控数据替换后执行：
 
 ```sh
-python3 -m portfolio_manager.holdings --db "$PWD/state/holdings.sqlite3" import-book-fx /absolute/path/book-fx.csv
+python3 -m portfolio_manager.holdings --db "$PORTFOLIO_HOLDINGS_DB_PATH" import-book-fx /absolute/path/book-fx.csv
 ```
 
 同币种同日再次导入会追加版本；不会覆盖历史版本。此操作员导入不是 S10 的交易 CSV 导入。当前尚不能录入存款或买卖。

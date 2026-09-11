@@ -1,31 +1,73 @@
 # 文档组织与维护约定
 
-日期：2026-09-09。此次从本地 main `6b3e66b` 创建 `docs/financial-account-design`，整理仓库自有 Markdown 文档，并纳入用户新 PRD；未将生成物、依赖包文档当成项目文档迁移。
+更新：2026-09-11。本轮只整理归属、目录和链接；不改变业务合同。2026-09-09 的集中迁移清单保留在后文，目标链接已跟随新路径更新。
 
-## 选择集中目录的理由
+## 分类顺序
 
-当前同一仓库既有模块设计，又有跨模块项目、产品、研究说明。此前文档分别位于三个模块 docs、模块长 README、根目录研究说明和项目 docs。集中到根目录后，可以从一个入口找全资料、区分权威关系，并避免把 Holdings 的跨模块设计重复存到 Ledger/Portfolio 两处。
+先问“属于哪个主题”，再问“这篇文档用来做什么”，最后标注状态和日期。不要将模块名、文档类型和完成状态混在同一层级。
 
-采用分目录而非把所有文件平铺：modules 放长期模块设计；projects 放有计划和验收的专项；products 放产品能力；strategies 放策略；research 放理论参考。同名 decisions/README 不冲突。保持原文档主题和中英文对应，暂不做大规模内容合并或自动淘汰历史设计。
+| 第一层 | 归属规则 |
+|---|---|
+| `modules/<module>/` | 单个代码模块的职责、模型、接口和使用；中英文版本放在同一主题中 |
+| `projects/<topic>/` | 跨模块业务能力的完整文档链；原 `products/` 合并到这里 |
+| `strategies/<strategy>/` | 具体投资策略的逻辑、运行与数据要求 |
+| `operations/` | 全仓库共用的环境、数据目录、备份及维护约定 |
+| `research/` | 理论与架构研究，不自动成为已确认的开发合同 |
 
-## 保留在原位置的例外
+较大主题内按用途分为 `design/`（规范与设计）、`guides/`（操作）、`drafts/`（讨论稿）、`planning/`（计划与决策）、`history/`（交接与验收证据）。文件少的主题不强制建立空层级，先用 README 分类导航。图片跟随所属文档放在邻近 `assets/`；不另建旧项目名称目录存图。
 
-- 根 README：仓库简介与文档入口；LICENSE.md：许可证。
-- 模块/策略/data README：仅保留几行入口，完整内容已集中。独立浏览模块和可能的打包工具仍能找到 README。
-- AGENTS.md/工具识别文件（若以后新增）、pyproject/CMake 等构建元数据：其位置有工具语义。
-- API/schema 源码、CSV 模板、测试 fixture 和示例配置：随实现维护，不当作阅读文档搬走。例如 `ledger/tests/golden/statements/boa/2026/2026-01.pdf` 是测试输入，HTML 文件是应用界面源码；它们保留。
+“草稿／已确认／已实现／历史证据”是文档状态，不等同于主题。`design/` 中的旧文件可能仍有未实施段落，索引必须明确说明；不能用整理目录的动作提升文档权威性。跨主题内容选择主要维护方只存一份，其余地方链接引用。
 
-## 写作与导航约定
+## 保留在代码旁的例外
 
-1. 从 docs/README.md 或对应项目/模块 README 进入。新增文档同时更新最近一级索引。
-2. 业务权威原文只保留一份。新决定同步相关 canonical 定义，并附更新日期；实施设计明确“当前实现/目标/历史证据”。
-3. 文档链接相对当前 Markdown 文件；代码路径与命令注明相对仓库根目录或具体模块。移动文档时同时重算链接，代码文件仍留原模块。
-4. 目录使用稳定、无空格名称；本次保留已有文件名与章节锚点，避免额外 churn。Financial Account 原文件名 Financia 拼写修正为 Financial。
-5. 中英文成对文档继续并存；不假定译文比原文新。设计变更需同步相关版本，历史 ADR 的原日期和当时结论保留。
-6. 历史验收、legacy records、generic ledger 资料不冒充当前 Holdings 规范。不要将设计目标写成已通过的测试。
-7. 本轮维护使用本地相对链接存在性检查、迁移前后文件清单核对与 git diff --check；不为静态文档迁移引入站点构建框架。将来文档量需要全文检索/对外发布时再增加文档站。
+- 根 README 和模块/策略/data 的短 README：提供就地导航。
+- LICENSE、AGENTS、工具识别文件及构建元数据：保留工具要求的位置。
+- API/schema 源码、CSV 模板、测试 fixture 和示例配置：随实现维护。例如 `ledger/tests/golden/statements/boa/2026/2026-01.pdf` 是测试输入，不移入阅读文档。
+- 真实结单、账本和衍生个人数据保留在仓库外，见 [数据存储约定](operations/DATA_STORAGE.md)。
 
-## 迁移清单
+## 维护规则
+
+1. 新文档更新最近一级 README；从 [文档中心](README.md) 应能逐级找到。
+2. 已确认正文只保留一份。讨论中的方案保存在草稿区；定稿前不将其扩散成新的 canonical 合同。
+3. 链接相对当前文件；代码路径和命令注明相对仓库根目录或具体模块。移动文件时更新入链、出链和资源引用。
+4. 目录用稳定、无空格名称；非必要不重命名正文文件或章节锚点。中英文成对保留。
+5. 历史计划、交接和验收保留原日期；不能用它们证明后续设计已完成，或据历史指令启动新工作。
+6. 整理时核对文件清单、资源校验和、本地链接及 `git diff --check`。不为文档迁移引入网站框架。
+
+## 2026-09-11 分类调整
+
+| 原路径 | 新位置 |
+|---|---|
+| `docs/projects/portfolio-holdings/PRD.md` | [docs/projects/portfolio-holdings/design/PRD.md](projects/portfolio-holdings/design/PRD.md) |
+| `docs/projects/portfolio-holdings/Financial_Account_PRD.md` | [docs/projects/portfolio-holdings/design/Financial_Account_PRD.md](projects/portfolio-holdings/design/Financial_Account_PRD.md) |
+| `docs/projects/portfolio-holdings/Logical_Data_Model_Schema_Spec.md` | [docs/projects/portfolio-holdings/design/Logical_Data_Model_Schema_Spec.md](projects/portfolio-holdings/design/Logical_Data_Model_Schema_Spec.md) |
+| `docs/projects/portfolio-holdings/Web_&_Data_Entry_Spec.md` | [docs/projects/portfolio-holdings/design/Web_&_Data_Entry_Spec.md](projects/portfolio-holdings/design/Web_&_Data_Entry_Spec.md) |
+| `docs/projects/portfolio-holdings/TECHNICAL_DESIGN.md` | [docs/projects/portfolio-holdings/design/TECHNICAL_DESIGN.md](projects/portfolio-holdings/design/TECHNICAL_DESIGN.md) |
+| `docs/projects/portfolio-holdings/MODULE_BOUNDARIES.md` | [docs/projects/portfolio-holdings/design/MODULE_BOUNDARIES.md](projects/portfolio-holdings/design/MODULE_BOUNDARIES.md) |
+| `docs/projects/portfolio-holdings/FINANCIAL_ACCOUNT_DESIGN.md` | [docs/projects/portfolio-holdings/design/FINANCIAL_ACCOUNT_DESIGN.md](projects/portfolio-holdings/design/FINANCIAL_ACCOUNT_DESIGN.md) |
+| `docs/projects/portfolio-holdings/RUNBOOK.md` | [docs/projects/portfolio-holdings/guides/RUNBOOK.md](projects/portfolio-holdings/guides/RUNBOOK.md) |
+| `docs/projects/portfolio-holdings/CSV_IMPORT.md` | [docs/projects/portfolio-holdings/guides/CSV_IMPORT.md](projects/portfolio-holdings/guides/CSV_IMPORT.md) |
+| `docs/projects/portfolio-holdings/PROJECT_PLAN.md` | [docs/projects/portfolio-holdings/planning/PROJECT_PLAN.md](projects/portfolio-holdings/planning/PROJECT_PLAN.md) |
+| `docs/projects/portfolio-holdings/DECISIONS.md` | [docs/projects/portfolio-holdings/planning/DECISIONS.md](projects/portfolio-holdings/planning/DECISIONS.md) |
+| `docs/projects/portfolio-holdings/Codex_Handoff_Brief.md` | [docs/projects/portfolio-holdings/history/Codex_Handoff_Brief.md](projects/portfolio-holdings/history/Codex_Handoff_Brief.md) |
+| `docs/projects/portfolio-holdings/GAP_ANALYSIS.md` | [docs/projects/portfolio-holdings/history/GAP_ANALYSIS.md](projects/portfolio-holdings/history/GAP_ANALYSIS.md) |
+| `docs/projects/portfolio-holdings/S0_ACCEPTANCE.md` | [docs/projects/portfolio-holdings/history/S0_ACCEPTANCE.md](projects/portfolio-holdings/history/S0_ACCEPTANCE.md) |
+| `docs/projects/portfolio-holdings/STAGE_ACCEPTANCE.md` | [docs/projects/portfolio-holdings/history/STAGE_ACCEPTANCE.md](projects/portfolio-holdings/history/STAGE_ACCEPTANCE.md) |
+| `docs/projects/portfolio-holdings/CONSISTENCY_REVIEW.md` | [docs/projects/portfolio-holdings/history/CONSISTENCY_REVIEW.md](projects/portfolio-holdings/history/CONSISTENCY_REVIEW.md) |
+| `docs/projects/portfolio-holdings/REVIEW_FIXES.md` | [docs/projects/portfolio-holdings/history/REVIEW_FIXES.md](projects/portfolio-holdings/history/REVIEW_FIXES.md) |
+| `docs/projects/portfolio-holdings/REFERENCE_DATA_UPDATES.md` | [docs/projects/portfolio-holdings/history/REFERENCE_DATA_UPDATES.md](projects/portfolio-holdings/history/REFERENCE_DATA_UPDATES.md) |
+| `docs/projects/portfolio-holdings/FINANCIAL_ACCOUNT_ACCEPTANCE.md` | [docs/projects/portfolio-holdings/history/FINANCIAL_ACCOUNT_ACCEPTANCE.md](projects/portfolio-holdings/history/FINANCIAL_ACCOUNT_ACCEPTANCE.md) |
+| `docs/products/limit-with-moc/README.md` | [docs/projects/limit-with-moc/README.md](projects/limit-with-moc/README.md) |
+| `docs/products/limit-with-moc/VERIFICATION.md` | [docs/projects/limit-with-moc/VERIFICATION.md](projects/limit-with-moc/VERIFICATION.md) |
+| `docs/products/limit-with-moc/CONFIGURATION.md` | [docs/projects/limit-with-moc/CONFIGURATION.md](projects/limit-with-moc/CONFIGURATION.md) |
+| `docs/products/limit-with-moc/DESIGN.md` | [docs/projects/limit-with-moc/DESIGN.md](projects/limit-with-moc/DESIGN.md) |
+| `docs/products/limit-with-moc/futu-live-behavior.md` | [docs/projects/limit-with-moc/futu-live-behavior.md](projects/limit-with-moc/futu-live-behavior.md) |
+| `docs/DATA_STORAGE.md` | [docs/operations/DATA_STORAGE.md](operations/DATA_STORAGE.md) |
+| `docs/Project - Portfolio Holdings MVP/acceptance-assets/holdings-mobile.png` | [docs/projects/portfolio-holdings/history/assets/holdings-mobile.png](projects/portfolio-holdings/history/assets/holdings-mobile.png) |
+
+旧 `Project - Portfolio Holdings MVP` 目录仅剩一张被阶段验收引用的截图；已完整迁入 history/assets，更新引用后移除旧空目录。
+
+## 2026-09-09 集中迁移清单
 
 以下为逐文件去向；README 原位置保留短入口，其余原路径已迁移。用户新增的 Financial Account PRD 内容保持原样。外部书签不能自动重定向，可用本表定位；仓库内链接和已发现的源码文档引用同步更新。
 
@@ -34,27 +76,27 @@
 | `FIN531_portfolio_management.md` | [docs/research/FIN531_portfolio_management.md](research/FIN531_portfolio_management.md) |
 | `asset_pricer/README.md` | [docs/modules/asset_pricer/README.md](modules/asset_pricer/README.md) |
 | `customized_orders/README.md` | [docs/modules/customized_orders/README.md](modules/customized_orders/README.md) |
-| `docs/Project - Portfolio Holdings MVP/CONSISTENCY_REVIEW.md` | [docs/projects/portfolio-holdings/CONSISTENCY_REVIEW.md](projects/portfolio-holdings/CONSISTENCY_REVIEW.md) |
-| `docs/Project - Portfolio Holdings MVP/CSV_IMPORT.md` | [docs/projects/portfolio-holdings/CSV_IMPORT.md](projects/portfolio-holdings/CSV_IMPORT.md) |
-| `docs/Project - Portfolio Holdings MVP/Codex_Handoff_Brief.md` | [docs/projects/portfolio-holdings/Codex_Handoff_Brief.md](projects/portfolio-holdings/Codex_Handoff_Brief.md) |
-| `docs/Project - Portfolio Holdings MVP/DECISIONS.md` | [docs/projects/portfolio-holdings/DECISIONS.md](projects/portfolio-holdings/DECISIONS.md) |
-| `docs/Project - Portfolio Holdings MVP/Financia_Account_PRD.md` | [docs/projects/portfolio-holdings/Financial_Account_PRD.md](projects/portfolio-holdings/Financial_Account_PRD.md) |
-| `docs/Project - Portfolio Holdings MVP/GAP_ANALYSIS.md` | [docs/projects/portfolio-holdings/GAP_ANALYSIS.md](projects/portfolio-holdings/GAP_ANALYSIS.md) |
-| `docs/Project - Portfolio Holdings MVP/Logical_Data_Model_Schema_Spec.md` | [docs/projects/portfolio-holdings/Logical_Data_Model_Schema_Spec.md](projects/portfolio-holdings/Logical_Data_Model_Schema_Spec.md) |
-| `docs/Project - Portfolio Holdings MVP/MODULE_BOUNDARIES.md` | [docs/projects/portfolio-holdings/MODULE_BOUNDARIES.md](projects/portfolio-holdings/MODULE_BOUNDARIES.md) |
-| `docs/Project - Portfolio Holdings MVP/PRD.md` | [docs/projects/portfolio-holdings/PRD.md](projects/portfolio-holdings/PRD.md) |
-| `docs/Project - Portfolio Holdings MVP/PROJECT_PLAN.md` | [docs/projects/portfolio-holdings/PROJECT_PLAN.md](projects/portfolio-holdings/PROJECT_PLAN.md) |
-| `docs/Project - Portfolio Holdings MVP/REFERENCE_DATA_UPDATES.md` | [docs/projects/portfolio-holdings/REFERENCE_DATA_UPDATES.md](projects/portfolio-holdings/REFERENCE_DATA_UPDATES.md) |
-| `docs/Project - Portfolio Holdings MVP/REVIEW_FIXES.md` | [docs/projects/portfolio-holdings/REVIEW_FIXES.md](projects/portfolio-holdings/REVIEW_FIXES.md) |
-| `docs/Project - Portfolio Holdings MVP/RUNBOOK.md` | [docs/projects/portfolio-holdings/RUNBOOK.md](projects/portfolio-holdings/RUNBOOK.md) |
-| `docs/Project - Portfolio Holdings MVP/S0_ACCEPTANCE.md` | [docs/projects/portfolio-holdings/S0_ACCEPTANCE.md](projects/portfolio-holdings/S0_ACCEPTANCE.md) |
-| `docs/Project - Portfolio Holdings MVP/STAGE_ACCEPTANCE.md` | [docs/projects/portfolio-holdings/STAGE_ACCEPTANCE.md](projects/portfolio-holdings/STAGE_ACCEPTANCE.md) |
-| `docs/Project - Portfolio Holdings MVP/TECHNICAL_DESIGN.md` | [docs/projects/portfolio-holdings/TECHNICAL_DESIGN.md](projects/portfolio-holdings/TECHNICAL_DESIGN.md) |
-| `docs/Project - Portfolio Holdings MVP/Web_&_Data_Entry_Spec.md` | [docs/projects/portfolio-holdings/Web_&_Data_Entry_Spec.md](projects/portfolio-holdings/Web_&_Data_Entry_Spec.md) |
-| `docs/limit-with-moc/CONFIGURATION.md` | [docs/products/limit-with-moc/CONFIGURATION.md](products/limit-with-moc/CONFIGURATION.md) |
-| `docs/limit-with-moc/DESIGN.md` | [docs/products/limit-with-moc/DESIGN.md](products/limit-with-moc/DESIGN.md) |
-| `docs/limit-with-moc/VERIFICATION.md` | [docs/products/limit-with-moc/VERIFICATION.md](products/limit-with-moc/VERIFICATION.md) |
-| `docs/limit-with-moc/futu-live-behavior.md` | [docs/products/limit-with-moc/futu-live-behavior.md](products/limit-with-moc/futu-live-behavior.md) |
+| `docs/Project - Portfolio Holdings MVP/CONSISTENCY_REVIEW.md` | [docs/projects/portfolio-holdings/history/CONSISTENCY_REVIEW.md](projects/portfolio-holdings/history/CONSISTENCY_REVIEW.md) |
+| `docs/Project - Portfolio Holdings MVP/CSV_IMPORT.md` | [docs/projects/portfolio-holdings/guides/CSV_IMPORT.md](projects/portfolio-holdings/guides/CSV_IMPORT.md) |
+| `docs/Project - Portfolio Holdings MVP/Codex_Handoff_Brief.md` | [docs/projects/portfolio-holdings/history/Codex_Handoff_Brief.md](projects/portfolio-holdings/history/Codex_Handoff_Brief.md) |
+| `docs/Project - Portfolio Holdings MVP/DECISIONS.md` | [docs/projects/portfolio-holdings/planning/DECISIONS.md](projects/portfolio-holdings/planning/DECISIONS.md) |
+| `docs/Project - Portfolio Holdings MVP/Financia_Account_PRD.md` | [docs/projects/portfolio-holdings/design/Financial_Account_PRD.md](projects/portfolio-holdings/design/Financial_Account_PRD.md) |
+| `docs/Project - Portfolio Holdings MVP/GAP_ANALYSIS.md` | [docs/projects/portfolio-holdings/history/GAP_ANALYSIS.md](projects/portfolio-holdings/history/GAP_ANALYSIS.md) |
+| `docs/Project - Portfolio Holdings MVP/Logical_Data_Model_Schema_Spec.md` | [docs/projects/portfolio-holdings/design/Logical_Data_Model_Schema_Spec.md](projects/portfolio-holdings/design/Logical_Data_Model_Schema_Spec.md) |
+| `docs/Project - Portfolio Holdings MVP/MODULE_BOUNDARIES.md` | [docs/projects/portfolio-holdings/design/MODULE_BOUNDARIES.md](projects/portfolio-holdings/design/MODULE_BOUNDARIES.md) |
+| `docs/Project - Portfolio Holdings MVP/PRD.md` | [docs/projects/portfolio-holdings/design/PRD.md](projects/portfolio-holdings/design/PRD.md) |
+| `docs/Project - Portfolio Holdings MVP/PROJECT_PLAN.md` | [docs/projects/portfolio-holdings/planning/PROJECT_PLAN.md](projects/portfolio-holdings/planning/PROJECT_PLAN.md) |
+| `docs/Project - Portfolio Holdings MVP/REFERENCE_DATA_UPDATES.md` | [docs/projects/portfolio-holdings/history/REFERENCE_DATA_UPDATES.md](projects/portfolio-holdings/history/REFERENCE_DATA_UPDATES.md) |
+| `docs/Project - Portfolio Holdings MVP/REVIEW_FIXES.md` | [docs/projects/portfolio-holdings/history/REVIEW_FIXES.md](projects/portfolio-holdings/history/REVIEW_FIXES.md) |
+| `docs/Project - Portfolio Holdings MVP/RUNBOOK.md` | [docs/projects/portfolio-holdings/guides/RUNBOOK.md](projects/portfolio-holdings/guides/RUNBOOK.md) |
+| `docs/Project - Portfolio Holdings MVP/S0_ACCEPTANCE.md` | [docs/projects/portfolio-holdings/history/S0_ACCEPTANCE.md](projects/portfolio-holdings/history/S0_ACCEPTANCE.md) |
+| `docs/Project - Portfolio Holdings MVP/STAGE_ACCEPTANCE.md` | [docs/projects/portfolio-holdings/history/STAGE_ACCEPTANCE.md](projects/portfolio-holdings/history/STAGE_ACCEPTANCE.md) |
+| `docs/Project - Portfolio Holdings MVP/TECHNICAL_DESIGN.md` | [docs/projects/portfolio-holdings/design/TECHNICAL_DESIGN.md](projects/portfolio-holdings/design/TECHNICAL_DESIGN.md) |
+| `docs/Project - Portfolio Holdings MVP/Web_&_Data_Entry_Spec.md` | [docs/projects/portfolio-holdings/design/Web_&_Data_Entry_Spec.md](projects/portfolio-holdings/design/Web_&_Data_Entry_Spec.md) |
+| `docs/limit-with-moc/CONFIGURATION.md` | [docs/projects/limit-with-moc/CONFIGURATION.md](projects/limit-with-moc/CONFIGURATION.md) |
+| `docs/limit-with-moc/DESIGN.md` | [docs/projects/limit-with-moc/DESIGN.md](projects/limit-with-moc/DESIGN.md) |
+| `docs/limit-with-moc/VERIFICATION.md` | [docs/projects/limit-with-moc/VERIFICATION.md](projects/limit-with-moc/VERIFICATION.md) |
+| `docs/limit-with-moc/futu-live-behavior.md` | [docs/projects/limit-with-moc/futu-live-behavior.md](projects/limit-with-moc/futu-live-behavior.md) |
 | `forecaster/README.md` | [docs/modules/forecaster/README.md](modules/forecaster/README.md) |
 | `instrument_manager/README.md` | [docs/modules/instrument_manager/README.md](modules/instrument_manager/README.md) |
 | `instrument_manager/README_zh-Hans.md` | [docs/modules/instrument_manager/README_zh-Hans.md](modules/instrument_manager/README_zh-Hans.md) |

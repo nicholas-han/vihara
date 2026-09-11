@@ -1,6 +1,6 @@
 # Financial Account v1.0 — 实现与验收
 
-更新：2026-09-09。基线：本地 main `6b3e66b`；分支：`docs/financial-account-design`。依据 [用户原始 PRD](Financial_Account_PRD.md) 与 [实施设计](FINANCIAL_ACCOUNT_DESIGN.md)。原 PRD 内容保持不变。
+更新：2026-09-09。基线：本地 main `6b3e66b`；分支：`docs/financial-account-design`。依据 [用户原始 PRD](../design/Financial_Account_PRD.md) 与 [实施设计](../design/FINANCIAL_ACCOUNT_DESIGN.md)。原 PRD 内容保持不变。
 
 ## 交付范围
 
@@ -47,9 +47,9 @@ python3 -m pip wheel --no-deps --no-build-isolation ./ledger ./portfolio_manager
 
 ## 文档与运行边界
 
-正文集中在根 `docs/`，按 modules/projects/products/strategies/research 分类；根目录与模块 README 保留导航，测试 fixture 与许可证保留原位置。85 份集中后的 Markdown 正文及 400 个本地文件链接已核查，无断链；77 份原文档移动，9 个模块 README 入口保留。完整迁移规则见 [文档维护指南](../../DOCUMENTATION_GUIDE.md)。
+正文集中在根 `docs/`，按 modules/projects/products/strategies/research 分类；根目录与模块 README 保留导航，测试 fixture 与许可证保留原位置。85 份集中后的 Markdown 正文及 400 个本地文件链接已核查，无断链；77 份原文档移动，9 个模块 README 入口保留。完整迁移规则见 [文档维护指南](../../../DOCUMENTATION_GUIDE.md)。
 
-按 PRD 的 fresh-database 要求，本版本拒绝 v1–v6，而不迁移或覆盖旧数据。使用已有旧库的环境须配置新的独立 v7 数据库路径。复杂账户通过 [Runbook](RUNBOOK.md) 的参考数据 JSON 一次建立，普通页面不编辑历史 reference。导入字段和来源 namespace 规则见 [CSV 合同](CSV_IMPORT.md)。
+按 PRD 的 fresh-database 要求，本版本拒绝 v1–v6，而不迁移或覆盖旧数据。使用已有旧库的环境须配置新的独立 v7 数据库路径。复杂账户通过 [Runbook](../guides/RUNBOOK.md) 的参考数据 JSON 一次建立，普通页面不编辑历史 reference。导入字段和来源 namespace 规则见 [CSV 合同](../guides/CSV_IMPORT.md)。
 
 ## 2026-09-10 PR review 后续处理
 

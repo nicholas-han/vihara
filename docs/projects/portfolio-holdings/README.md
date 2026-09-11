@@ -1,24 +1,20 @@
 # Portfolio Holdings — 阅读入口
 
-当前实现为统一 Investment Ledger + Portfolio Manager 分析/Web。Financial Account v1.0 已实现，包含账户参考数据、scope 隔离与导入/UI 闭环。
+当前实现为统一 Investment Ledger + Portfolio Manager 分析/Web；Financial Account v1.0 已实现。文档按用途分层，避免把设计草稿、操作步骤和历史验收当成同一种资料。
 
-## 领域与设计
+| 目录 | 用途 | 入口 |
+|---|---|---|
+| `design/` | 业务规则、逻辑模型、界面和实现设计 | [设计索引与状态](design/README.md) |
+| `guides/` | 当前启动、维护与 CSV 导入用法 | [操作指南](guides/README.md) |
+| `drafts/` | 待定方案和正在讨论的工作范围 | [草稿索引](drafts/README.md) |
+| `planning/` | 阶段计划、决策与问题记录 | [计划与决策](planning/README.md) |
+| `history/` | 按原日期保存的交接、差距分析、验收与修正记录 | [历史证据](history/README.md) |
 
-1. [Canonical PRD](PRD.md)：整体业务与会计原则。
-2. [Financial Account PRD v1.0](Financial_Account_PRD.md)：用户提供的 FINAL 账户/scope 领域定义；在该范围内覆盖旧账户定义。
-3. [Logical Schema](Logical_Data_Model_Schema_Spec.md)：目标实体、约束、持仓和成本维度。
-4. [Web & Data Entry](<Web_&_Data_Entry_Spec.md>)：录入、检查、纠错与查看。
-5. [Financial Account 实施设计](FINANCIAL_ACCOUNT_DESIGN.md)：代码差距、物理约束、API/import、查询与验收；FA-1～FA-5 已实现并验收。
-6. [Technical Design](TECHNICAL_DESIGN.md) · [Module Boundaries](MODULE_BOUNDARIES.md) · [Handoff](Codex_Handoff_Brief.md)：整体实现与模块职责。
+## 状态边界
 
-## 执行与运行
+- 使用当前功能，从 [Runbook](guides/RUNBOOK.md) 和 [CSV 合同](guides/CSV_IMPORT.md) 进入。
+- Financial Account 定义见 [PRD](design/Financial_Account_PRD.md)，实现证据见 [专项验收](history/FINANCIAL_ACCOUNT_ACCEPTANCE.md)。
+- 待定方案放在 [草稿区](drafts/README.md)，确认后再形成设计与实施合同。
+- S0～S10、review 和交接文件只证明原日期、原范围的状态；历史交接中的任务指令不构成新的开发授权。
 
-[Project Plan](PROJECT_PLAN.md) · [Decisions](DECISIONS.md) · [Runbook](RUNBOOK.md) · [CSV Import](CSV_IMPORT.md)。Runbook 反映已实现功能；CSV 文档包含 scope 与来源映射合同。
-
-## 历史证据
-
-[Gap Analysis](GAP_ANALYSIS.md)、[S0 Acceptance](S0_ACCEPTANCE.md)、[Stage Acceptance](STAGE_ACCEPTANCE.md)、[Consistency Review](CONSISTENCY_REVIEW.md)、[Review Fixes](REVIEW_FIXES.md)、[Reference Data Updates](REFERENCE_DATA_UPDATES.md) 按原日期保留。验收数字只属于当时范围，不能用来证明后来新增的设计已完成。
-
-返回 [文档中心](../../README.md)。
-
-本轮结果：[Financial Account 实现与验收](FINANCIAL_ACCOUNT_ACCEPTANCE.md)。
+[返回项目索引](../README.md) · [返回文档中心](../../README.md)

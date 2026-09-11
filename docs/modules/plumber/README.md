@@ -39,8 +39,8 @@ not contain `acc_id`; the adapter filters the public protobuf header account ID
 before converting the rows. Pushes are evidence and query triggers, not proof that
 a cancellation request succeeded.
 
-Read [private configuration](../../products/limit-with-moc/CONFIGURATION.md) and
-[Futu verification](../../products/limit-with-moc/futu-live-behavior.md).
+Read [private configuration](../../projects/limit-with-moc/CONFIGURATION.md) and
+[Futu verification](../../projects/limit-with-moc/futu-live-behavior.md).
 
 
 Hyperliquid is available as the `hyperliquid` optional dependency extra and the

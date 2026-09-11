@@ -1,25 +1,30 @@
 # Portfolio Holdings MVP — 本地使用说明
 
-> 2026-09-08：参考数据及查询/UI 已同步。Web 全英文：Settings 创建 Financial Account，Add Transaction 预览及录入，Transactions 查询及 Reversal。普通余额/批次读取冻结记录；经济重演用于写入检查与独立 validation。见 [一致性修正记录](CONSISTENCY_REVIEW.md)。
+> 2026-09-08：参考数据及查询/UI 已同步。Web 全英文：Settings 创建 Financial Account，Add Transaction 预览及录入，Transactions 查询及 Reversal。普通余额/批次读取冻结记录；经济重演用于写入检查与独立 validation。见 [一致性修正记录](../history/CONSISTENCY_REVIEW.md)。
 
-> 2026-09-07 模块调整：Accounting Ledger 与 Position Ledger 统一迁入 `ledger.investment`；Portfolio 保留分析、估值与英文 Web。当前边界详见 [MODULE_BOUNDARIES](MODULE_BOUNDARIES.md)。
+> 2026-09-07 模块调整：Accounting Ledger 与 Position Ledger 统一迁入 `ledger.investment`；Portfolio 保留分析、估值与英文 Web。当前边界详见 [MODULE_BOUNDARIES](../design/MODULE_BOUNDARIES.md)。
 
-更新：2026-09-09。对应 Financial Account schema v7；见 [专项验收](FINANCIAL_ACCOUNT_ACCEPTANCE.md)。专项入口见 [PROJECT_PLAN](PROJECT_PLAN.md)，验收证据见 [STAGE_ACCEPTANCE](STAGE_ACCEPTANCE.md)。
+更新：2026-09-09。对应 Financial Account schema v7；见 [专项验收](../history/FINANCIAL_ACCOUNT_ACCEPTANCE.md)。专项入口见 [PROJECT_PLAN](../planning/PROJECT_PLAN.md)，验收证据见 [STAGE_ACCEPTANCE](../history/STAGE_ACCEPTANCE.md)。
+
+> 2026-09-10 存储整理：所有本机数据统一到 Dropbox `Vihara Archive`，布局见 [数据存储约定](../../../operations/DATA_STORAGE.md)。按用户要求删除过期 v6 库及备份，已重新初始化并验证 v7 空库，可直接按下面的命令启动。
 
 ## 启动
 
-当前仓库实际目录是 `/Users/nicholashan/git/_vihara/vihara`，分支 `docs/financial-account-design`。从仓库根目录执行：
+当前仓库实际目录是 `/Users/nicholashan/git/vihara`。从仓库根目录执行：
 
 ```sh
+cd /Users/nicholashan/git/vihara
+set -a
+. ./.env
+set +a
 export PYTHONPATH="$PWD/instrument_manager:$PWD/portfolio_manager:$PWD/ledger"
 export IM_PYBIND_DIR="$PWD/build/holdings-im"
-python3 -m portfolio_manager.holdings --db "$PWD/state/holdings.sqlite3" init
-python3 portfolio_manager/scripts/run_records_web.py --db "$PWD/state/holdings.sqlite3" --port 8643
+python3 portfolio_manager/scripts/run_records_web.py --db "$PORTFOLIO_HOLDINGS_DB_PATH" --port 8643
 ```
 
-打开 http://127.0.0.1:8643 。`init` 创建 schema v7 空库或验证已有 v7；v1–v6 库拒绝打开且不改写。已有旧库请指定新的独立数据库路径，例如 state/holdings-v7.sqlite3，并在后续所有命令及 Web 使用同一路径；不自动迁移数据；`serve` 不自动初始化。终端 Ctrl+C 停止服务。启动脚本也可读取 PORTFOLIO_HOLDINGS_DB_PATH；不读取旧 PORTFOLIO_DB_PATH，不从旧 .env 或期初数据建立持仓。
+打开 http://127.0.0.1:8643 。`init` 创建 schema v7 空库或验证已有 v7；v1–v6 库拒绝打开且不改写。已有旧库请指定新的独立数据库路径，并在后续命令及 Web 中使用同一路径；不自动迁移数据；`serve` 不自动初始化。终端 Ctrl+C 停止服务。启动脚本也可读取 PORTFOLIO_HOLDINGS_DB_PATH；不读取旧 PORTFOLIO_DB_PATH，只从 repo 根目录 `.env` 读取显式路径（环境变量和命令行优先），不从旧 Portfolio 数据或期初数据建立持仓。
 
-当前本机 C++ binding 已构建在 `build/holdings-im`，正式账本为独立的 `state/holdings.sqlite3`。两者均不进入 Git；不要把账本放进可删除的 build 或临时目录。所有本轮经济验收使用临时库，正式空库没有样例交易、期初持仓或预填汇率。
+当前本机 C++ binding 已构建在 `build/holdings-im`，正式账本位于 `$VIHARA_DATA_DIR/data/holdings.sqlite3`。两者均不进入 Git；不要把账本放进可删除的 build 或临时目录。历史验收使用临时库；2026-09-10 初始化时正式账本为 v7 空库，含 0 个账户、0 笔交易；当前内容应以实际查询为准。
 
 如换机器或 Python 版本，需重建与 Python 匹配的 binding：
 
@@ -33,7 +38,7 @@ Python 需安装项目依赖及 FastAPI/uvicorn。本次验证环境为 Python 3
 ## 首次使用
 
 1. 设置页创建账户，例如 IBKR；选择 institution type，可填国家/地区。普通页面不编辑已有账户；账户非 PK 字段仅允许受控数据库 correction。
-2. 检查产品。内置参考集含 HKD、USD、USDT、USDC 四个 Currency，以及 AAPL、BTC、HYPE、NVDA、GOOGL、GOOG、FUTU、INTC、SKHY、COIN、CRCL 共 11 个 Tradable Product；它们不是已有持仓。报价币种及身份见 [REFERENCE_DATA_UPDATES](REFERENCE_DATA_UPDATES.md)。
+2. 检查产品。内置参考集含 HKD、USD、USDT、USDC 四个 Currency，以及 AAPL、BTC、HYPE、NVDA、GOOGL、GOOG、FUTU、INTC、SKHY、COIN、CRCL 共 11 个 Tradable Product；它们不是已有持仓。报价币种及身份见 [REFERENCE_DATA_UPDATES](../history/REFERENCE_DATA_UPDATES.md)。
 3. 若需要外币入账，先导入准确日期的 Book FX。
 4. 录入页选择现金移动、买卖、换汇或股息，先预览，再确认。
 5. 持仓页查看现金、投资历史成本和估值；点击币种或资产追溯分录、批次和来源交易。
@@ -42,7 +47,7 @@ Python 需安装项目依赖及 FastAPI/uvicorn。本次验证环境为 Python 3
 
 ## 参考数据
 
-默认使用 `instrument_manager/instrument_manager/seeds/holdings` 的受控 JSON。更多资产可在独立的 Instrument Manager 主数据目录维护，用 `--catalog /absolute/path` 明确指定；启动经真实 C++ 校验后建立只读 catalog，不自动猜测或创建产品。
+本机 `.env` 指向 `$VIHARA_DATA_DIR/references/holdings` 的受控 JSON；未指定 catalog 时 CLI 才使用包内 seeds。更多资产可在独立的 Instrument Manager 主数据目录维护，用 `--catalog /absolute/path` 明确指定；启动经真实 C++ 校验后建立只读 catalog，不自动猜测或创建产品。
 
 Currency-like Observable 需 TRANSFERABLE、FIAT_CURRENCY/STABLECOIN 与 metadata.currency_code；Holding Product 需 OPEN_ENDED、唯一 HOLDING leg、稳定且唯一 leg_id，asset 与 quote_ccy 都引用 Observable；ExternalIdentifier 必须有 valid_from，可选 valid_to 为右开区间。Listing 不确定时保持空值。
 
@@ -69,7 +74,7 @@ Currency-like Observable 需 TRANSFERABLE、FIAT_CURRENCY/STABLECOIN 与 metadat
 ```
 
 ```sh
-python3 -m portfolio_manager.holdings --db "$PWD/state/holdings.sqlite3" import-references /absolute/path/references.json
+python3 -m portfolio_manager.holdings --db "$PORTFOLIO_HOLDINGS_DB_PATH" import-references /absolute/path/references.json
 ```
 
 整批原子、重复相同定义不变。可以追加 scope/外部号码；定义冲突或未知税制整批失败。需要复杂 scope 的新账户直接在 JSON 中一次建立，避免先建不需要的 DEFAULT。外部号码保留前导零；新号码追加记录，旧记录保留。没有普通 TaxScheme 编辑、scope 迁移或生命周期管理入口。
@@ -89,7 +94,7 @@ USDT,2026-09-06,7.8,example-source
 以上是格式示例。rate 为每单位外币对应 HKD；使用真实来源替换后导入：
 
 ```sh
-python3 -m portfolio_manager.holdings --db "$PWD/state/holdings.sqlite3" import-book-fx /absolute/path/book-fx.csv
+python3 -m portfolio_manager.holdings --db "$PORTFOLIO_HOLDINGS_DB_PATH" import-book-fx /absolute/path/book-fx.csv
 ```
 
 整批原子导入。同币种同日修订追加版本，旧交易保留原采用版本和金额。精确日期缺失会拒绝需要该汇率的交易，不沿用上一日；内部同币转账、功能币参与的实际换汇不会索取无用 Book FX。
@@ -102,8 +107,8 @@ python3 -m portfolio_manager.holdings --db "$PWD/state/holdings.sqlite3" import-
 市场汇率 CSV：`base_currency,quote_currency,rate,as_of,source`。
 
 ```sh
-python3 -m portfolio_manager.holdings --db "$PWD/state/holdings.sqlite3" import-market-prices /absolute/path/prices.csv
-python3 -m portfolio_manager.holdings --db "$PWD/state/holdings.sqlite3" import-market-fx /absolute/path/market-fx.csv
+python3 -m portfolio_manager.holdings --db "$PORTFOLIO_HOLDINGS_DB_PATH" import-market-prices /absolute/path/prices.csv
+python3 -m portfolio_manager.holdings --db "$PORTFOLIO_HOLDINGS_DB_PATH" import-market-fx /absolute/path/market-fx.csv
 ```
 
 股价按 Observable ID 查询，不按某笔交易 Product。汇率明确提供 native/valuation currency → HKD；不自动求倒数或跨币种拼接。使用不晚于查看日期的最新 observation，并展示实际日期；同日新输入覆盖查询选择而不删除旧 observation。
@@ -123,9 +128,9 @@ python3 -m portfolio_manager.holdings --db "$PWD/state/holdings.sqlite3" import-
 ## 对账、备份与恢复
 
 ```sh
-python3 -m portfolio_manager.holdings --db "$PWD/state/holdings.sqlite3" validate
-python3 -m portfolio_manager.holdings --db "$PWD/state/holdings.sqlite3" backup /absolute/path/backups/holdings-2026-09-06.sqlite3
-python3 -m portfolio_manager.holdings --db /absolute/path/restored.sqlite3 restore /absolute/path/backups/holdings-2026-09-06.sqlite3
+python3 -m portfolio_manager.holdings --db "$PORTFOLIO_HOLDINGS_DB_PATH" validate
+python3 -m portfolio_manager.holdings --db "$PORTFOLIO_HOLDINGS_DB_PATH" backup "$VIHARA_DATA_DIR/backups/holdings-YYYYMMDD.sqlite3"
+python3 -m portfolio_manager.holdings --db "$VIHARA_DATA_DIR/backups/restored.sqlite3" restore "$VIHARA_DATA_DIR/backups/holdings-YYYYMMDD.sqlite3"
 ```
 
 备份使用 SQLite 一致性快照并验证。备份/恢复目标必须不存在；不会覆盖原账本。恢复保留所有交易 ID、分录、批次、冲销关系、输入依据与导入关联；不要用 CSV 重导入代替恢复。恢复后使用新路径启动，再决定正式切换。

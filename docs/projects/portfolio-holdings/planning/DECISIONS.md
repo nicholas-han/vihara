@@ -1,6 +1,6 @@
 # Portfolio Holdings MVP — 决策与待确认事项
 
-> 2026-09-07 模块调整：Accounting Ledger 与 Position Ledger 统一迁入 `ledger.investment`；Portfolio 保留分析、估值与英文 Web。当前边界详见 [MODULE_BOUNDARIES](MODULE_BOUNDARIES.md)。
+> 2026-09-07 模块调整：Accounting Ledger 与 Position Ledger 统一迁入 `ledger.investment`；Portfolio 保留分析、估值与英文 Web。当前边界详见 [MODULE_BOUNDARIES](../design/MODULE_BOUNDARIES.md)。
 
 **版本：** v0.2  
 **更新：** 2026-09-06
@@ -58,7 +58,7 @@
 
 ## 2. 工程选择
 
-以下方案见 [TDD](TECHNICAL_DESIGN.md)，在总体实施方案评审中可以调整，不需要各自单独做领域决策：
+以下方案见 [TDD](../design/TECHNICAL_DESIGN.md)，在总体实施方案评审中可以调整，不需要各自单独做领域决策：
 
 | 编号 | 选择 | 理由 |
 |---|---|---|
@@ -146,6 +146,6 @@
 
 ## D-FA-001 — Financial Account v1.0（2026-09-09）
 
-用户新增 FINAL PRD 是本轮领域依据：[原文](Financial_Account_PRD.md)。FinancialAccount 为内部 aggregation boundary；Cash 保持账户 × 币种；Position 与成本批次按 PositionScope 隔离；scope 必须先进入 canonical Trade。TaxScheme 分类 scope；外部号码是 provenance，不构成 Holdings 维度。
+用户新增 FINAL PRD 是本轮领域依据：[原文](../design/Financial_Account_PRD.md)。FinancialAccount 为内部 aggregation boundary；Cash 保持账户 × 币种；Position 与成本批次按 PositionScope 隔离；scope 必须先进入 canonical Trade。TaxScheme 分类 scope；外部号码是 provenance，不构成 Holdings 维度。
 
-已知旧规则覆盖：账户非 PK 字段允许数据库 correction；MVP 无普通字段编辑入口；LOCATION 和 Lot 不再保存 financial_account_id；不实现 scope transfer。工程实现与验收见 [增量设计](FINANCIAL_ACCOUNT_DESIGN.md)，已实现并通过 [专项验收](FINANCIAL_ACCOUNT_ACCEPTANCE.md)。
+已知旧规则覆盖：账户非 PK 字段允许数据库 correction；MVP 无普通字段编辑入口；LOCATION 和 Lot 不再保存 financial_account_id；不实现 scope transfer。工程实现与验收见 [增量设计](../design/FINANCIAL_ACCOUNT_DESIGN.md)，已实现并通过 [专项验收](../history/FINANCIAL_ACCOUNT_ACCEPTANCE.md)。

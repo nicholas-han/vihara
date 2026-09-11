@@ -5,11 +5,11 @@
 **状态：** 只读审查完成；运行测试基线留待开发启动  
 **代码基准：** `12b80c956abdb024a2a0542530c03b6e5c501d3b`，分支 `portfolio-holdings-mvp`
 
-推进入口：[PROJECT_PLAN](PROJECT_PLAN.md)。已确认决定和未决项：[DECISIONS](DECISIONS.md)。实现方案：[TECHNICAL_DESIGN](TECHNICAL_DESIGN.md)。
+推进入口：[PROJECT_PLAN](../planning/PROJECT_PLAN.md)。已确认决定和未决项：[DECISIONS](../planning/DECISIONS.md)。实现方案：[TECHNICAL_DESIGN](../design/TECHNICAL_DESIGN.md)。
 
 ## 1. 审查范围与证据边界
 
-实际仓库位于 `/Users/nicholashan/git/_vihara/vihara`，当前任务旧目录 `/Users/nicholashan/git/vihara` 不存在。实施与文件链接应使用实际路径。
+仓库统一位于 `/Users/nicholashan/git/vihara`。实施与文件链接均使用此路径。
 
 已阅读四份专项文档，以及 records model/service/store/import/rebuild/API/Web、成本与 FX 计算、ledger bridge、通用 ledger store/Web、Instrument C++ HoldingLeg/Product 和 Python loader/index、相关测试及配置。检查了配置指向数据的目录、CSV 行数和数据库只读行数。
 
@@ -31,14 +31,14 @@
 
 关键实现：
 
-- [models.py](../../../portfolio_manager/portfolio_manager/records/models.py)
-- [cost_basis.py](../../../portfolio_manager/portfolio_manager/records/cost_basis.py)
-- [service.py](../../../portfolio_manager/portfolio_manager/records/service.py)
-- [sqlite_repos.py](../../../portfolio_manager/portfolio_manager/records/sqlite_repos.py)
-- [import_service.py](../../../portfolio_manager/portfolio_manager/records/import_service.py)
-- [rebuild.py](../../../portfolio_manager/portfolio_manager/records/rebuild.py)
-- [app.py](../../../portfolio_manager/portfolio_manager/records/app.py)
-- [现有 Web](../../../portfolio_manager/portfolio_manager/web/index.html)
+- [models.py](../../../../portfolio_manager/portfolio_manager/records/models.py)
+- [cost_basis.py](../../../../portfolio_manager/portfolio_manager/records/cost_basis.py)
+- [service.py](../../../../portfolio_manager/portfolio_manager/records/service.py)
+- [sqlite_repos.py](../../../../portfolio_manager/portfolio_manager/records/sqlite_repos.py)
+- [import_service.py](../../../../portfolio_manager/portfolio_manager/records/import_service.py)
+- [rebuild.py](../../../../portfolio_manager/portfolio_manager/records/rebuild.py)
+- [app.py](../../../../portfolio_manager/portfolio_manager/records/app.py)
+- [现有 Web](../../../../portfolio_manager/portfolio_manager/web/index.html)
 
 ### 2.2 Ledger
 
@@ -48,7 +48,7 @@
 
 `portfolio_manager/ledger_bridge` 从旧 CSV / opening / 原币成本生成通用记账分录，另有 withholding tax 和动态科目映射；不具备新处理链的同步原子性。
 
-证据：[ledger store](../../../ledger/ledger/store/db.py)、[ledger Web](../../../ledger/ledger/webapp/app.py)、[bridge generator](../../../portfolio_manager/portfolio_manager/ledger_bridge/generator.py)。
+证据：[ledger store](../../../../ledger/ledger/store/db.py)、[ledger Web](../../../../ledger/ledger/webapp/app.py)、[bridge generator](../../../../portfolio_manager/portfolio_manager/ledger_bridge/generator.py)。
 
 ### 2.3 Instrument Manager
 
@@ -65,7 +65,7 @@
 - Listing 仍保存 venue_symbol / contract_size；新 MVP 需要以 product / venue / segment 唯一，symbol history 归 ExternalIdentifier。
 - C++ Product 仍有 quote_asset；MVP 解析应以 HoldingLeg.quote 为准，旧字段不能成为另一套报价币种 authority。
 
-证据：[loader](../../../instrument_manager/instrument_manager/serde/loader.py)、[index](../../../instrument_manager/instrument_manager/index/sqlite_index.py)、[Product](../../../instrument_manager/cpp/src/core/product.hpp)、[HoldingLeg](../../../instrument_manager/cpp/src/core/payout_leg.hpp)。
+证据：[loader](../../../../instrument_manager/instrument_manager/serde/loader.py)、[index](../../../../instrument_manager/instrument_manager/index/sqlite_index.py)、[Product](../../../../instrument_manager/cpp/src/core/product.hpp)、[HoldingLeg](../../../../instrument_manager/cpp/src/core/payout_leg.hpp)。
 
 ### 2.4 其他模块
 
@@ -175,4 +175,4 @@
 
 主要风险集中在：统一持久化事务、旧 Instrument 契约接入、后补交易对冻结历史的影响、冲销后的校验口径。迁移历史业务数据不再是本期风险或工作项。
 
-后续执行以 [PROJECT_PLAN](PROJECT_PLAN.md) 为准；Q-001～Q-003 在 [DECISIONS](DECISIONS.md) 收口，具体工程设计见 [TECHNICAL_DESIGN](TECHNICAL_DESIGN.md)。
+后续执行以 [PROJECT_PLAN](../planning/PROJECT_PLAN.md) 为准；Q-001～Q-003 在 [DECISIONS](../planning/DECISIONS.md) 收口，具体工程设计见 [TECHNICAL_DESIGN](../design/TECHNICAL_DESIGN.md)。

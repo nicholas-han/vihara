@@ -1,11 +1,11 @@
 # Portfolio Holdings MVP — 专项推进总计划
 
-> 2026-09-09 target update: [Financial Account PRD v1.0](Financial_Account_PRD.md) governs account aggregation, PositionScope and cost-basis boundaries. [Implementation design](FINANCIAL_ACCOUNT_DESIGN.md) and [Financial Account acceptance](FINANCIAL_ACCOUNT_ACCEPTANCE.md) describe the implemented increment; S0–S10 reports remain historical records.
+> 2026-09-09 target update: [Financial Account PRD v1.0](../design/Financial_Account_PRD.md) governs account aggregation, PositionScope and cost-basis boundaries. [Implementation design](../design/FINANCIAL_ACCOUNT_DESIGN.md) and [Financial Account acceptance](../history/FINANCIAL_ACCOUNT_ACCEPTANCE.md) describe the implemented increment; S0–S10 reports remain historical records.
 
 
-> 2026-09-08：S0～S10 为原阶段验收记录，不代表每个设计字段当时均完整落地。后续文档同步、冻结查询、筛选及详情补齐与 PR bot 建议逐项结论见 [CONSISTENCY_REVIEW](CONSISTENCY_REVIEW.md)。历史验收数字按日期保留。
+> 2026-09-08：S0～S10 为原阶段验收记录，不代表每个设计字段当时均完整落地。后续文档同步、冻结查询、筛选及详情补齐与 PR bot 建议逐项结论见 [CONSISTENCY_REVIEW](../history/CONSISTENCY_REVIEW.md)。历史验收数字按日期保留。
 
-> 2026-09-07 模块调整：Accounting Ledger 与 Position Ledger 统一迁入 `ledger.investment`；Portfolio 保留分析、估值与英文 Web。当前边界详见 [MODULE_BOUNDARIES](MODULE_BOUNDARIES.md)。
+> 2026-09-07 模块调整：Accounting Ledger 与 Position Ledger 统一迁入 `ledger.investment`；Portfolio 保留分析、估值与英文 Web。当前边界详见 [MODULE_BOUNDARIES](../design/MODULE_BOUNDARIES.md)。
 
 **版本：** v1.0  
 **更新：** 2026-09-06  
@@ -19,13 +19,13 @@
 
 | 文档 | 回答的问题 | 状态 |
 |---|---|---|
-| [PRD](PRD.md) | 做什么、为什么、业务边界 | 已同步确认规则 |
-| [Logical Schema](Logical_Data_Model_Schema_Spec.md) | 领域实体、事实来源、约束与对账 | 已同步确认规则 |
-| [Web & Data Entry](<Web_&_Data_Entry_Spec.md>) | 用户怎样录入、检查、纠错和查看资产 | 已同步确认规则 |
-| [Codex Handoff Brief](Codex_Handoff_Brief.md) | 如何结合真实仓库实施 | 实施指导 |
+| [PRD](../design/PRD.md) | 做什么、为什么、业务边界 | 已同步确认规则 |
+| [Logical Schema](../design/Logical_Data_Model_Schema_Spec.md) | 领域实体、事实来源、约束与对账 | 已同步确认规则 |
+| [Web & Data Entry](<../design/Web_&_Data_Entry_Spec.md>) | 用户怎样录入、检查、纠错和查看资产 | 已同步确认规则 |
+| [Codex Handoff Brief](../history/Codex_Handoff_Brief.md) | 如何结合真实仓库实施 | 实施指导 |
 | [本总计划](PROJECT_PLAN.md) | 专项推进流程、阶段交付和进度 | 执行入口 |
-| [差距分析](GAP_ANALYSIS.md) | 真实仓库与新目标之间的差距 | 只读审查结果 |
-| [技术设计](TECHNICAL_DESIGN.md) | 模块、存储、接口、处理链路、切换和测试 | 已确认实施设计 |
+| [差距分析](../history/GAP_ANALYSIS.md) | 真实仓库与新目标之间的差距 | 只读审查结果 |
+| [技术设计](../design/TECHNICAL_DESIGN.md) | 模块、存储、接口、处理链路、切换和测试 | 已确认实施设计 |
 | [决策记录](DECISIONS.md) | 哪些已确认，哪些仍需讨论 | 持续维护 |
 
 业务定义优先级沿用 Handoff §3：PRD → Logical Schema → Web 规范 → 实施设计 → 旧代码及旧文档。用户在本专项中明确确认的新决定同样有效，集中记录在 DECISIONS；若改变 canonical 文档中的规则，在确认后同步修订相关原文，不能只藏在技术设计中。
@@ -128,14 +128,14 @@ Q-001～Q-003 经用户确认后已同步原设计文档；未来未决事项仍
 
 每完成一个阶段更新状态、验证证据和剩余事项，不提前勾选。新增范围先记录理由及对原顺序的影响。阶段记录继续保存在本目录，可在本文件追加或链接专项验收记录，不另建模块级专项计划。
 
-S0 已完成，验收及启动说明见 [S0_ACCEPTANCE](S0_ACCEPTANCE.md)。S0～S10 工程验收完成，启动及使用见 [RUNBOOK](RUNBOOK.md)，CSV 合同见 [CSV_IMPORT](CSV_IMPORT.md)，完整证据见 [STAGE_ACCEPTANCE](STAGE_ACCEPTANCE.md)。原 S0～S10 切片已完成；新的 Financial Account FA-1～FA-5 已实现并验收。旧 mock 数据未删除、未导入。
+S0 已完成，验收及启动说明见 [S0_ACCEPTANCE](../history/S0_ACCEPTANCE.md)。S0～S10 工程验收完成，启动及使用见 [RUNBOOK](../guides/RUNBOOK.md)，CSV 合同见 [CSV_IMPORT](../guides/CSV_IMPORT.md)，完整证据见 [STAGE_ACCEPTANCE](../history/STAGE_ACCEPTANCE.md)。原 S0～S10 切片已完成；新的 Financial Account FA-1～FA-5 已实现并验收。旧 mock 数据未删除、未导入。
 
 ## 7. Financial Account v1.0 增量（2026-09-09）
 
-业务输入：[Financial Account PRD](Financial_Account_PRD.md)（用户提供 FINAL v1.0，领域范围内优先于旧账户定义）。实施方案：[Financial Account design](FINANCIAL_ACCOUNT_DESIGN.md)。原 PRD、Logical Schema、Web Spec 和 Handoff 已同步核心账户/scope 合同。
+业务输入：[Financial Account PRD](../design/Financial_Account_PRD.md)（用户提供 FINAL v1.0，领域范围内优先于旧账户定义）。实施方案：[Financial Account design](../design/FINANCIAL_ACCOUNT_DESIGN.md)。原 PRD、Logical Schema、Web Spec 和 Handoff 已同步核心账户/scope 合同。
 
 - [x] 新增 PRD 纳入仓库文档体系，保留原文内容。
 - [x] 完成实现差距、约束、接口、导入、验收设计。
-- [x] FA-1～FA-5 实现及测试，详见 [专项验收](FINANCIAL_ACCOUNT_ACCEPTANCE.md)。
+- [x] FA-1～FA-5 实现及测试，详见 [专项验收](../history/FINANCIAL_ACCOUNT_ACCEPTANCE.md)。
 
 本分支仅完成设计与文档整理；业务代码、数据库及旧验收数字不据此升级。

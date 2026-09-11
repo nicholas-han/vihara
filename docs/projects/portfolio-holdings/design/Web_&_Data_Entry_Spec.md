@@ -1,6 +1,6 @@
 # Portfolio Holdings & Accounting System
 
-> 2026-09-09 target update: [Financial Account PRD v1.0](Financial_Account_PRD.md) governs account aggregation, PositionScope and cost-basis boundaries. [Implementation design](FINANCIAL_ACCOUNT_DESIGN.md) and [Financial Account acceptance](FINANCIAL_ACCOUNT_ACCEPTANCE.md) describe the implemented increment; S0–S10 reports remain historical records.
+> 2026-09-09 target update: [Financial Account PRD v1.0](Financial_Account_PRD.md) governs account aggregation, PositionScope and cost-basis boundaries. [Implementation design](FINANCIAL_ACCOUNT_DESIGN.md) and [Financial Account acceptance](../history/FINANCIAL_ACCOUNT_ACCEPTANCE.md) describe the implemented increment; S0–S10 reports remain historical records.
 
 
 > 2026-09-08 实施补充：Transaction Status 中 Reversed 表示截至 As Of 已被冲销的原交易；Active 表示未被冲销的记录，包含 Reversal 记录本身（可同时用 Transaction Type 筛选）。From Date / To Date 是包含端点的日期范围，并与全局 As Of 同时生效。

@@ -1,6 +1,6 @@
 # Portfolio Holdings MVP — CSV 合同与操作
 
-> 2026-09-09 target update: [Financial Account PRD v1.0](Financial_Account_PRD.md) governs account aggregation, PositionScope and cost-basis boundaries. [Implementation design](FINANCIAL_ACCOUNT_DESIGN.md) and [Financial Account acceptance](FINANCIAL_ACCOUNT_ACCEPTANCE.md) describe the implemented increment; S0–S10 reports remain historical records.
+> 2026-09-09 target update: [Financial Account PRD v1.0](../design/Financial_Account_PRD.md) governs account aggregation, PositionScope and cost-basis boundaries. [Implementation design](../design/FINANCIAL_ACCOUNT_DESIGN.md) and [Financial Account acceptance](../history/FINANCIAL_ACCOUNT_ACCEPTANCE.md) describe the implemented increment; S0–S10 reports remain historical records.
 
 
 更新：2026-09-09。
@@ -38,6 +38,6 @@ source_system,external_transaction_id,source_account_namespace 为来源去重�
 
 TRADE 增加 position_scope_code（在 account_code 内解析）及可选 external_account_number、source_tax_label。单 scope 可补全，多 scope 必须显式指定或由 source mapping 唯一确定；最终 canonical payload 必须包含 position_scope_id。显式 scope 与来源映射冲突时拒绝。外部号码原样保留在 raw row，映射与最终稳定 IDs 留作证据；不把 external reference 绑定到单一 scope。
 
-去重保留 source_system + source_account_namespace + external_transaction_id 的来源真实唯一范围，不因为多个外部账户汇总到一个 FinancialAccount 而合并命名空间。Canonical payload hash 包含 position_scope_id；同 key 不同 scope 必须报冲突。详细行为见 [增量设计](FINANCIAL_ACCOUNT_DESIGN.md)。页面下载模板已同步这些列。source_tax_label 与 scope code/name 或税制 code/name 精确匹配；未知标签可人工指定 position_scope_code，已知标签与显式 scope 冲突则拒绝。
+去重保留 source_system + source_account_namespace + external_transaction_id 的来源真实唯一范围，不因为多个外部账户汇总到一个 FinancialAccount 而合并命名空间。Canonical payload hash 包含 position_scope_id；同 key 不同 scope 必须报冲突。详细行为见 [增量设计](../design/FINANCIAL_ACCOUNT_DESIGN.md)。页面下载模板已同步这些列。source_tax_label 与 scope code/name 或税制 code/name 精确匹配；未知标签可人工指定 position_scope_code，已知标签与显式 scope 冲突则拒绝。
 
 推断 namespace 区分 external/account 类型，显式 namespace 使用独立类型；避免外部号码与内部 ID 字面值相同而碰撞。外部号码和显式 namespace 去除首尾空白后参与 key，raw 行保持原样。

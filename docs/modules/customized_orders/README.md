@@ -28,7 +28,7 @@ chmod 600 ~/.config/vihara/trading.toml ~/.config/vihara/trading-calendar.json
 Edit those **private copies** with a verified dated calendar and instrument
 eligibility/lot/tick information. Examples deliberately contain a fictional symbol
 and an expired date. Missing/expired dates fail closed. Never edit the versioned
-examples with a real account. See [configuration](../../products/limit-with-moc/CONFIGURATION.md).
+examples with a real account. See [configuration](../../projects/limit-with-moc/CONFIGURATION.md).
 
 ```sh
 vihara-order --account paper check-config
@@ -94,7 +94,7 @@ python -m pytest customized_orders/tests plumber/tests
 Tests cover cancellation races, unknown submissions, restart recovery, deadlines,
 partial/unfilled auctions, duplicate events, private config and Git exclusions.
 For live prerequisites and the explicit manual test sequence see
-[Futu verification](../../products/limit-with-moc/futu-live-behavior.md).
+[Futu verification](../../projects/limit-with-moc/futu-live-behavior.md).
 
 Cancellation persists separate INTENT, ATTEMPTING, ACKNOWLEDGED and UNKNOWN phases.
 A restart can resume INTENT safely. ATTEMPTING/UNKNOWN with an order still working
