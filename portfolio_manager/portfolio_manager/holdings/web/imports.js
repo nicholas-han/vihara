@@ -46,6 +46,10 @@ async function show(id) {
     batch.rows.filter((r) => r.status === "READY").length +
     " · Errors: " +
     batch.rows.filter((r) => r.status === "ERROR").length +
+    " · Unmapped: " +
+    batch.rows.filter((r) => r.status === "UNMAPPED").length +
+    " · Zero Evidence: " +
+    batch.rows.filter((r) => r.status === "ZERO_EVIDENCE").length +
     " · Processed: " +
     batch.rows.filter((r) => r.transaction_id).length;
   box.append(counts);
@@ -76,6 +80,8 @@ async function show(id) {
       tr,
       {
         STAGED: "Staged",
+        UNMAPPED: "Unmapped Source Label",
+        ZERO_EVIDENCE: "Zero Charge (Evidence Only)",
         READY: "Ready",
         ERROR: "Error",
         COMMITTED: "Committed",
@@ -116,6 +122,8 @@ async function show(id) {
         position_scope_id: "Position Scope ID",
         external_account_number: "External Account Number",
         source_tax_label: "Source Tax Label",
+        source_label_raw: "Charge Source Label",
+        investment_charge_category_id: "Charge Category",
       };
       p.textContent = Object.entries(data)
         .filter(([k]) => labels[k])
@@ -156,14 +164,15 @@ async function mapping(row) {
   ]);
   if (current !== batchId || sequence !== viewSequence) return;
   const merged = { ...row.raw, ...row.override };
-  const kind = String(row.raw.transaction_type || "").trim().toUpperCase();
+  const kind = String(row.raw.transaction_type || "")
+    .trim()
+    .toUpperCase();
   const fields =
     kind === "CASH_TRANSFER"
       ? ["source_account_code", "destination_account_code"]
       : ["account_code"];
   if (kind === "TRADE") fields.push("product_id");
-  if (kind === "DIVIDEND_RECEIPT")
-    fields.push("observable_id");
+  if (kind === "DIVIDEND_RECEIPT") fields.push("observable_id");
   for (const field of fields) {
     const label = document.createElement("label");
     label.textContent = {
@@ -187,27 +196,52 @@ async function mapping(row) {
     panel.append(label);
   }
   if (kind === "TRADE") {
-    const label = document.createElement("label"), select = document.createElement("select");
+    const label = document.createElement("label"),
+      select = document.createElement("select");
     label.textContent = "Position Scope";
     select.name = "position_scope_code";
-    label.append(select); panel.append(label);
+    label.append(select);
+    panel.append(label);
     let scopeRequest = 0;
     const loadScopes = async (initial = false) => {
       const request = ++scopeRequest;
       select.replaceChildren(new Option("Keep Original Mapping", ""));
       select.disabled = true;
       const code = panel.elements.account_code.value || merged.account_code;
-      const account = accounts.find(a => a.account_code === code);
+      const account = accounts.find((a) => a.account_code === code);
       if (!account) return;
-      const scopes = await api(`/api/accounts/${account.financial_account_id}/position-scopes`);
+      const scopes = await api(
+        `/api/accounts/${account.financial_account_id}/position-scopes`,
+      );
       if (request !== scopeRequest) return;
-      for (const s of scopes) select.add(new Option(s.scope_code === "DEFAULT" ? "Account default holdings" : s.display_name, s.scope_code));
+      for (const s of scopes)
+        select.add(
+          new Option(
+            s.scope_code === "DEFAULT"
+              ? "Account default holdings"
+              : s.display_name,
+            s.scope_code,
+          ),
+        );
       select.value = initial ? merged.position_scope_code || "" : "";
       select.disabled = false;
     };
-    panel.elements.account_code.addEventListener("change", () => loadScopes().catch(e => message(e.message,true)));
+    panel.elements.account_code.addEventListener("change", () =>
+      loadScopes().catch((e) => message(e.message, true)),
+    );
     await loadScopes(true);
     if (current !== batchId || sequence !== viewSequence) return;
+  }
+  let chargeCategory = null;
+  if (kind === "INVESTMENT_CHARGE") {
+    const label = document.createElement("label");
+    label.textContent = "Assign source label: " + row.raw.source_label_raw;
+    chargeCategory = document.createElement("select");
+    chargeCategory.add(new Option("Keep existing source mapping", ""));
+    for (const c of await api("/api/investment-charge-categories"))
+      chargeCategory.add(new Option(c.display_name, c.id));
+    label.append(chargeCategory);
+    panel.append(label);
   }
   const save = document.createElement("button");
   save.textContent = "Save Mapping and Preview";
@@ -223,6 +257,37 @@ async function mapping(row) {
       const values = Object.fromEntries(
         [...new FormData(panel)].filter(([k, v]) => v),
       );
+      if (chargeCategory?.value) {
+        const account =
+          accounts.find(
+            (a) =>
+              a.account_code === (values.account_code || merged.account_code),
+          ) ||
+          accounts.find(
+            (a) =>
+              a.financial_account_id === row.error?.field_errors?.account_id,
+          );
+        if (!account)
+          throw new Error("Choose a Financial Account for this source label.");
+        const mappings = await api(
+          `/api/investment-charge-source-mappings?financial_account_id=${account.financial_account_id}&source_label_raw=${encodeURIComponent(row.raw.source_label_raw)}`,
+        );
+        const existing = mappings[0];
+        await api(
+          "/api/investment-charge-source-mappings" +
+            (existing ? `/${existing.id}` : ""),
+          {
+            method: existing ? "PATCH" : "POST",
+            body: JSON.stringify({
+              financial_account_id: account.financial_account_id,
+              source_label_raw: row.raw.source_label_raw,
+              investment_charge_category_id: chargeCategory.value,
+              description: existing?.description || null,
+            }),
+          },
+        );
+        window.dispatchEvent(new Event("source-mapping-changed"));
+      }
       if (values.product_id) values.listing_id = "";
       await api("/api/import-rows/" + row.row_id, {
         method: "PATCH",

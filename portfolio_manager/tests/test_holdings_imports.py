@@ -159,13 +159,13 @@ def test_canonical_and_link_rollback_together(store, setup, monkeypatch):
     im.preview(batch)
     from ledger.investment.application.service import Service
 
-    original = Service.submit
+    original = Service.submit_many
 
     def fail(*args, **kwargs):
         original(*args, **kwargs)
         raise LedgerError("VALIDATION_ERROR", "fault after command")
 
-    monkeypatch.setattr(Service, "submit", fail)
+    monkeypatch.setattr(Service, "submit_many", fail)
     assert im.canonicalize(batch)["rows"][0]["status"] == "ERROR"
     assert store.configuration()["transaction_count"] == 0
     with store.read() as conn:
@@ -184,48 +184,13 @@ def test_short_csv_row_retained_as_row_error(store, setup):
 
 
 @pytest.mark.parametrize(
-    "fee",
-    [
-        {"fee_type": [], "amount": "1"},
-        {"fee_type": {}, "amount": "1"},
-        {"fee_type": None, "amount": "1"},
-        {"fee_type": "COMMISSION", "amount": 1},
-        {"fee_type": "COMMISSION", "amount": None},
-        {"fee_type": "COMMISSION", "amount": []},
-    ],
+    "value", ["", "[]", '[{"fee_type":"COMMISSION","amount":"1"}]']
 )
-def test_malformed_fee_is_a_row_error_and_other_rows_can_commit(store, setup, fee):
-    import json
-
-    product = store.catalog.search("AAPL")[0]["product_id"]
-    im, batch = upload(
-        store,
-        [
-            cashrow(),
-            {
-                "transaction_type": "TRADE",
-                "effective_date": "2026-09-02",
-                "account_code": "A",
-                "product_id": product,
-                "side": "BUY",
-                "quantity": "1",
-                "price": "10",
-                "fees": json.dumps([fee]),
-            },
-            cashrow(amount="25", effective_date="2026-09-03"),
-        ],
-    )
-    rows = im.preview(batch)["rows"]
-    assert [r["status"] for r in rows] == ["READY", "ERROR", "READY"]
-    assert rows[1]["error"]["code"] == "VALIDATION_ERROR"
-    assert store.configuration()["transaction_count"] == 0
-    assert [r["status"] for r in im.canonicalize(batch)["rows"]] == [
-        "COMMITTED",
-        "ERROR",
-        "COMMITTED",
-    ]
-    assert setup[0].balances()["cash"][0]["quantity"] == "125"
-    assert validate(store)["transaction_count"] == 2
+def test_legacy_fee_column_rejects_entire_upload(store, setup, value):
+    with pytest.raises(LedgerError) as exc:
+        upload(store, [cashrow(fees=value)])
+    assert exc.value.reason == "LEGACY_TRADE_FEES"
+    assert not Imports(store).list()["rows"]
 
 
 def test_csv_ticker_with_matching_venue_context_commits(store, setup):

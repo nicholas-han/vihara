@@ -1,3 +1,5 @@
+> 2026-09-12 Investment Charge v8：费用与交易成本遵循 [FINAL PRD](INVESTMENT_CHARGE_PRD.md)、[用户补充决定](../planning/DECISIONS.md#d-ic-002--股息预扣税类别与实际现金入账2026-09-12) 和 [实现设计](INVESTMENT_CHARGE_TECHNICAL_DESIGN.md)。本文已同步本轮合同；旧阶段验收仍只证明当时版本。正式数据库切换是独立发布步骤。
+
 # Portfolio Holdings MVP — Technical Design Document
 
 > 2026-09-09 target update: [Financial Account PRD v1.0](Financial_Account_PRD.md) governs account aggregation, PositionScope and cost-basis boundaries. [Implementation design](FINANCIAL_ACCOUNT_DESIGN.md) and [Financial Account acceptance](../history/FINANCIAL_ACCOUNT_ACCEPTANCE.md) describe the implemented increment; S0–S10 reports remain historical records.
@@ -52,7 +54,7 @@ Manual Web / structured CSV staging / API
 | `portfolio_manager/portfolio_manager/holdings/api.py`、`web/` | REST 接入与全英文 Web UI |
 | `instrument_manager` | Instrument 主数据唯一权威 |
 
-依赖为 Portfolio Manager → Ledger → Instrument Manager。Ledger 不导入 Portfolio Manager 或 FastAPI，不包含市场估值逻辑。会计分录与持仓变动在同一 Unit of Work 内提交。Financial Account 使用 fresh schema v7；旧 v1–v6 拒绝打开且不改写，CLI 入口与配置名保持。
+依赖为 Portfolio Manager → Ledger → Instrument Manager。Ledger 不导入 Portfolio Manager 或 FastAPI，不包含市场估值逻辑。会计分录与持仓变动在同一 Unit of Work 内提交。Investment Charge 使用 schema v8 / PRINCIPAL_ONLY_V1；旧 v1–v7 拒绝直接打开且不改写，CLI 入口与配置名保持。
 
 旧 records API 在过渡期独立保留用于检查，不能通过兼容路由继续写新库；最终默认启动入口切到新应用。新增 holdings 包用于区分真实投资账本与原有回测 Account。
 
@@ -83,10 +85,10 @@ Manual Web / structured CSV staging / API
 | Venue / Listing / ExternalIdentifier | IM catalog 对应表 | 新规范身份、有效期、authority 与歧义规则 |
 | Transaction | `transactions` | INTEGER PRIMARY KEY AUTOINCREMENT；type CHECK；effective_date |
 | TransactionAccount | `transaction_accounts` | PK(transaction_id, account_role)、FK account |
-| TransactionRelationship | `transaction_relationships` | 复合 PK；REVERSES subject、object 各有唯一约束 |
-| Trade / TradeFee | `trades` / `trade_fees` | subtype FK、fee PK(transaction_id, fee_type) |
+| TransactionRelationship | `transaction_relationships` | 复合 PK；REVERSES 专用部分唯一约束且不可变；CHARGE_FOR 多对多且直接可编辑 |
+| Trade / InvestmentCharge | `trades` / `investment_charges` | 独立 subtype；Trade principal-only，charge 类别为 reference FK |
 | CashTransfer / FXConversion / DividendReceipt | 对应 subtype 表 | PK/FK transaction_id、类型匹配由 service/validator 检查 |
-| LedgerAccountDefinition | `ledger_account_definitions` | 六科目、class、normal side |
+| LedgerAccountDefinition | `ledger_account_definitions` | 九科目（含三个投资费用科目）、class、normal side |
 | JournalEntry / JournalLine | `journal_entries` / `journal_lines` | source_transaction_id UNIQUE、科目/维度 CHECK、实体 FKs |
 | Position | `positions` | observable_id UNIQUE；不保存 quantity、account、cost |
 | PositionEntry / PositionLine | `position_entries` / `position_lines` | source_transaction_id UNIQUE、OWNERSHIP/LOCATION 维度互斥 |
@@ -279,7 +281,7 @@ price=0 是合法行情；rate 必须 >0。同功能币 FX=1。报价 currency �
 - Unrealized Difference 只对有完整估值的投资计算，与 Accounting REALIZED_TRADE_PNL 区分。部分汇总必须标注覆盖范围。
 - 对账失败返回 integrity error，不用另一张表的数值“自动修正”差异。
 
-Transaction Detail 同时展示 canonical event、accounts、fees、Journal、Position、Lot/Allocation、关系和派生 reversal state。REVERSAL 的账户和筛选范围从 target 推导。
+Transaction Detail 同时展示 canonical event、accounts、charge category、Journal、Position、Lot/Allocation、关系和派生 reversal state。REVERSAL 的账户和筛选范围从 target 推导。
 
 ## 11. API 与错误合同
 
@@ -312,7 +314,7 @@ HTTP 422 表示输入/引用形状错误，409 表示容量、历史依赖或幂
 
 - Holdings：摘要、Cash/Investment 表、分组、筛选、as-of、零余额隐藏；数值右对齐、币种明确。
 - Transactions：筛选列表、完整详情、关系；只展示 Reverse，不提供 Edit/Delete。
-- Add Transaction：四种明确表单。Trade 选已有 Product，可选 Listing，currency 只读；fees 可多行，提交前按类型归并。
+- Add Transaction：五种明确表单。Trade 选已有 Product，可选 Listing，currency 只读；可添加独立相关 charge，每行显式选择现金币种、入账日、分类、signed amount，整请求预览与提交。
 - Import：上传、逐行 staging、解析候选、错误原因、preview、确认有效行、batch history。
 - Settings：账户创建/只读参考详情、功能币只读展示、Instrument search/detail。初始主数据和 Book FX 用 operator 工具维护。
 
@@ -324,12 +326,12 @@ HTTP 422 表示输入/引用形状错误，409 表示容量、历史依赖或幂
 
 只支持四种普通事件，不允许 CSV 创建 REVERSAL。第一版给出专项统一 CSV 模板与示例，其物理文件可随应用发布，模板合同和使用说明留在本专项目录。
 
-推荐一行一个经济事件，包含 transaction_type、effective_date、source_system、external_transaction_id、source account / instrument identifier 及该类型字段。Trade fees 在 staging 中可用一个明确结构化 fees 字段表示，然后归并到规范 TradeFee；不能把该 JSON 作为 canonical Transaction payload。
+推荐一行一个经济事件，包含 transaction_type、effective_date、source_system、external_transaction_id、source account / instrument identifier 及该类型字段。旧 fees 列（包括空列）明确拒绝。独立 charge 行通过来源标签映射 category；同一 source_row_number 的 components 原子处理，仍对应独立 canonical IDs。
 
 流程：
 
 1. Upload 保存原始文件标识、hash、row number、raw row，解析失败保留行错误。
-2. Normalize 日期、Decimal、side 和 fee；引用通过 account mapping / IM ExternalIdentifier 解析。
+2. Normalize 日期、Decimal、side 和独立 charge 来源标签；引用通过 account mapping / IM ExternalIdentifier 解析。
 3. 按 effective_date ASC、同日 row_number ASC 形成确定预览顺序；该顺序在实际提交时分配递增 ID。
 4. Preview 在 SQLite 一致性快照生成的临时库中顺序调用同一 command，结束后删除临时库；不写正式 canonical 表、不占用正式 Transaction ID。前一失败行的效果不能被后续行消费。
 5. 显示 READY / ERROR，明确逐笔原子、非整文件原子；用户确认后逐行调用普通 command。
@@ -372,7 +374,7 @@ HTTP 422 表示输入/引用形状错误，409 表示容量、历史依赖或幂
 
 ### 15.2 固定全链路回归：精确预期
 
-测试库 functional currency=HKD；一个账户，资产 A 为 USD 报价 Holding Product，SELF。下列普通交易日期递增，所有 fees=0；费用/返佣另设专门用例。
+测试库 functional currency=HKD；一个账户，资产 A 为 USD 报价 Holding Product，SELF。下列普通交易日期递增，普通 Trade 只含本金；费用/返佣另设独立事件用例。
 
 | 步骤 | 输入 | 必须冻结的结果（book 均 HKD） |
 |---|---|---|
@@ -405,7 +407,7 @@ HTTP 422 表示输入/引用形状错误，409 表示容量、历史依赖或幂
 
 ### 15.3 必须另补的边界用例
 
-- BUY fees、SELL fees、negative rebate、同 fee_type 归并为零、net consideration 非正拒绝。
+- 独立正负 charge、零来源不生成交易、principal-only BUY/SELL、外币 cash basis、CHARGE_FOR 治理、整批回滚及稳定重导入。
 - 原币更便宜但 HKD unit basis 更贵；相同比率时按数值 transaction_id 排序。
 - 同 Observable 不同 Product / Listing 买入仍归同 Position；不同 scope 不能串用 lot（包括同账户的 scopes）。
 - 同日 ID 2 / 10 的顺序；全文件不同类型历史统一排序。
@@ -446,3 +448,7 @@ Holdings 现金读取原始 CASH 行、数量读取 LOCATION 行，分别与有�
 ## Financial Account v1.0 增量
 
 本轮补充 [FINANCIAL_ACCOUNT_DESIGN](FINANCIAL_ACCOUNT_DESIGN.md)，已完成实现与 [专项验收](../history/FINANCIAL_ACCOUNT_ACCEPTANCE.md)。新增 institution_type/country_or_region、ExternalAccountReference、TaxScheme、PositionScope；Trade、LOCATION、Lot 改用 scope。原 §3/§17/§18 的 schema v6 及 S0–S10 为旧实现记录，不能用来宣称本增量已验收。
+
+## Investment Charge v8 实施增量
+
+实际批量 replay、请求 receipt、分类/映射、CHARGE_FOR、来源去重和发布准备见 [专项实现设计](INVESTMENT_CHARGE_TECHNICAL_DESIGN.md)。旧 S0–S10 的步骤与数字示例保留为基线；v8 使用独立费用和本金成本政策。

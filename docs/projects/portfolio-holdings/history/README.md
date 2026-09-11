@@ -16,3 +16,5 @@
 `assets/holdings-mobile.png` 是历史临时验收账本的截图，从旧 `docs/Project - Portfolio Holdings MVP/acceptance-assets/` 迁入，图片内容未变。它不是个人 statements 或正式账本数据。
 
 [返回项目导航](../README.md)
+
+- [Investment Charge v8 验收](INVESTMENT_CHARGE_ACCEPTANCE.md)：独立费用、Trade 本金、来源映射、批量与关系治理、数据库准备。

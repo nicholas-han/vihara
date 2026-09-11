@@ -139,3 +139,7 @@ S0 已完成，验收及启动说明见 [S0_ACCEPTANCE](../history/S0_ACCEPTANCE
 - [x] FA-1～FA-5 实现及测试，详见 [专项验收](../history/FINANCIAL_ACCOUNT_ACCEPTANCE.md)。
 
 本分支仅完成设计与文档整理；业务代码、数据库及旧验收数字不据此升级。
+
+## Investment Charge v8（2026-09-12）
+
+用户已授权连续实施至完成，并执行 review-pr-flow。IC-1 分类/schema、IC-2 费用/principal-only Trade、IC-3 批量/关系、IC-4 Import/Web、IC-5 报表/发布准备均已实现。验收与审查进度见 [本轮记录](../history/INVESTMENT_CHARGE_ACCEPTANCE.md)；正式库切换与用户手动合并分别保留为显式操作。

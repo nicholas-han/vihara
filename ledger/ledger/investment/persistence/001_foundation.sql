@@ -19,11 +19,11 @@ CREATE TABLE ledger_account_definitions(ledger_account_code TEXT PRIMARY KEY,
  ledger_account_class TEXT NOT NULL CHECK(ledger_account_class IN ('ASSET','LIABILITY','EQUITY','INCOME','EXPENSE')),
  normal_side TEXT NOT NULL CHECK(normal_side IN ('DEBIT','CREDIT')));
 CREATE TABLE transactions(transaction_id INTEGER PRIMARY KEY AUTOINCREMENT,
- transaction_type TEXT NOT NULL CHECK(transaction_type IN ('TRADE','CASH_TRANSFER','FX_CONVERSION','DIVIDEND_RECEIPT','REVERSAL')),
+ transaction_type TEXT NOT NULL CHECK(transaction_type IN ('TRADE','CASH_TRANSFER','FX_CONVERSION','DIVIDEND_RECEIPT','INVESTMENT_CHARGE','REVERSAL')),
  effective_date TEXT NOT NULL, memo TEXT);
 CREATE INDEX ix_transactions_replay ON transactions(effective_date, transaction_id);
 CREATE TABLE transaction_relationships(subject_transaction_id INTEGER NOT NULL REFERENCES transactions(transaction_id),
- relationship_type TEXT NOT NULL CHECK(relationship_type='REVERSES'),
+ relationship_type TEXT NOT NULL CHECK(relationship_type IN ('REVERSES','CHARGE_FOR')),
  object_transaction_id INTEGER NOT NULL REFERENCES transactions(transaction_id),
  PRIMARY KEY(subject_transaction_id,relationship_type,object_transaction_id),
  CHECK(subject_transaction_id<>object_transaction_id));

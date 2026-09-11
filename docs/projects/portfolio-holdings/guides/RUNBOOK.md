@@ -4,7 +4,7 @@
 
 > 2026-09-07 模块调整：Accounting Ledger 与 Position Ledger 统一迁入 `ledger.investment`；Portfolio 保留分析、估值与英文 Web。当前边界详见 [MODULE_BOUNDARIES](../design/MODULE_BOUNDARIES.md)。
 
-更新：2026-09-09。对应 Financial Account schema v7；见 [专项验收](../history/FINANCIAL_ACCOUNT_ACCEPTANCE.md)。专项入口见 [PROJECT_PLAN](../planning/PROJECT_PLAN.md)，验收证据见 [STAGE_ACCEPTANCE](../history/STAGE_ACCEPTANCE.md)。
+更新：2026-09-12。代码对应 Investment Charge schema v8 / PRINCIPAL_ONLY_V1；历史 Financial Account v7 见见 [专项验收](../history/FINANCIAL_ACCOUNT_ACCEPTANCE.md)。专项入口见 [PROJECT_PLAN](../planning/PROJECT_PLAN.md)，验收证据见 [STAGE_ACCEPTANCE](../history/STAGE_ACCEPTANCE.md)。
 
 > 2026-09-10 存储整理：所有本机数据统一到 Dropbox `Vihara Archive`，布局见 [数据存储约定](../../../operations/DATA_STORAGE.md)。按用户要求删除过期 v6 库及备份，已重新初始化并验证 v7 空库，可直接按下面的命令启动。
 
@@ -22,7 +22,7 @@ export IM_PYBIND_DIR="$PWD/build/holdings-im"
 python3 portfolio_manager/scripts/run_records_web.py --db "$PORTFOLIO_HOLDINGS_DB_PATH" --port 8643
 ```
 
-打开 http://127.0.0.1:8643 。`init` 创建 schema v7 空库或验证已有 v7；v1–v6 库拒绝打开且不改写。已有旧库请指定新的独立数据库路径，并在后续命令及 Web 中使用同一路径；不自动迁移数据；`serve` 不自动初始化。终端 Ctrl+C 停止服务。启动脚本也可读取 PORTFOLIO_HOLDINGS_DB_PATH；不读取旧 PORTFOLIO_DB_PATH，只从 repo 根目录 `.env` 读取显式路径（环境变量和命令行优先），不从旧 Portfolio 数据或期初数据建立持仓。
+打开 http://127.0.0.1:8643 。`init` 创建 schema v8 空库或验证已有 v8；v1–v7 库拒绝直接打开且不改写。已有 v7 库先按下面流程准备独立 v8；不自动迁移数据；`serve` 不自动初始化。终端 Ctrl+C 停止服务。启动脚本也可读取 PORTFOLIO_HOLDINGS_DB_PATH；不读取旧 PORTFOLIO_DB_PATH，只从 repo 根目录 `.env` 读取显式路径（环境变量和命令行优先），不从旧 Portfolio 数据或期初数据建立持仓。
 
 当前本机 C++ binding 已构建在 `build/holdings-im`，正式账本位于 `$VIHARA_DATA_DIR/data/holdings.sqlite3`。两者均不进入 Git；不要把账本放进可删除的 build 或临时目录。历史验收使用临时库；2026-09-10 初始化时正式账本为 v7 空库，含 0 个账户、0 笔交易；当前内容应以实际查询为准。
 
@@ -35,12 +35,31 @@ cmake --build build/holdings-im -j 4
 
 Python 需安装项目依赖及 FastAPI/uvicorn。本次验证环境为 Python 3.14.3；未更改现有全局依赖配置。安装项目时应同时使用本仓库 sibling 包 forecaster、ledger、instrument_manager、portfolio_manager[web]，避免同名远程包。
 
+## 从 v7 准备独立 v8
+
+本次代码交付不修改正式数据库或 `.env`。当前配置若仍指向 v7，先停止旧写服务，在明确的新目标路径执行：
+
+```sh
+python3 -m portfolio_manager.holdings --db /absolute/path/holdings-v8.sqlite3 prepare-v8 /absolute/path/holdings-v7.sqlite3
+python3 -m portfolio_manager.holdings --db /absolute/path/holdings-v8.sqlite3 validate
+```
+
+命令只接受无经济记录、无导入历史的 v7，保留账户、TaxScheme、scope、外部号码、币种、功能币、catalog pins、Book FX、行情及序列 ID；新增十类费用 reference，来源 mapping 初始为空。任何未支持的非空表、身份冲突、旧交易均拒绝，源库保持原样。已有真实 TradeFee 需要单独显式 converter 和全历史重演，不能只删费用行。
+
+输出新库、`.v7-backup` 一致性备份及 `.preparation.json` 校验报告；目标/输出已存在时拒绝覆盖。检查报告和账户后，在停止写服务的状态下显式更新数据库路径，再启动并 smoke test。回退时停止新服务，保留新库，恢复原配置；切换后如已录入新交易，先核对新增事实再决定回退，不能静默丢弃。
+
+## 费用与损益
+
+Settings 可新增 category、修改 display name，以及按账户维护来源 label 映射。已使用类别的 code/科目不能改义。费用表单显式选择现金币种；正数收费、负数退款/返佣，无 position scope。股息预扣税遵守 [已确认两种现金情形](../planning/DECISIONS.md#d-ic-002--股息预扣税类别与实际现金入账2026-09-12)。
+
+详情可直接编辑 Related Transaction IDs；费用、相关交易冲销不会自动删除关联或一起冲销。Holdings 展示 Gross Realized Trade P&L、Dividend Income、三项费用及 Net Recognized Investment Result；同账户/As Of 筛选同步。期间查询 API 为 `/api/investment-results?date_from=YYYY-MM-DD&date_to=YYYY-MM-DD&account_id=ID`，不按多对多关联分摊或重复计算。
+
 ## 首次使用
 
 1. 设置页创建账户，例如 IBKR；选择 institution type，可填国家/地区。普通页面不编辑已有账户；账户非 PK 字段仅允许受控数据库 correction。
 2. 检查产品。内置参考集含 HKD、USD、USDT、USDC 四个 Currency，以及 AAPL、BTC、HYPE、NVDA、GOOGL、GOOG、FUTU、INTC、SKHY、COIN、CRCL 共 11 个 Tradable Product；它们不是已有持仓。报价币种及身份见 [REFERENCE_DATA_UPDATES](../history/REFERENCE_DATA_UPDATES.md)。
 3. 若需要外币入账，先导入准确日期的 Book FX。
-4. 录入页选择现金移动、买卖、换汇或股息，先预览，再确认。
+4. 录入页选择现金移动、买卖、换汇、股息或 Investment Charge，先预览，再确认。Trade 可添加独立相关费用，整组提交。
 5. 持仓页查看现金、投资历史成本和估值；点击币种或资产追溯分录、批次和来源交易。
 
 所有金额和数量以字符串提交，最多 38 位、18 位小数。页面展示值不会回写账本。投资成本固定在同一 Position × Owner × PositionScope 内按 HKD LOWEST_BOOK_COST 选择批次，不能切换成本方法。

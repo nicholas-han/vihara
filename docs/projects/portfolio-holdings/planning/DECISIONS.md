@@ -149,3 +149,36 @@
 用户新增 FINAL PRD 是本轮领域依据：[原文](../design/Financial_Account_PRD.md)。FinancialAccount 为内部 aggregation boundary；Cash 保持账户 × 币种；Position 与成本批次按 PositionScope 隔离；scope 必须先进入 canonical Trade。TaxScheme 分类 scope；外部号码是 provenance，不构成 Holdings 维度。
 
 已知旧规则覆盖：账户非 PK 字段允许数据库 correction；MVP 无普通字段编辑入口；LOCATION 和 Lot 不再保存 financial_account_id；不实现 scope transfer。工程实现与验收见 [增量设计](../design/FINANCIAL_ACCOUNT_DESIGN.md)，已实现并通过 [专项验收](../history/FINANCIAL_ACCOUNT_ACCEPTANCE.md)。
+
+## D-IC-001 — Investment Charge 依据与实施授权（2026-09-12）
+
+**状态：已确认；技术设计已完成，功能尚未实现。**
+
+用户要求严格按照 [Investment Charge PRD v1.0 FINAL](../design/INVESTMENT_CHARGE_PRD.md) 设计，不允许违背新 PRD。新 PRD 与过去文档出现尚未解决的冲突时，必须列明冲突并先请用户决定，不得自行选择旧版本或混合两套规则。新 PRD 原文保持不变，后续获用户确认的业务补充在本文记录并从技术设计引用。
+
+用户已授权技术层面的设计、评估和执行由工程侧负责，常规 schema、API、事务、测试和实施顺序不再逐项确认。此授权不替代上述业务冲突确认规则。目前评估没有其他需要用户立即确认的业务问题；实际实施进度必须另有代码与验收证据，不能把授权写成已落地。
+
+本轮采用新 PRD 明确的 INVESTMENT_CHARGE、三类费用科目、principal-only Trade、费用行不重复 operational dimensions、CHARGE_FOR 与 source mapping 合同。旧费用草稿仅作历史，不带入 FEE_CHARGE、FEE_EXPENSE、REFUND_OF、source group 或 DividendReceipt.amount_basis 等额外合同。
+
+## D-IC-002 — 股息预扣税类别与实际现金入账（2026-09-12）
+
+**状态：已确认；待实现与验收。**
+
+用户同意新增 `DIVIDEND_WITHHOLDING_TAX`，映射到 `INVESTMENT_TAXES`。这是对新 PRD §12～15 的明确补充：保留原文九类，并加入此类别，初始化共十类。股息预扣税不归入 CAPITAL_GAIN_TAX 或 CONSUMPTION_TAX。
+
+股息按来源所能证明的账户现金变动区分处理：
+
+| 来源证据 | Canonical 处理 |
+|---|---|
+| 账户流水分别记录税前股息入账和预扣税扣款 | 税前入账金额建立 DIVIDEND_RECEIPT；独立税款扣款建立正数 INVESTMENT_CHARGE，category 为 DIVIDEND_WITHHOLDING_TAX；可用 CHARGE_FOR 关联 |
+| 账户仅收到税后净股息，税率/税额只是说明，没有独立税款现金扣款 | 仅按实收净额建立 DIVIDEND_RECEIPT；扣税说明保留在 staging/source evidence，不补造税前现金或另一笔税费事件 |
+
+“分开记录”要求有独立现金 credit/debit 的证据；仅在说明或金额计算栏分列 gross/tax/net 不足以证明先到账再扣款。结单没有时点信息时，也不声称税前金额曾可被使用。无法判断属于哪种情形的来源保持待核对，不猜 gross 或 tax。
+
+会计处理沿用现有 dividend 与新 PRD charge 规则：股息的 CASH 和 DIVIDEND_INCOME 按实际入账金额及当日 Book FX 确认；独立税费的 expense 按当日 Book FX，CASH 贷方按历史移动平均成本出账，差额计入 FX_ADJUSTMENT_RESERVE。仅净额到账时不再扣一次 tax。
+
+验收必须覆盖两种来源、独立税款的外币现金历史成本、重复导入不重复入账，以及说明中税额不得被当成第二次扣款。具体示例见 [技术设计 §6.1](../design/INVESTMENT_CHARGE_TECHNICAL_DESIGN.md#61-股息与预扣税已确认补充)。
+
+### D-IC-003 — 连续开发与 PR 流程（2026-09-12）
+
+用户明确要求开始开发，由工程侧安排并执行所有步骤，持续到完成；不可避免的业务确认尽量后置，先完成其他工作；完成后执行 review-pr-flow。按此完成 v8 实现与测试，当前状态见 [验收记录](../history/INVESTMENT_CHARGE_ACCEPTANCE.md)。GitHub 合并仍按用户指定流程由用户手动操作，agent 不 merge。D-IC-001/002 的“尚未实现”描述是决定时点的状态，不代表当前实现进度。

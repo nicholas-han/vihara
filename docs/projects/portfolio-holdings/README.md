@@ -1,6 +1,6 @@
 # Portfolio Holdings — 阅读入口
 
-当前实现为统一 Investment Ledger + Portfolio Manager 分析/Web；Financial Account v1.0 已实现。文档按用途分层，避免把设计草稿、操作步骤和历史验收当成同一种资料。
+当前实现为统一 Investment Ledger + Portfolio Manager 分析/Web；Financial Account v1.0 已实现。Investment Charge v1.0 FINAL PRD 已收到，技术设计与股息预扣税口径已收口，功能已实现，正在完成验收与独立审查。文档按用途分层，避免把设计草稿、操作步骤和历史验收当成同一种资料。
 
 | 目录 | 用途 | 入口 |
 |---|---|---|
@@ -14,7 +14,7 @@
 
 - 使用当前功能，从 [Runbook](guides/RUNBOOK.md) 和 [CSV 合同](guides/CSV_IMPORT.md) 进入。
 - Financial Account 定义见 [PRD](design/Financial_Account_PRD.md)，实现证据见 [专项验收](history/FINANCIAL_ACCOUNT_ACCEPTANCE.md)。
-- 待定方案放在 [草稿区](drafts/README.md)，确认后再形成设计与实施合同。
+- **本轮权威输入：[Investment Charge PRD v1.0 FINAL](design/INVESTMENT_CHARGE_PRD.md)**。已完成 [技术设计与已确认口径](design/INVESTMENT_CHARGE_TECHNICAL_DESIGN.md)、[文档影响与更新计划](planning/INVESTMENT_CHARGE_DOCUMENTATION_PLAN.md)。补充依据见 [D-IC-001/002](planning/DECISIONS.md#d-ic-001--investment-charge-依据与实施授权2026-09-12)。旧费用草稿已被替代；综合规范已同步新费用合同。
 - S0～S10、review 和交接文件只证明原日期、原范围的状态；历史交接中的任务指令不构成新的开发授权。
 
 [返回项目索引](../README.md) · [返回文档中心](../../README.md)

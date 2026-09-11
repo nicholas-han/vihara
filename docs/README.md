@@ -16,7 +16,7 @@
 
 - 使用 Portfolio Holdings：[启动与维护](projects/portfolio-holdings/guides/RUNBOOK.md) · [CSV 导入合同](projects/portfolio-holdings/guides/CSV_IMPORT.md)。
 - 查看 Holdings 设计与状态：[项目导航](projects/portfolio-holdings/README.md) · [Financial Account PRD](projects/portfolio-holdings/design/Financial_Account_PRD.md)。
-- 查看讨论中的方案：[草稿区](projects/portfolio-holdings/drafts/README.md)。草稿不代表已确认或已实现功能。
+- 查看本轮费用与成本政策：[FINAL PRD](projects/portfolio-holdings/design/INVESTMENT_CHARGE_PRD.md) · [技术设计](projects/portfolio-holdings/design/INVESTMENT_CHARGE_TECHNICAL_DESIGN.md)。技术设计与股息预扣税补充已收口，已实现并进入验收与审查；旧草稿已被替代。
 - 查看 Limit with MOC：[功能导航](projects/limit-with-moc/README.md)。
 - 配置本机数据路径：[数据存储约定](operations/DATA_STORAGE.md)。
 - 新增或移动文档：[分类、状态与维护规则](DOCUMENTATION_GUIDE.md)。

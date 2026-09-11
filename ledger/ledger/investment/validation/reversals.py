@@ -5,7 +5,8 @@ from decimal import Decimal
 def check_reversal(conn, tx, require):
     tid = tx["transaction_id"]
     relationships = conn.execute(
-        "SELECT * FROM transaction_relationships WHERE subject_transaction_id=?", (tid,)
+        "SELECT * FROM transaction_relationships WHERE subject_transaction_id=? AND relationship_type='REVERSES'",
+        (tid,),
     ).fetchall()
     require(len(relationships) == 1, "Invalid Reversal relationship cardinality.")
     target_id = relationships[0]["object_transaction_id"]

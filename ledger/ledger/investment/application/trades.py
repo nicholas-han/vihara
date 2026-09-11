@@ -1,6 +1,5 @@
 """Trade projection: canonical typed data, positions, immutable lots/allocations."""
 
-from collections import defaultdict
 from datetime import date, time
 from decimal import Decimal
 from ledger.investment.accounting.posting import Line, cash, balance_difference
@@ -10,7 +9,6 @@ from ..accounting.cash import dispose
 from ..position import ledger as position
 from ..persistence.references import scope_for_trade
 
-FEE_TYPES = {"COMMISSION", "EXCHANGE_FEE", "REGULATORY_FEE", "OTHER"}
 FIELDS = (
     "product_id",
     "listing_id",
@@ -65,12 +63,12 @@ def normalize(conn, catalog, payload, day):
             "VALIDATION_ERROR",
             "Invalid Trade Time or Scheduled Settlement Date format.",
         ) from None
-    fees = defaultdict(lambda: Decimal(0))
-    for fee in payload.get("fees", []):
-        if fee.get("fee_type") not in FEE_TYPES:
-            raise LedgerError("VALIDATION_ERROR", "Invalid fee type.")
-        fees[fee["fee_type"]] += decimal_value(fee.get("amount"))
-    fees = {k: decimal_text(v) for k, v in fees.items() if v}
+    if "fees" in payload:
+        raise LedgerError(
+            "VALIDATION_ERROR",
+            "Trade fees are no longer accepted. Create independent Investment Charges.",
+            "LEGACY_TRADE_FEES",
+        )
     account_id = account(conn, payload.get("account_id"))
     scope_id = scope_for_trade(conn, payload.get("position_scope_id"), account_id)
     data = dict(
@@ -89,7 +87,6 @@ def normalize(conn, catalog, payload, day):
             ),
         )
     )
-    data["fees"] = fees
     return data, {"ACCOUNT": account_id}, product
 
 
@@ -97,14 +94,11 @@ def build(event, state, rates):
     data = event["data"]
     q = Decimal(data["quantity"])
     price = Decimal(data["price"])
-    fees = sum(map(Decimal, data["fees"].values()), Decimal(0))
     account_id = event["accounts"]["ACCOUNT"]
     pid = event["position_id"]
     currency = event["currency"]
     tid = event["transaction_id"]
-    native = decimal_value(
-        q * price + (fees if data["side"] == "BUY" else -fees), positive=True
-    )
+    native = decimal_value(q * price, positive=True)
     recognition = book_amount(native * rates[currency])
     if data["side"] == "BUY":
         disposed = dispose(state, account_id, currency, native)
@@ -132,12 +126,6 @@ def load(conn, tid):
     if row is None:
         raise LedgerError("INTEGRITY_ERROR", "Trade is missing.")
     data = {k: row[k] for k in FIELDS}
-    data["fees"] = {
-        r["fee_type"]: r["amount"]
-        for r in conn.execute(
-            "SELECT * FROM trade_fees WHERE trade_transaction_id=?", (tid,)
-        )
-    }
     return data
 
 
@@ -151,9 +139,5 @@ def save(conn, event, effect, line_ids, lines, catalog):
         + ",".join(FIELDS)
         + ") VALUES (?,?,?,?,?,?,?,?,?,?)",
         (tid, *(data[k] for k in FIELDS)),
-    )
-    conn.executemany(
-        "INSERT INTO trade_fees VALUES (?,?,?)",
-        [(tid, k, v) for k, v in data["fees"].items()],
     )
     position.save(conn, event, effect, line_ids, lines)

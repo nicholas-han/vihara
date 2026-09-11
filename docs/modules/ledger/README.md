@@ -69,3 +69,7 @@ ledger/
 ├── tests/             pytest suite + golden journals (tests/golden/)
 └── # documentation: docs/modules/ledger/ at repository root
 ```
+
+## Investment Charge v8
+
+Investment Ledger 已支持独立投资费用、税费、融资利息与退款；Trade 成本/收入只计本金，来源映射和可编辑 CHARGE_FOR 不改变历史会计。Portfolio Manager 提供录入、分类/映射维护、导入与 recognized investment result 分析。见 [实现设计](../../projects/portfolio-holdings/design/INVESTMENT_CHARGE_TECHNICAL_DESIGN.md)、[使用与 v7 准备流程](../../projects/portfolio-holdings/guides/RUNBOOK.md)。

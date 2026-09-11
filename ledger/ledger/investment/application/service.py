@@ -10,7 +10,7 @@ import json
 from ..accounting.journal import stored_lines, save_lines, validate_lines
 from ..errors import LedgerError
 from ..numbers import decimal_text, decimal_value
-from . import trades, cash_events
+from . import trades, cash_events, investment_charges
 from ..accounting import cash
 from ..position import ledger as position
 from ..persistence.references import scopes
@@ -32,6 +32,18 @@ class Service:
         memo = payload.get("memo")
         if memo is not None and (not isinstance(memo, str) or len(memo) > 2000):
             raise LedgerError("VALIDATION_ERROR", "Memo is too long.")
+        if kind == "INVESTMENT_CHARGE":
+            data, roles, ledger = investment_charges.normalize(
+                conn, self.store.catalog, payload
+            )
+            return {
+                "transaction_type": kind,
+                "effective_date": day.isoformat(),
+                "memo": memo,
+                "accounts": roles,
+                "data": data,
+                "charge_ledger_account": ledger,
+            }
         if kind in cash_events.TABLES:
             data, roles = cash_events.normalize(conn, self.store.catalog, kind, payload)
             return {
@@ -162,6 +174,12 @@ class Service:
                 event["data"] = {"target_transaction_id": str(target[0])}
                 result.append(event)
                 continue
+            if row["transaction_type"] == "INVESTMENT_CHARGE":
+                event["data"], event["charge_ledger_account"] = investment_charges.load(
+                    conn, row["transaction_id"]
+                )
+                result.append(event)
+                continue
             if row["transaction_type"] in cash_events.TABLES:
                 event["data"] = cash_events.load(
                     conn, row["transaction_type"], row["transaction_id"]
@@ -194,7 +212,9 @@ class Service:
             result.append(event)
         return result
 
-    def replay(self, conn, *, candidate=None, as_of=None, exclude=None):
+    def replay(
+        self, conn, *, candidate=None, candidates=None, as_of=None, exclude=None
+    ):
         events = self.events(conn, as_of)
         reversed_ids = {
             int(e["data"]["target_transaction_id"])
@@ -207,29 +227,38 @@ class Service:
             if e["transaction_type"] != "REVERSAL"
             and e["transaction_id"] not in reversed_ids | (exclude or set())
         ]
-        changing = candidate is not None or bool(exclude)
-        if candidate:
-            events.append(candidate)
+        new_events = (
+            candidates
+            if candidates is not None
+            else ([candidate] if candidate is not None else [])
+        )
+        new_ids = {e["transaction_id"] for e in new_events}
+        changing = bool(new_events) or bool(exclude)
+        if new_events:
+            events.extend(new_events)
             events.sort(key=lambda e: (e["effective_date"], e["transaction_id"]))
         functional = conn.execute(
             "SELECT functional_currency FROM accounting_config"
         ).fetchone()[0]
         state = position.State()
         state.as_of = as_of
-        candidate_lines = None
-        candidate_evidence = []
+        new_lines, new_evidence = {}, {}
         affected = []
         for event in events:
-            is_new = event is candidate
+            is_new = event["transaction_id"] in new_ids
             try:
                 rates, evidence = self.rates(conn, event, frozen=not is_new)
                 lines = (
-                    trades.build(event, state, rates)
-                    if event["transaction_type"] == "TRADE"
+                    investment_charges.build(event, state, rates)
+                    if event["transaction_type"] == "INVESTMENT_CHARGE"
                     else (
-                        cash_events.build(event, state, rates, functional)
-                        if event["transaction_type"] in cash_events.TABLES
-                        else cash.build(event, state, rates)
+                        trades.build(event, state, rates)
+                        if event["transaction_type"] == "TRADE"
+                        else (
+                            cash_events.build(event, state, rates, functional)
+                            if event["transaction_type"] in cash_events.TABLES
+                            else cash.build(event, state, rates)
+                        )
                     )
                 )
                 validate_lines(lines)
@@ -262,7 +291,10 @@ class Service:
                     related_transaction_ids=[str(event["transaction_id"])],
                 ) from exc
             if is_new:
-                candidate_lines, candidate_evidence = lines, evidence
+                (
+                    new_lines[event["transaction_id"]],
+                    new_evidence[event["transaction_id"]],
+                ) = (lines, evidence)
         if affected:
             raise LedgerError(
                 "REVERSAL_DEPENDENCY" if exclude else "VALIDATION_ERROR",
@@ -270,19 +302,56 @@ class Service:
                 None if exclude else "BACKDATED_EFFECT_CHANGE",
                 related_transaction_ids=affected,
             )
-        return state, candidate_lines, candidate_evidence
+        if candidates is not None:
+            return state, new_lines, new_evidence
+        return (
+            state,
+            new_lines.get(candidate["transaction_id"]) if candidate else None,
+            new_evidence.get(candidate["transaction_id"], []) if candidate else [],
+        )
 
     def submit(self, kind, payload, request_key, *, preview=False, connection=None):
+        result = self.submit_many(
+            [
+                {
+                    "client_event_id": "event",
+                    "transaction_type": kind,
+                    "payload": payload,
+                }
+            ],
+            [],
+            request_key,
+            preview=preview,
+            connection=connection,
+        )
+        if preview:
+            return result["events"][0]
+        return {
+            "transaction_id": result["events"][0]["transaction_id"],
+            "replayed": result["replayed"],
+        }
+
+    def submit_many(
+        self, events, relationships, request_key, *, preview=False, connection=None
+    ):
         if (
             not isinstance(request_key, str)
             or not request_key.strip()
             or len(request_key) > 200
         ):
             raise LedgerError("VALIDATION_ERROR", "A valid request ID is required.")
-        # Hash the original exact request. A retry must repeat the same content.
+        if (
+            not isinstance(events, list)
+            or not 1 <= len(events) <= 1000
+            or not isinstance(relationships, list)
+        ):
+            raise LedgerError(
+                "VALIDATION_ERROR",
+                "A request requires 1 to 1000 events and a relationship list.",
+            )
         fingerprint = sha256(
             json.dumps(
-                [kind, payload],
+                [events, relationships],
                 sort_keys=True,
                 separators=(",", ":"),
                 ensure_ascii=False,
@@ -295,112 +364,211 @@ class Service:
                 if connection is None
                 else nullcontext(connection)
             ) as conn:
-                receipt = conn.execute(
-                    "SELECT * FROM command_receipts WHERE request_key=?", (request_key,)
-                ).fetchone()
-                if receipt and not preview:
-                    if receipt["payload_hash"] != fingerprint:
-                        raise LedgerError(
-                            "VALIDATION_ERROR",
-                            "This request ID has already been used for different content.",
-                            "IDEMPOTENCY_CONFLICT",
-                        )
-                    return {
-                        "transaction_id": str(receipt["transaction_id"]),
-                        "replayed": True,
-                    }
-                event = self.normalize(conn, kind, payload)
-                # Use the next real AUTOINCREMENT value under the same exclusive writer lock.
-                sequence = conn.execute(
-                    "SELECT seq FROM sqlite_sequence WHERE name='transactions'"
-                ).fetchone()
-                event["transaction_id"] = (sequence[0] if sequence else 0) + 1
-                state, lines, evidence = self.replay(conn, candidate=event)
-                if preview:
-                    return {
-                        "position_scope_id": (
-                            str(event["data"]["position_scope_id"])
-                            if kind == "TRADE"
-                            else None
+                conn.execute("SAVEPOINT investment_request")
+                try:
+                    result = self._submit_many(
+                        conn, events, relationships, request_key, fingerprint, preview
+                    )
+                    if preview:
+                        conn.execute("ROLLBACK TO investment_request")
+                    conn.execute("RELEASE investment_request")
+                    return result
+                except BaseException:
+                    conn.execute("ROLLBACK TO investment_request")
+                    conn.execute("RELEASE investment_request")
+                    raise
+
+    def _submit_many(
+        self, conn, inputs, relationships, request_key, fingerprint, preview
+    ):
+        from .relationships import add_relationships
+
+        receipt = conn.execute(
+            "SELECT * FROM command_receipts WHERE request_key=?", (request_key,)
+        ).fetchone()
+        if receipt:
+            if receipt["payload_hash"] != fingerprint:
+                raise LedgerError(
+                    "VALIDATION_ERROR",
+                    "This request ID has already been used for different content.",
+                    "IDEMPOTENCY_CONFLICT",
+                )
+            items = [
+                {
+                    "client_event_id": r["client_event_id"],
+                    "transaction_id": str(r["transaction_id"]),
+                }
+                for r in conn.execute(
+                    "SELECT * FROM command_receipt_transactions WHERE request_key=? ORDER BY ordinal",
+                    (request_key,),
+                )
+            ]
+            if preview:
+                for item in items:
+                    item.update(
+                        journal=serialize_lines(
+                            stored_lines(conn, int(item["transaction_id"]))
                         ),
-                        "journal": serialize_lines(lines),
-                        "effective_date": event["effective_date"],
-                        "allocations": [
-                            {
-                                "buy_transaction_id": str(source),
-                                "quantity_disposed": decimal_text(q),
-                                "book_cost_disposed": decimal_text(cost),
-                            }
-                            for source, q, cost in state.effects.get(
-                                event["transaction_id"], {}
-                            ).get("allocations", [])
+                        allocations=position.detail(conn, int(item["transaction_id"]))[
+                            "allocations"
                         ],
-                    }
-                tid = conn.execute(
-                    "INSERT INTO transactions(transaction_type,effective_date,memo) VALUES (?,?,?)",
-                    (kind, event["effective_date"], event["memo"]),
-                ).lastrowid
-                if tid != event["transaction_id"]:
-                    raise LedgerError(
-                        "INTEGRITY_ERROR", "Transaction ordering conflict."
+                        effective_date=conn.execute(
+                            "SELECT effective_date FROM transactions WHERE transaction_id=?",
+                            (item["transaction_id"],),
+                        ).fetchone()[0],
                     )
-                if kind == "CASH_TRANSFER":
-                    conn.execute(
-                        "INSERT INTO cash_transfers VALUES (?,?,?)",
-                        (tid, event["data"]["currency"], event["data"]["amount"]),
-                    )
-                elif kind == "TRADE":
-                    conn.execute(
-                        "INSERT OR IGNORE INTO positions(position_id,observable_id) VALUES (?,?)",
-                        (event["position_id"], event["observable_id"]),
-                    )
-                    pins = [
-                        ("PRODUCT", event["data"]["product_id"]),
-                        ("OBSERVABLE", event["observable_id"]),
-                    ]
-                    if event["data"]["listing_id"]:
-                        pins.append(("LISTING", event["data"]["listing_id"]))
-                    for target_type, target_id in pins:
-                        conn.execute(
-                            "INSERT OR IGNORE INTO reference_catalog_pins VALUES (?,?,?)",
-                            (
-                                target_type,
-                                target_id,
-                                self.store.catalog.fingerprint(target_type, target_id),
-                            ),
-                        )
-                if kind in cash_events.TABLES:
-                    cash_events.save(conn, event)
-                    if kind == "DIVIDEND_RECEIPT":
-                        oid = event["data"]["observable_id"]
-                        conn.execute(
-                            "INSERT OR IGNORE INTO reference_catalog_pins VALUES ('OBSERVABLE',?,?)",
-                            (oid, self.store.catalog.fingerprint("OBSERVABLE", oid)),
-                        )
-                conn.executemany(
-                    "INSERT INTO transaction_accounts VALUES (?,?,?)",
-                    [(tid, r, a) for r, a in event["accounts"].items()],
+            return {"events": items, "replayed": True}
+        seq = conn.execute(
+            "SELECT seq FROM sqlite_sequence WHERE name='transactions'"
+        ).fetchone()
+        next_id = (seq[0] if seq else 0) + 1
+        candidates, client_ids = [], {}
+        positions = {
+            r["observable_id"]: r["position_id"]
+            for r in conn.execute("SELECT * FROM positions")
+        }
+        pseq = conn.execute(
+            "SELECT seq FROM sqlite_sequence WHERE name='positions'"
+        ).fetchone()
+        next_position = (pseq[0] if pseq else 0) + 1
+        for index, item in enumerate(inputs):
+            if not isinstance(item, dict) or set(item) != {
+                "client_event_id",
+                "transaction_type",
+                "payload",
+            }:
+                raise LedgerError(
+                    "VALIDATION_ERROR",
+                    "Each event requires client_event_id, transaction_type and payload.",
                 )
-                line_ids = save_lines(conn, tid, lines)
-                if kind == "TRADE":
-                    trades.save(
-                        conn,
-                        event,
-                        state.effects[tid],
-                        line_ids,
-                        lines,
-                        self.store.catalog,
-                    )
-                conn.executemany(
-                    "INSERT INTO book_fx_evidence VALUES (?,?)",
-                    [(tid, i) for i in evidence],
+            client_id = item["client_event_id"]
+            if (
+                not isinstance(client_id, str)
+                or not client_id.strip()
+                or len(client_id) > 200
+                or client_id in client_ids
+                or not isinstance(item["payload"], dict)
+            ):
+                raise LedgerError(
+                    "VALIDATION_ERROR",
+                    "Event IDs must be nonblank and unique within a request.",
                 )
+            event = self.normalize(conn, item["transaction_type"], item["payload"])
+            event["transaction_id"] = next_id + index
+            if event["transaction_type"] == "TRADE":
+                oid = event["observable_id"]
+                if oid not in positions:
+                    positions[oid] = next_position
+                    next_position += 1
+                event["position_id"] = positions[oid]
+            client_ids[client_id] = event["transaction_id"]
+            candidates.append(event)
+        state, lines, evidence = self.replay(conn, candidates=candidates)
+        # Allocate parents in request order, then persist effects in economic order.
+        # A later-dated sale can precede its earlier-dated BUY in the submitted list.
+        for event in candidates:
+            tid = conn.execute(
+                "INSERT INTO transactions(transaction_type,effective_date,memo) VALUES (?,?,?)",
+                (event["transaction_type"], event["effective_date"], event["memo"]),
+            ).lastrowid
+            if tid != event["transaction_id"]:
+                raise LedgerError("INTEGRITY_ERROR", "Transaction ordering conflict.")
+        for event in sorted(
+            candidates, key=lambda e: (e["effective_date"], e["transaction_id"])
+        ):
+            tid = event["transaction_id"]
+            self._persist(conn, event, state, lines[tid], evidence[tid])
+        add_relationships(conn, relationships, client_ids)
+        conn.execute(
+            "INSERT INTO command_receipts VALUES (?,?)", (request_key, fingerprint)
+        )
+        results = []
+        for ordinal, (client_id, tid) in enumerate(client_ids.items()):
+            conn.execute(
+                "INSERT INTO command_receipt_transactions VALUES (?,?,?,?)",
+                (request_key, ordinal, client_id, tid),
+            )
+            item = {"client_event_id": client_id, "transaction_id": str(tid)}
+            if preview:
+                event = candidates[ordinal]
+                item.update(
+                    position_scope_id=(
+                        str(event["data"]["position_scope_id"])
+                        if event["transaction_type"] == "TRADE"
+                        else None
+                    ),
+                    journal=serialize_lines(lines[tid]),
+                    effective_date=event["effective_date"],
+                    allocations=[
+                        {
+                            "buy_transaction_id": str(source),
+                            "quantity_disposed": decimal_text(q),
+                            "book_cost_disposed": decimal_text(cost),
+                        }
+                        for source, q, cost in state.effects.get(tid, {}).get(
+                            "allocations", []
+                        )
+                    ],
+                )
+            results.append(item)
+        return {"events": results, "replayed": False}
+
+    def _persist(self, conn, event, state, lines, evidence):
+        kind = event["transaction_type"]
+        tid = event["transaction_id"]
+        if kind == "CASH_TRANSFER":
+            conn.execute(
+                "INSERT INTO cash_transfers VALUES (?,?,?)",
+                (tid, event["data"]["currency"], event["data"]["amount"]),
+            )
+        elif kind == "TRADE":
+            conn.execute(
+                "INSERT OR IGNORE INTO positions(position_id,observable_id) VALUES (?,?)",
+                (event["position_id"], event["observable_id"]),
+            )
+            pins = [
+                ("PRODUCT", event["data"]["product_id"]),
+                ("OBSERVABLE", event["observable_id"]),
+            ]
+            if event["data"]["listing_id"]:
+                pins.append(("LISTING", event["data"]["listing_id"]))
+            for target_type, target_id in pins:
                 conn.execute(
-                    "INSERT INTO command_receipts VALUES (?,?,?)",
-                    (request_key, fingerprint, tid),
+                    "INSERT OR IGNORE INTO reference_catalog_pins VALUES (?,?,?)",
+                    (
+                        target_type,
+                        target_id,
+                        self.store.catalog.fingerprint(target_type, target_id),
+                    ),
                 )
-                self.replay(conn)
-                return {"transaction_id": str(tid), "replayed": False}
+        if kind == "INVESTMENT_CHARGE":
+            investment_charges.save(conn, event)
+        if kind in cash_events.TABLES:
+            cash_events.save(conn, event)
+            if kind == "DIVIDEND_RECEIPT":
+                oid = event["data"]["observable_id"]
+                conn.execute(
+                    "INSERT OR IGNORE INTO reference_catalog_pins VALUES ('OBSERVABLE',?,?)",
+                    (oid, self.store.catalog.fingerprint("OBSERVABLE", oid)),
+                )
+        conn.executemany(
+            "INSERT INTO transaction_accounts VALUES (?,?,?)",
+            [(tid, r, a) for r, a in event["accounts"].items()],
+        )
+        line_ids = save_lines(conn, tid, lines)
+        if kind == "TRADE":
+            trades.save(
+                conn,
+                event,
+                state.effects[tid],
+                line_ids,
+                lines,
+                self.store.catalog,
+            )
+        conn.executemany(
+            "INSERT INTO book_fx_evidence VALUES (?,?)",
+            [(tid, i) for i in evidence],
+        )
 
     def _reversal_target(self, conn, tid):
         target = conn.execute(
@@ -411,7 +579,7 @@ class Service:
         if target["transaction_type"] == "REVERSAL":
             raise LedgerError("VALIDATION_ERROR", "A Reversal cannot be reversed.")
         if conn.execute(
-            "SELECT 1 FROM transaction_relationships WHERE object_transaction_id=?",
+            "SELECT 1 FROM transaction_relationships WHERE object_transaction_id=? AND relationship_type='REVERSES'",
             (tid,),
         ).fetchone():
             raise LedgerError(
@@ -460,7 +628,12 @@ class Service:
                             "IDEMPOTENCY_CONFLICT",
                         )
                     return {
-                        "transaction_id": str(receipt["transaction_id"]),
+                        "transaction_id": str(
+                            conn.execute(
+                                "SELECT transaction_id FROM command_receipt_transactions WHERE request_key=? ORDER BY ordinal",
+                                (request_key,),
+                            ).fetchone()[0]
+                        ),
                         "replayed": True,
                     }
                 target = self._reversal_target(conn, tid)
@@ -477,8 +650,12 @@ class Service:
                 )
                 position.reverse(conn, tid, new)
                 conn.execute(
-                    "INSERT INTO command_receipts VALUES (?,?,?)",
-                    (request_key, fingerprint, new),
+                    "INSERT INTO command_receipts VALUES (?,?)",
+                    (request_key, fingerprint),
+                )
+                conn.execute(
+                    "INSERT INTO command_receipt_transactions VALUES (?,0,'event',?)",
+                    (request_key, new),
                 )
                 self.replay(conn)
                 return {"transaction_id": str(new), "replayed": False}
@@ -620,7 +797,7 @@ class Service:
             if event is None:
                 raise LedgerError("REFERENCE_NOT_FOUND", "Transaction not found.")
             reversal = conn.execute(
-                "SELECT subject_transaction_id FROM transaction_relationships WHERE object_transaction_id=?",
+                "SELECT subject_transaction_id FROM transaction_relationships WHERE object_transaction_id=? AND relationship_type='REVERSES'",
                 (tid,),
             ).fetchone()
             return serialize_ids(
@@ -629,6 +806,13 @@ class Service:
                     **serialize_event(event),
                     **position.detail(conn, tid),
                     "journal": serialize_lines(stored_lines(conn, tid)),
+                    "charge_relationships": [
+                        dict(r)
+                        for r in conn.execute(
+                            "SELECT * FROM transaction_relationships WHERE relationship_type='CHARGE_FOR' AND (subject_transaction_id=? OR object_transaction_id=?) ORDER BY subject_transaction_id,object_transaction_id",
+                            (tid, tid),
+                        )
+                    ],
                     "book_fx_evidence": [
                         dict(r)
                         for r in conn.execute(

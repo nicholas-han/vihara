@@ -12,14 +12,14 @@ from ..numbers import decimal_text
 from . import references
 
 APPLICATION = "vihara.portfolio-holdings"
-VERSION = 7
+VERSION = 8
+POLICY = "PRINCIPAL_ONLY_V1"
 IMMUTABLE_TABLES = (
     "external_account_references",
     "currencies",
     "owners",
     "ledger_account_definitions",
     "transactions",
-    "transaction_relationships",
     "reference_catalog_pins",
     "book_fx_observations",
     "book_fx_evidence",
@@ -31,6 +31,7 @@ CASH_TABLES = (
     "journal_entries",
     "journal_lines",
     "command_receipts",
+    "command_receipt_transactions",
 )
 
 
@@ -79,7 +80,15 @@ class Store:
         if not marker or marker[0] != APPLICATION or (version != VERSION):
             raise LedgerError(
                 "INTEGRITY_ERROR",
-                "Database type or version does not match. Financial Account v7 requires a separate new database; existing databases are not migrated.",
+                "Database type or version does not match. Investment Charge v8 requires an explicitly prepared database; existing databases are not automatically migrated.",
+            )
+        policy = conn.execute(
+            "SELECT value FROM holdings_metadata WHERE key='investment_charge_policy'"
+        ).fetchone()
+        if not policy or policy[0] != POLICY:
+            raise LedgerError(
+                "INTEGRITY_ERROR",
+                "Investment Charge policy marker is missing or incompatible.",
             )
         for table, required in {
             "financial_accounts": {"institution_type", "country_or_region"},
@@ -93,6 +102,26 @@ class Store:
                 "external_account_number",
                 "financial_account_id",
             },
+            "investment_charges": {
+                "investment_charge_category_id",
+                "currency",
+                "amount",
+            },
+            "investment_charge_categories": {"id", "code", "ledger_account_code"},
+            "investment_charge_source_mappings": {
+                "id",
+                "financial_account_id",
+                "source_label_raw",
+                "source_label_normalized",
+                "investment_charge_category_id",
+            },
+            "command_receipt_transactions": {
+                "request_key",
+                "ordinal",
+                "client_event_id",
+                "transaction_id",
+            },
+            "command_receipts": {"request_key", "payload_hash"},
             "trades": {"position_scope_id"},
             "position_lines": {"position_scope_id"},
             "position_cost_basis_lots": {"position_scope_id"},
@@ -104,8 +133,15 @@ class Store:
             ):
                 raise LedgerError(
                     "INTEGRITY_ERROR",
-                    "Financial Account schema is incomplete or incompatible.",
+                    "Investment Ledger schema is incomplete or incompatible.",
                 )
+        if conn.execute(
+            "SELECT 1 FROM sqlite_master WHERE type='table' AND name='trade_fees'"
+        ).fetchone():
+            raise LedgerError(
+                "INTEGRITY_ERROR",
+                "Legacy TradeFee table cannot be used under the principal-only policy.",
+            )
         for pin in conn.execute("SELECT * FROM reference_catalog_pins"):
             try:
                 fingerprint = self.catalog.fingerprint(
@@ -197,7 +233,6 @@ class Store:
             )
             for table in (
                 "trades",
-                "trade_fees",
                 "position_entries",
                 "position_lines",
                 "position_cost_basis_lots",
@@ -238,6 +273,18 @@ class Store:
             conn.execute("INSERT INTO schema_migrations VALUES (6)")
         if version < 7:
             conn.execute("INSERT INTO schema_migrations VALUES (7)")
+        if version < 8:
+            _execute_migration(
+                conn, Path(__file__).with_name("008_investment_charges.sql").read_text()
+            )
+            from .charges import seed
+
+            seed(conn)
+            conn.execute(
+                "INSERT INTO holdings_metadata VALUES ('investment_charge_policy',?)",
+                (POLICY,),
+            )
+            conn.execute("INSERT INTO schema_migrations VALUES (8)")
 
     @contextmanager
     def transaction(self):

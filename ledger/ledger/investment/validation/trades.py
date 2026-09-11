@@ -38,10 +38,6 @@ def check_trade(conn, tx, catalog, require):
         "Trade Position Scope does not belong to its Financial Account.",
     )
     scope_id = trade["position_scope_id"]
-    for fee in conn.execute(
-        "SELECT * FROM trade_fees WHERE trade_transaction_id=?", (tid,)
-    ):
-        require(decimal_value(fee["amount"]) != 0, "Zero fee line.")
     lines = conn.execute(
         "SELECT l.* FROM position_lines l JOIN position_entries e USING(position_entry_id) WHERE e.source_transaction_id=?",
         (tid,),
@@ -140,7 +136,7 @@ def reconcile(conn, require):
     reversed_ids = {
         r[0]
         for r in conn.execute(
-            "SELECT object_transaction_id FROM transaction_relationships"
+            "SELECT object_transaction_id FROM transaction_relationships WHERE relationship_type='REVERSES'"
         )
     }
     for lot in conn.execute("SELECT * FROM position_cost_basis_lots"):

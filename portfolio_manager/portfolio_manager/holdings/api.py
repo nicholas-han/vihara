@@ -53,12 +53,6 @@ class ReversalInput(BaseModel):
     memo: StrictStr | None = None
 
 
-class FeeInput(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-    fee_type: StrictStr
-    amount: StrictStr
-
-
 class TradeInput(BaseModel):
     model_config = ConfigDict(extra="forbid")
     effective_date: StrictStr
@@ -72,7 +66,6 @@ class TradeInput(BaseModel):
     trade_date: StrictStr | None = None
     trade_time: StrictStr | None = None
     scheduled_settlement_date: StrictStr | None = None
-    fees: list[FeeInput] = []
     memo: StrictStr | None = None
     request_key: StrictStr
 
@@ -111,6 +104,57 @@ class CashInput(BaseModel):
     request_key: StrictStr
 
 
+class ChargeInput(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    effective_date: StrictStr
+    account_id: StrictStr
+    investment_charge_category_id: StrictStr
+    currency: StrictStr
+    amount: StrictStr
+    memo: StrictStr | None = None
+    request_key: StrictStr
+
+
+class CategoryInput(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    code: StrictStr
+    display_name: StrictStr
+    ledger_account_code: StrictStr
+
+
+class CategoryNameInput(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    display_name: StrictStr
+
+
+class ChargeMappingInput(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    financial_account_id: StrictStr
+    source_label_raw: StrictStr
+    investment_charge_category_id: StrictStr
+    description: StrictStr | None = None
+
+
+class BatchEventInput(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    client_event_id: StrictStr
+    transaction_type: StrictStr
+    payload: dict
+
+
+class BatchInput(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    events: list[BatchEventInput]
+    charge_for: list[dict[str, StrictStr]] = []
+    request_key: StrictStr
+
+
+class RelatedInput(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    transaction_ids: list[StrictStr]
+    expected_version: StrictStr
+
+
 def create_app(settings: Settings | None = None):
     settings = settings or Settings.from_env()
     catalog = HoldingCatalog(settings.instruments_dir)
@@ -137,6 +181,7 @@ def create_app(settings: Settings | None = None):
             "DUPLICATE_ACCOUNT",
             "IDEMPOTENCY_CONFLICT",
             "BACKDATED_EFFECT_CHANGE",
+            "PREVIEW_STALE",
         ):
             status = 409
         return JSONResponse(status_code=status, content={"error": exc.as_dict()})
@@ -297,18 +342,24 @@ def create_app(settings: Settings | None = None):
         }
 
     @app.post("/api/transaction-previews")
-    def preview(payload: CashInput | TradeInput | FXInput | DividendInput):
+    def preview(
+        payload: CashInput | TradeInput | FXInput | DividendInput | ChargeInput,
+    ):
         return service.submit(
             (
-                "TRADE"
-                if isinstance(payload, TradeInput)
+                "INVESTMENT_CHARGE"
+                if isinstance(payload, ChargeInput)
                 else (
-                    "FX_CONVERSION"
-                    if isinstance(payload, FXInput)
+                    "TRADE"
+                    if isinstance(payload, TradeInput)
                     else (
-                        "DIVIDEND_RECEIPT"
-                        if isinstance(payload, DividendInput)
-                        else "CASH_TRANSFER"
+                        "FX_CONVERSION"
+                        if isinstance(payload, FXInput)
+                        else (
+                            "DIVIDEND_RECEIPT"
+                            if isinstance(payload, DividendInput)
+                            else "CASH_TRANSFER"
+                        )
                     )
                 )
             ),
@@ -345,6 +396,119 @@ def create_app(settings: Settings | None = None):
             observable_id,
             status,
             date_to.isoformat() if date_to else None,
+        )
+
+    from ledger.investment.persistence.charges import ChargeReferences
+    from ledger.investment.application import relationships
+    from ledger.investment.application.results import investment_results
+
+    charge_refs = ChargeReferences(store)
+
+    @app.get("/api/investment-charge-categories")
+    def charge_categories():
+        return charge_refs.categories()
+
+    @app.post("/api/investment-charge-categories", status_code=201)
+    def create_charge_category(payload: CategoryInput):
+        return charge_refs.create_category(**payload.model_dump())
+
+    @app.patch("/api/investment-charge-categories/{category_id}")
+    def rename_charge_category(category_id: int, payload: CategoryNameInput):
+        return charge_refs.rename_category(category_id, payload.display_name)
+
+    @app.get("/api/investment-charge-source-mappings")
+    def charge_mappings(
+        financial_account_id: int | None = None, source_label_raw: str | None = None
+    ):
+        return charge_refs.mappings(financial_account_id, source_label_raw)
+
+    @app.post("/api/investment-charge-source-mappings", status_code=201)
+    def create_charge_mapping(payload: ChargeMappingInput):
+        return charge_refs.save_mapping(**payload.model_dump())
+
+    @app.patch("/api/investment-charge-source-mappings/{mapping_id}")
+    def change_charge_mapping(mapping_id: int, payload: ChargeMappingInput):
+        return charge_refs.save_mapping(**payload.model_dump(), key=mapping_id)
+
+    @app.delete("/api/investment-charge-source-mappings/{mapping_id}")
+    def delete_charge_mapping(mapping_id: int):
+        charge_refs.delete_mapping(mapping_id)
+        return {"deleted": True}
+
+    @app.post("/api/transactions/investment-charges", status_code=201)
+    def charge(payload: ChargeInput):
+        return service.submit(
+            "INVESTMENT_CHARGE",
+            payload.model_dump(exclude={"request_key"}),
+            payload.request_key,
+        )
+
+    def validated_batch(payload):
+        models = {
+            "TRADE": TradeInput,
+            "CASH_TRANSFER": CashInput,
+            "FX_CONVERSION": FXInput,
+            "DIVIDEND_RECEIPT": DividendInput,
+            "INVESTMENT_CHARGE": ChargeInput,
+        }
+        from pydantic import ValidationError
+
+        for event in payload.events:
+            model = models.get(event.transaction_type)
+            if model is None or "request_key" in event.payload:
+                raise LedgerError(
+                    "VALIDATION_ERROR",
+                    "Invalid batch event type or nested request_key.",
+                )
+            try:
+                model.model_validate(
+                    {**event.payload, "request_key": payload.request_key}
+                )
+            except ValidationError as exc:
+                raise LedgerError(
+                    "VALIDATION_ERROR",
+                    "Invalid batch event payload.",
+                    field_errors={"events": str(exc)},
+                ) from exc
+        return [e.model_dump() for e in payload.events]
+
+    @app.post("/api/transactions/batch/preview")
+    def batch_preview(payload: BatchInput):
+        return service.submit_many(
+            validated_batch(payload),
+            payload.charge_for,
+            payload.request_key,
+            preview=True,
+        )
+
+    @app.post("/api/transactions/batch", status_code=201)
+    def batch_submit(payload: BatchInput):
+        return service.submit_many(
+            validated_batch(payload), payload.charge_for, payload.request_key
+        )
+
+    @app.get("/api/investment-charges/{transaction_id}/related-transactions")
+    def related_charge(transaction_id: int):
+        with store.read() as conn:
+            return relationships.related(conn, transaction_id)
+
+    @app.put("/api/investment-charges/{transaction_id}/related-transactions")
+    def replace_related_charge(transaction_id: int, payload: RelatedInput):
+        return relationships.replace(
+            store, transaction_id, payload.transaction_ids, payload.expected_version
+        )
+
+    @app.get("/api/investment-results")
+    def recognized_results(
+        date_from: date | None = None,
+        date_to: date | None = None,
+        account_id: int | None = None,
+    ):
+        return investment_results(
+            store,
+            date_from.isoformat() if date_from else None,
+            date_to.isoformat() if date_to else None,
+            account_id,
         )
 
     @app.get("/api/transactions/{transaction_id}")

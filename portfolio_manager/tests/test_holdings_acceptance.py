@@ -48,7 +48,7 @@ def test_backup_restore_all_facts_and_ids(store, setup, tmp_path):
         backup(store, destination)
 
 
-@pytest.mark.parametrize("version", [1, 6])
+@pytest.mark.parametrize("version", [1, 6, 7])
 def test_pre_scope_database_is_rejected_without_migration(tmp_path, version):
     target = Store(tmp_path / "old.sqlite3", HoldingCatalog(SEED))
     with sqlite3.connect(target.path) as conn:
@@ -61,7 +61,7 @@ def test_pre_scope_database_is_rejected_without_migration(tmp_path, version):
         )
         conn.execute("INSERT INTO schema_migrations VALUES (?)", (version,))
     before = target.path.read_bytes()
-    with pytest.raises(LedgerError, match="separate new database"):
+    with pytest.raises(LedgerError, match="not automatically migrated"):
         target.initialize()
     assert target.path.read_bytes() == before
 
@@ -73,7 +73,8 @@ def test_current_version_marker_cannot_hide_an_old_schema(tmp_path):
             "CREATE TABLE holdings_metadata(key TEXT PRIMARY KEY,value TEXT);"
             "INSERT INTO holdings_metadata VALUES ('application','vihara.portfolio-holdings');"
             "CREATE TABLE schema_migrations(version INTEGER PRIMARY KEY);"
-            "INSERT INTO schema_migrations VALUES (7);"
+            "INSERT INTO schema_migrations VALUES (8);"
+            "INSERT INTO holdings_metadata VALUES ('investment_charge_policy','PRINCIPAL_ONLY_V1');"
             "CREATE TABLE financial_accounts(financial_account_id INTEGER PRIMARY KEY,account_code TEXT,display_name TEXT);"
         )
     before = target.path.read_bytes()
@@ -215,12 +216,12 @@ def test_zero_balance_toggle_preserves_closed_position_identity(store, setup):
         "journal_entries",
         "journal_lines",
         "trades",
-        "trade_fees",
         "position_entries",
         "position_lines",
         "position_cost_basis_lots",
         "book_fx_evidence",
         "command_receipts",
+        "command_receipt_transactions",
     ],
 )
 def test_buy_failure_at_each_write_table_has_no_partial_event(store, setup, table):
@@ -246,7 +247,7 @@ def test_buy_failure_at_each_write_table_has_no_partial_event(store, setup, tabl
             f"CREATE TRIGGER fail_write BEFORE INSERT ON {table} BEGIN SELECT RAISE(ABORT,'injected'); END"
         )
     with pytest.raises(sqlite3.IntegrityError, match="injected"):
-        trade(s, a, fees=[{"fee_type": "COMMISSION", "amount": "1"}])
+        trade(s, a)
     assert snapshot() == before
     assert validate(store)["transaction_count"] == 1
 

@@ -1,6 +1,6 @@
 # 文档组织与维护约定
 
-更新：2026-09-11。本轮只整理归属、目录和链接；不改变业务合同。2026-09-09 的集中迁移清单保留在后文，目标链接已跟随新路径更新。
+更新：2026-09-11。本轮只整理归属、目录和链接；不改变业务合同、不实施费用方案。2026-09-09 的集中迁移清单保留在后文，目标链接已跟随新路径更新。
 
 ## 分类顺序
 
@@ -28,7 +28,7 @@
 ## 维护规则
 
 1. 新文档更新最近一级 README；从 [文档中心](README.md) 应能逐级找到。
-2. 已确认正文只保留一份。讨论中的方案保存在草稿区；定稿前不将其扩散成新的 canonical 合同。
+2. 已确认正文只保留一份。讨论中的方案保存在草稿区；定稿前不将其扩散成新的 canonical 合同。Investment Charge 的新 FINAL PRD 已归档；旧费用混合修订以新 PRD 为准，按 [本轮文档计划](projects/portfolio-holdings/planning/INVESTMENT_CHARGE_DOCUMENTATION_PLAN.md) 随开发收口。
 3. 链接相对当前文件；代码路径和命令注明相对仓库根目录或具体模块。移动文件时更新入链、出链和资源引用。
 4. 目录用稳定、无空格名称；非必要不重命名正文文件或章节锚点。中英文成对保留。
 5. 历史计划、交接和验收保留原日期；不能用它们证明后续设计已完成，或据历史指令启动新工作。
@@ -47,6 +47,8 @@
 | `docs/projects/portfolio-holdings/FINANCIAL_ACCOUNT_DESIGN.md` | [docs/projects/portfolio-holdings/design/FINANCIAL_ACCOUNT_DESIGN.md](projects/portfolio-holdings/design/FINANCIAL_ACCOUNT_DESIGN.md) |
 | `docs/projects/portfolio-holdings/RUNBOOK.md` | [docs/projects/portfolio-holdings/guides/RUNBOOK.md](projects/portfolio-holdings/guides/RUNBOOK.md) |
 | `docs/projects/portfolio-holdings/CSV_IMPORT.md` | [docs/projects/portfolio-holdings/guides/CSV_IMPORT.md](projects/portfolio-holdings/guides/CSV_IMPORT.md) |
+| `docs/projects/portfolio-holdings/FEE_EXPENSING_DESIGN.md` | [docs/projects/portfolio-holdings/drafts/FEE_EXPENSING_DESIGN.md](projects/portfolio-holdings/drafts/FEE_EXPENSING_DESIGN.md) |
+| `docs/projects/portfolio-holdings/DATA_ENTRY_SCOPE.md` | [docs/projects/portfolio-holdings/drafts/DATA_ENTRY_SCOPE.md](projects/portfolio-holdings/drafts/DATA_ENTRY_SCOPE.md) |
 | `docs/projects/portfolio-holdings/PROJECT_PLAN.md` | [docs/projects/portfolio-holdings/planning/PROJECT_PLAN.md](projects/portfolio-holdings/planning/PROJECT_PLAN.md) |
 | `docs/projects/portfolio-holdings/DECISIONS.md` | [docs/projects/portfolio-holdings/planning/DECISIONS.md](projects/portfolio-holdings/planning/DECISIONS.md) |
 | `docs/projects/portfolio-holdings/Codex_Handoff_Brief.md` | [docs/projects/portfolio-holdings/history/Codex_Handoff_Brief.md](projects/portfolio-holdings/history/Codex_Handoff_Brief.md) |

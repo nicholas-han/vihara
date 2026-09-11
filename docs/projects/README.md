@@ -4,7 +4,7 @@
 
 | 主题 | 入口 | 内容 |
 |---|---|---|
-| Portfolio Holdings | [阅读导航](portfolio-holdings/README.md) | 统一投资账本、账户与 scope、录入和分析 |
+| Portfolio Holdings | [阅读导航](portfolio-holdings/README.md) | 统一投资账本、账户与 scope、录入和分析；Investment Charge v8 已实现，含独立费用、来源映射与净投资结果 |
 | Limit with MOC | [阅读导航](limit-with-moc/README.md) | 订单编排设计、私有配置、工程验证及券商行为 |
 
 [返回文档中心](../README.md)

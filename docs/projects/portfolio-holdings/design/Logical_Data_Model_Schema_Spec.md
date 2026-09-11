@@ -1,3 +1,5 @@
+> 2026-09-12 Investment Charge v8：费用与交易成本遵循 [FINAL PRD](INVESTMENT_CHARGE_PRD.md)、[用户补充决定](../planning/DECISIONS.md#d-ic-002--股息预扣税类别与实际现金入账2026-09-12) 和 [实现设计](INVESTMENT_CHARGE_TECHNICAL_DESIGN.md)。本文已同步本轮合同；旧阶段验收仍只证明当时版本。正式数据库切换是独立发布步骤。
+
 # Portfolio Holdings & Accounting System
 
 > 2026-09-09 target update: [Financial Account PRD v1.0](Financial_Account_PRD.md) governs account aggregation, PositionScope and cost-basis boundaries. [Implementation design](FINANCIAL_ACCOUNT_DESIGN.md) and [Financial Account acceptance](../history/FINANCIAL_ACCOUNT_ACCEPTANCE.md) describe the implemented increment; S0–S10 reports remain historical records.
@@ -128,12 +130,12 @@ trade_time?
 ```text
 Transaction
 Trade
-TradeFee
+InvestmentCharge
 CashTransfer
 FXConversion
 DividendReceipt
 TransactionAccount
-TransactionRelationship
+TransactionRelationship(REVERSES only)
 
 JournalEntry
 JournalLine
@@ -729,6 +731,7 @@ TRADE
 CASH_TRANSFER
 FX_CONVERSION
 DIVIDEND_RECEIPT
+INVESTMENT_CHARGE
 REVERSAL
 ```
 
@@ -781,6 +784,7 @@ Transaction
     ├── Trade
     ├── CashTransfer
     ├── FXConversion
+    ├── InvestmentCharge
     ├── DividendReceipt
     └── REVERSAL has no subtype payload
 ```
@@ -846,6 +850,9 @@ FX_CONVERSION
 
 ```text
 DIVIDEND_RECEIPT
+→ exactly 1 ACCOUNT
+
+INVESTMENT_CHARGE
 → exactly 1 ACCOUNT
 ```
 
@@ -998,60 +1005,24 @@ MVP Accounting 仍按 trade date。
 
 约束：Trade.position_scope_id → PositionScope.financial_account_id = TransactionAccount.ACCOUNT.financial_account_id。Scope 是 canonical Trade fact，不放入 TransactionAccount。
 
-# 21. TradeFee
+# 21. InvestmentCharge（目标合同）
 
 ```text
-TradeFee
-{
-    trade_transaction_id    FK → Trade.transaction_id
-    fee_type                NOT NULL
-    amount                  NOT NULL
-
-    PK(
-        trade_transaction_id,
-        fee_type
-    )
+InvestmentCharge {
+    transaction_id PK/FK -> Transaction
+    investment_charge_category_id NOT NULL FK -> InvestmentChargeCategory.id
+    currency NOT NULL FK -> Currency
+    amount NOT NULL: signed Decimal text != 0
 }
 ```
 
-同一个 Trade + fee_type：
+INVESTMENT_CHARGE 具有一个 TransactionAccount.ACCOUNT。不重复存账户和 effective_date。新版 TradeFee 不再是 canonical entity；旧 schema 数据必须通过受控重建转换，不能只删费用行。
 
-```text
-at most one canonical row
-```
+复用 TransactionRelationship，新增 CHARGE_FOR（费用 → 业务交易），允许多对多及直接 add/remove/replace。Subject 必须是 INVESTMENT_CHARGE；object 不能是 INVESTMENT_CHARGE 或 REVERSAL。仅作来源关联，不分摊金额、不引入冲销依赖；双方冲销时仍保留关系。REVERSES 独立保持不可变和专用唯一约束。无退款原交易要求、无退款上限、无 canonical source group。
 
-Source 多行同 fee type：
+新增 InvestmentChargeCategory(id, code UNIQUE, display_name, ledger_account_code FK)，初始十类依据 FINAL PRD 的九类和 D-IC-002 的 DIVIDEND_WITHHOLDING_TAX 补充。已使用（含冲销后）category 的 code/account 不可改义，display_name 可编辑。
 
-```text
-canonical amount
-=
-SUM(source amounts)
-```
-
-Signed amount：
-
-```text
-amount > 0 → cost
-amount < 0 → rebate
-amount != 0
-```
-
-Fee denomination：
-
-```text
-Product quote currency
-```
-
-Initial taxonomy：
-
-```text
-COMMISSION
-EXCHANGE_FEE
-REGULATORY_FEE
-OTHER
-```
-
-不定义 REBATE 类型。
+新增 InvestmentChargeSourceMapping(id, financial_account_id, source_label_raw, source_label_normalized, investment_charge_category_id, description?)；UNIQUE(financial_account_id, source_label_normalized)。仅允许确定性的 Unicode、空白、英文大小写归一化；未知 label 不 canonicalize；mapping 修改不改变既有 canonical。完整物理合同见 [实现设计](INVESTMENT_CHARGE_TECHNICAL_DESIGN.md)。
 
 ---
 
@@ -1205,6 +1176,8 @@ payment_date
 
 ---
 
+来源明确 gross 与实际扣税时生成 DividendReceipt(GROSS) + 独立 InvestmentCharge 事件（同次复合请求原子提交，无来源分组）；只有净收款则 NET_ONLY，不猜测 gross，不重复扣除已含税费。费用核对与来源覆盖见股息补充决定 D-IC-002。
+
 # 25. LedgerAccountDefinition
 
 ```text
@@ -1224,6 +1197,9 @@ MVP：
 | INVESTMENT | ASSET | DEBIT |
 | REALIZED_TRADE_PNL | INCOME | CREDIT |
 | DIVIDEND_INCOME | INCOME | CREDIT |
+| INVESTMENT_FEES | EXPENSE | DEBIT |
+| INVESTMENT_TAXES | EXPENSE | DEBIT |
+| INVESTMENT_FINANCING_INTEREST | EXPENSE | DEBIT |
 | FX_ADJUSTMENT_RESERVE | EQUITY | CREDIT |
 | EXTERNAL_CAPITAL_FLOW | EQUITY | CREDIT |
 
@@ -1301,8 +1277,13 @@ Amount 是 positive magnitude。
 | INVESTMENT | Forbidden | Forbidden | Forbidden | Required | Required |
 | REALIZED_TRADE_PNL | Forbidden | Forbidden | Forbidden | Forbidden | Required |
 | DIVIDEND_INCOME | Forbidden | Forbidden | Forbidden | Forbidden | Required |
+| INVESTMENT_FEES | Forbidden | Forbidden | Forbidden | Forbidden | Required |
+| INVESTMENT_TAXES | Forbidden | Forbidden | Forbidden | Forbidden | Required |
+| INVESTMENT_FINANCING_INTEREST | Forbidden | Forbidden | Forbidden | Forbidden | Required |
 | FX_ADJUSTMENT_RESERVE | Forbidden | Forbidden | Forbidden | Forbidden | Required |
 | EXTERNAL_CAPITAL_FLOW | Forbidden | Forbidden | Forbidden | Forbidden | Required |
+
+三个 Investment Expense 科目仅保存 ledger_account_code、side、book_amount；financial_account_id/native_currency/native_amount/position_id 禁止。CASH 行携带账户、原币及金额；费用来源维度通过 InvestmentCharge 与 TransactionAccount 追溯。Category 是 reference table，映射到三个明确科目，不能以 OTHER 兜底。
 
 CASH：
 
@@ -1345,6 +1326,7 @@ TRADE              → exactly 1 JournalEntry
 CASH_TRANSFER      → exactly 1
 FX_CONVERSION      → exactly 1
 DIVIDEND_RECEIPT   → exactly 1
+INVESTMENT_CHARGE    → exactly 1
 REVERSAL           → mirrors target
 ```
 
@@ -2277,45 +2259,12 @@ corresponding Position quantity
 # 51. Trade Economics
 
 ```text
-gross_consideration
-=
-quantity × price
+gross_consideration = quantity × price > 0
+BUY native_acquisition_cost = gross_consideration
+SELL gross_sale_proceeds = gross_consideration
 ```
 
-```text
-total_trade_fee
-=
-Σ TradeFee.amount
-```
-
-BUY：
-
-```text
-native_acquisition_cost
-=
-gross_consideration
-+
-total_trade_fee
-```
-
-SELL：
-
-```text
-net_sale_proceeds
-=
-gross_consideration
--
-total_trade_fee
-```
-
-MVP 标准 processing 要求：
-
-```text
-native_acquisition_cost > 0
-net_sale_proceeds > 0
-```
-
-否则 explicit reject。
+费用独立入账，不再参与 trade consideration 或证券成本计算。组合现金容量由 trade 和独立费用的实际顺序共同验证，不以旧 net proceeds > 0 规则拒绝交易。
 
 ---
 
@@ -2428,7 +2377,7 @@ book_cost_basis
 Dr INVESTMENT.book_amount
 ```
 
-BUY fees 已资本化。
+BUY 费用不资本化；费用事件不创建或修改证券 lot。
 
 ---
 
@@ -2464,7 +2413,7 @@ Cash recognition：
 ```text
 Dr CASH.native_amount
 =
-net_sale_proceeds
+gross_sale_proceeds
 ```
 
 Functional quote：
@@ -2472,7 +2421,7 @@ Functional quote：
 ```text
 cash_book_recognition
 =
-net_sale_proceeds
+gross_sale_proceeds
 ```
 
 Foreign quote：
@@ -2480,7 +2429,7 @@ Foreign quote：
 ```text
 cash_book_recognition
 =
-net_sale_proceeds
+gross_sale_proceeds
 ×
 effective-date Book FX
 ```
@@ -2542,32 +2491,11 @@ REALIZED_TRADE_PNL
 
 ---
 
-# 54. Trade Fee Accounting
+# 54. Independent Fee Accounting
 
-BUY：
+所有费用使用 INVESTMENT_CHARGE，正数借记 category 对应费用科目、贷记现金；负数（退款/返佣）借记现金、贷记同一 category 对应费用科目。均无证券 PositionEntry、Lot、Allocation。关联 trade 不影响会计政策。
 
-```text
-fees
-→ capitalized into Position historical cost
-```
-
-SELL：
-
-```text
-fees
-→ reduce net sale proceeds
-```
-
-MVP 不建立：
-
-```text
-TRADING_FEE_EXPENSE
-```
-
-Negative fee / rebate：
-
-- 降低 BUY acquisition cost；
-- 提高 SELL net proceeds。
+外币 CHARGE 的费用以事件日 Book FX 确认，CASH 按历史 basis 处置，差额遵循 FX Reserve 规则。REFUND 按退款日 Book FX 新确认现金。不通过负 TradeFee 修改旧持仓成本。三类费用科目及 JournalLine dimension contract 见 Investment Charge FINAL PRD §9、§19。
 
 ---
 
@@ -2732,6 +2660,7 @@ MVP matrix：
 | CASH_TRANSFER | 1 | 0 | none |
 | FX_CONVERSION | 1 | 0 | none |
 | DIVIDEND_RECEIPT | 1 | 0 | none |
+| INVESTMENT_CHARGE | 1 | 0 | none |
 | REVERSAL | mirrors target | mirrors target | target records become inactive |
 
 多个 Accounting effects：
@@ -4176,10 +4105,10 @@ TransactionRelationship      FINAL
 Canonical Replay Ordering    FINAL
 
 Trade                        FINAL
-TradeFee                     FINAL
+InvestmentCharge                FINAL (independent expense event)
 CashTransfer                 FINAL
 FXConversion                 FINAL
-DividendReceipt              FINAL
+DividendReceipt              FINAL: actual cash receipt + independently posted charges
 Reversal Processing          FINAL
 
 LedgerAccountDefinition      FINAL
@@ -4298,6 +4227,6 @@ As-of 展示当前已知修正后的经济历史；第一版不提供 recorded-a
 
 ### Confirmed positive amount / precision contract (2026-09-06)
 
-JournalLine.book_amount 严格大于零，CASH.native_amount 严格大于零。零 P&L 或零 FX Reserve 差额不生成对应行；TradeFee 同类型汇总为零时不保存该行。真实正数经济移动或成本分配超出支持精度、舍入成零时明确拒绝，不写零成本行、不丢弃数量、不用 dummy line 凑平。
+JournalLine.book_amount 严格大于零，CASH.native_amount 严格大于零。零 P&L 或零 FX Reserve 差额不生成对应行；InvestmentCharge amount 为非零 signed Decimal，正数收费，负数退款/返佣，零费证据不生成经济事件；无 direction 字段。真实正数经济移动或成本分配超出支持精度、舍入成零时明确拒绝，不写零成本行、不丢弃数量、不用 dummy line 凑平。
 
 MarketPriceQuote.price = 0 仍可表示真实零估值，不能与缺失报价混淆。

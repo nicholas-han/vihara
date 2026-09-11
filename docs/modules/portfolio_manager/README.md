@@ -15,3 +15,7 @@
 | [instrument registry](instrument-registry-resolver-and-trade-reference_zh-Hans.md) | 旧 instrument registry/resolver 路径 |
 
 旧实现文档不删除，但维护时必须标明适用范围；不得据此重建或覆盖 Holdings 的 authoritative SQLite 数据。
+
+## Investment Charge v8
+
+Investment Ledger 已支持独立投资费用、税费、融资利息与退款；Trade 成本/收入只计本金，来源映射和可编辑 CHARGE_FOR 不改变历史会计。Portfolio Manager 提供录入、分类/映射维护、导入与 recognized investment result 分析。见 [实现设计](../../projects/portfolio-holdings/design/INVESTMENT_CHARGE_TECHNICAL_DESIGN.md)、[使用与 v7 准备流程](../../projects/portfolio-holdings/guides/RUNBOOK.md)。
