@@ -59,4 +59,4 @@ CSV 上传、映射、连续预览、分录内容查看、逐笔确认、重复�
 
 代码与文档保留在当前分支工作区，未自动提交或推送。
 
-手机页面验收截图（临时验收账本）：[holdings-mobile.png](<../../Project - Portfolio Holdings MVP/acceptance-assets/holdings-mobile.png>)。
+手机页面验收截图（临时验收账本）：[holdings-mobile.png](<assets/holdings-mobile.png>)。

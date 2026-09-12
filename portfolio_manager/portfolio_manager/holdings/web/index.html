@@ -26,6 +26,7 @@
       </p>
       <div id="message" role="status" hidden></div>
       <section id="holdings">
+        <div id="investment-results" class="panel"></div>
         <div class="heading">
           <div>
             <p class="eyebrow">PORTFOLIO</p>
@@ -145,6 +146,7 @@
                 <option value="CASH_TRANSFER">Cash Transfer</option>
                 <option value="TRADE">Trade</option>
                 <option value="FX_CONVERSION">FX Conversion</option>
+                <option value="INVESTMENT_CHARGE">Investment Charge</option>
                 <option value="DIVIDEND_RECEIPT">Dividend Receipt</option>
                 <option value="REVERSAL">Reversal</option>
               </select></label
@@ -193,6 +195,7 @@
             <option value="cash">Cash Transfer</option>
             <option value="trade">Trade (BUY / SELL)</option>
             <option value="fx">FX Conversion</option>
+            <option value="charge">Investment Charge</option>
             <option value="dividend">Dividend Receipt</option>
           </select></label
         >
@@ -234,9 +237,11 @@
                 type="date"
                 required /></label
             ><label>Financial Account<select name="account_id"></select></label
-            ><label id="trade-scope-label" hidden>Position Scope<select name="position_scope_id" required></select></label
-            ><p id="trade-scope-description" role="status"></p
-            ><label>Product<select name="product_id"></select></label
+            ><label id="trade-scope-label" hidden
+              >Position Scope<select name="position_scope_id" required></select
+            ></label>
+            <p id="trade-scope-description" role="status"></p>
+            <label>Product<select name="product_id"></select></label
             ><label
               >Listing (Optional)<select name="listing_id">
                 <option value="">Not Specified</option>
@@ -266,10 +271,44 @@
                 type="date" /></label
             ><label>Memo<input name="memo" maxlength="2000" /></label>
             <div>
-              <h3>Fees (negative amounts indicate rebates)</h3>
+              <h3>Related charges</h3>
+              <p>
+                Each charge is a separate transaction. Positive amounts are
+                expenses; negative amounts are refunds or rebates.
+              </p>
               <div id="fee-rows"></div>
-              <button id="add-fee" type="button">Add Fee</button>
+              <button id="add-fee" type="button">Add Related Charge</button>
             </div>
+            <button type="submit">Preview Journal</button>
+          </form>
+          <form id="charge-form" class="entry-form" hidden>
+            <label
+              >Posting Date<input name="effective_date" type="date" required
+            /></label>
+            <label
+              >Financial Account<select name="account_id" required></select
+            ></label>
+            <label
+              >Category<select
+                name="investment_charge_category_id"
+                required
+              ></select
+            ></label>
+            <label
+              >Cash Currency<select name="currency" required></select
+            ></label>
+            <label
+              >Amount<input name="amount" inputmode="decimal" required
+            /></label>
+            <p>
+              Positive: charge. Negative: refund or rebate. Zero amounts are not
+              recorded.
+            </p>
+            <label
+              >Related Transaction IDs (optional, comma separated)<input
+                name="related_ids"
+            /></label>
+            <label>Memo<input name="memo" maxlength="2000" /></label>
             <button type="submit">Preview Journal</button>
           </form>
           <form id="fx-form" class="entry-form" hidden>
@@ -355,7 +394,8 @@
         <div class="panel">
           <h2>Financial Accounts</h2>
           <p>
-            Financial Accounts group the assets you manage together. Cash is grouped by currency; position holdings can have separate scopes.
+            Financial Accounts group the assets you manage together. Cash is
+            grouped by currency; position holdings can have separate scopes.
           </p>
           <form id="account-form">
             <label
@@ -371,11 +411,23 @@
                 required
                 maxlength="200"
                 placeholder="e.g. Interactive Brokers" /></label
-            ><label>Institution Type<select name="institution_type" required>
-                <option>BROKER-DEALER</option><option>BANK</option><option>INSURER</option>
+            ><label
+              >Institution Type<select name="institution_type" required>
+                <option>BROKER-DEALER</option>
+                <option>BANK</option>
+                <option>INSURER</option>
               </select></label
-            ><label>Country or Region (Optional)<input name="country_or_region" maxlength="64" placeholder="e.g. HK" /></label
-            ><label><span>Position Holdings</span><span><input id="account-has-positions" type="checkbox" checked /> Create default position holdings</span></label
+            ><label
+              >Country or Region (Optional)<input
+                name="country_or_region"
+                maxlength="64"
+                placeholder="e.g. HK" /></label
+            ><label
+              ><span>Position Holdings</span
+              ><span
+                ><input id="account-has-positions" type="checkbox" checked />
+                Create default position holdings</span
+              ></label
             ><button class="primary" type="submit">
               Create Financial Account
             </button>
@@ -386,7 +438,9 @@
                 <tr>
                   <th>Account Code</th>
                   <th>Display Name</th>
-                  <th>Institution Type</th><th>Country / Region</th><th>References</th>
+                  <th>Institution Type</th>
+                  <th>Country / Region</th>
+                  <th>References</th>
                 </tr>
               </thead>
               <tbody id="accounts"></tbody>
@@ -398,6 +452,7 @@
           <p id="config-description"></p>
           <p id="currencies"></p>
         </div>
+        <div id="charge-settings" class="panel"></div>
         <div class="panel">
           <h2>Tradable Products</h2>
           <label class="search-label"

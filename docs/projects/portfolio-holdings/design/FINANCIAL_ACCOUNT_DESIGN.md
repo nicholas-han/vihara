@@ -1,6 +1,6 @@
 # Financial Account — 实施设计
 
-更新：2026-09-09。状态：**FA-1～FA-5 已实现；结果见 [专项验收](FINANCIAL_ACCOUNT_ACCEPTANCE.md)**。
+更新：2026-09-09。状态：**FA-1～FA-5 已实现；结果见 [专项验收](../history/FINANCIAL_ACCOUNT_ACCEPTANCE.md)**。
 
 依据：[Financial Account PRD v1.0](Financial_Account_PRD.md)、[Canonical PRD](PRD.md)、[Logical Schema](Logical_Data_Model_Schema_Spec.md)、[Web Spec](<Web_&_Data_Entry_Spec.md>)。本轮静态代码基线为本地 main `6b3e66b`。用户提供的 Financial Account PRD 原文保持不变，仅修正文件名拼写并迁入统一文档目录。
 

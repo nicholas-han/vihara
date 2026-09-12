@@ -54,7 +54,7 @@ def test_initialization_is_empty_and_restart_preserves_accounts(store):
             conn.execute("SELECT COUNT(*) FROM ledger_account_definitions").fetchone()[
                 0
             ]
-            == 6
+            == 9
         )
         assert conn.execute("SELECT COUNT(*) FROM transactions").fetchone()[0] == 0
 

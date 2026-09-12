@@ -1,8 +1,12 @@
 import { $, api, cell, message, page } from "./app.js";
+import { renderRelations } from "./charges.js";
 const form = $("#cash-form"),
   trade = $("#trade-form"),
   fx = $("#fx-form"),
-  dividend = $("#dividend-form");
+  dividend = $("#dividend-form"),
+  charge = $("#charge-form");
+let chargeCategories = [],
+  cashCurrencies = [];
 let prepared = null,
   txOffset = 0,
   previewSequence = 0,
@@ -15,7 +19,10 @@ const labels = {
   EXTERNAL_CAPITAL_FLOW: "External Capital Flow",
   FX_ADJUSTMENT_RESERVE: "FX Adjustment Reserve",
   INVESTMENT: "Investment",
-  REALIZED_TRADE_PNL: "Realized Trade P&L",
+  REALIZED_TRADE_PNL: "Gross Realized Trade P&L",
+  INVESTMENT_FEES: "Investment Fees",
+  INVESTMENT_TAXES: "Investment Taxes",
+  INVESTMENT_FINANCING_INTEREST: "Investment Financing Interest",
   DIVIDEND_INCOME: "Dividend Income",
 };
 const typeNames = {
@@ -24,6 +31,7 @@ const typeNames = {
   FX_CONVERSION: "FX Conversion",
   DIVIDEND_RECEIPT: "Dividend Receipt",
   REVERSAL: "Reversal",
+  INVESTMENT_CHARGE: "Investment Charge",
 };
 export function journal(
   container,
@@ -94,6 +102,7 @@ async function options() {
     trade.elements.account_id,
     fx.elements.account_id,
     dividend.elements.account_id,
+    charge.elements.account_id,
   ])
     selectOptions(
       select,
@@ -133,6 +142,16 @@ async function options() {
       select,
       c.currencies.map((c) => [c.currency_code, c.currency_code]),
     );
+  selectOptions(charge.elements.currency, [
+    ["", "Select cash currency"],
+    ...c.currencies.map((c) => [c.currency_code, c.currency_code]),
+  ]);
+  chargeCategories = await api("/api/investment-charge-categories");
+  cashCurrencies = c.currencies.map((c) => c.currency_code);
+  selectOptions(
+    charge.elements.investment_charge_category_id,
+    chargeCategories.map((c) => [c.id, c.display_name]),
+  );
   const observables = await api("/api/observables");
   selectOptions($("#tx-observable"), [
     ["", "All"],
@@ -149,35 +168,54 @@ async function positionScopes() {
   const accountId = trade.elements.account_id.value;
   invalidate();
   currentScopes = [];
-  selectOptions(trade.elements.position_scope_id, [["", "Select Position Scope"]]);
+  selectOptions(trade.elements.position_scope_id, [
+    ["", "Select Position Scope"],
+  ]);
   trade.querySelector('button[type="submit"]').disabled = true;
   $("#trade-scope-label").hidden = true;
   $("#trade-scope-description").textContent = "Loading position holdings…";
   if (!accountId) {
-    $("#trade-scope-description").textContent = "Create a Financial Account first.";
+    $("#trade-scope-description").textContent =
+      "Create a Financial Account first.";
     return;
   }
   const rows = await api(`/api/accounts/${accountId}/position-scopes`);
-  if (sequence !== scopeSequence || trade.elements.account_id.value !== accountId) return;
+  if (
+    sequence !== scopeSequence ||
+    trade.elements.account_id.value !== accountId
+  )
+    return;
   currentScopes = rows;
   selectOptions(trade.elements.position_scope_id, [
     ...(rows.length === 1 ? [] : [["", "Select Position Scope"]]),
-    ...rows.map(s => [s.position_scope_id, s.scope_code === "DEFAULT" ? "Account default holdings" : s.display_name]),
+    ...rows.map((s) => [
+      s.position_scope_id,
+      s.scope_code === "DEFAULT" ? "Account default holdings" : s.display_name,
+    ]),
   ]);
-  trade.elements.position_scope_id.value = rows.length === 1 ? rows[0].position_scope_id : "";
-  $("#trade-scope-label").hidden = rows.length === 0 || (rows.length === 1 && rows[0].scope_code === "DEFAULT");
+  trade.elements.position_scope_id.value =
+    rows.length === 1 ? rows[0].position_scope_id : "";
+  $("#trade-scope-label").hidden =
+    rows.length === 0 ||
+    (rows.length === 1 && rows[0].scope_code === "DEFAULT");
   trade.querySelector('button[type="submit"]').disabled = rows.length === 0;
   scopeDescription();
 }
 function scopeDescription() {
-  const selected = currentScopes.find(s => s.position_scope_id === trade.elements.position_scope_id.value);
+  const selected = currentScopes.find(
+    (s) => s.position_scope_id === trade.elements.position_scope_id.value,
+  );
   $("#trade-scope-description").textContent = !currentScopes.length
     ? "This account has no position holdings. Complete its reference setup before entering a Trade."
-    : selected?.tax_scheme_name ? "Tax classification: " + selected.tax_scheme_name
-    : currentScopes.length > 1 && !selected ? "Choose exactly one Position Scope." : "";
+    : selected?.tax_scheme_name
+      ? "Tax classification: " + selected.tax_scheme_name
+      : currentScopes.length > 1 && !selected
+        ? "Choose exactly one Position Scope."
+        : "";
 }
 trade.elements.account_id.addEventListener("change", () =>
-  positionScopes().catch(e => message(e.message, true)));
+  positionScopes().catch((e) => message(e.message, true)),
+);
 trade.elements.position_scope_id.addEventListener("change", () => {
   invalidate();
   scopeDescription();
@@ -205,7 +243,7 @@ function invalidate() {
   $("#cash-preview").hidden = true;
   $("#submit-cash").hidden = true;
 }
-for (const f of [form, trade, fx, dividend]) {
+for (const f of [form, trade, fx, dividend, charge]) {
   f.addEventListener("input", invalidate);
   f.elements.effective_date.value = new Date().toLocaleDateString("en-CA");
 }
@@ -214,6 +252,7 @@ $("#entry-kind").addEventListener("change", () => {
   trade.hidden = $("#entry-kind").value !== "trade";
   fx.hidden = $("#entry-kind").value !== "fx";
   dividend.hidden = $("#entry-kind").value !== "dividend";
+  charge.hidden = $("#entry-kind").value !== "charge";
   invalidate();
 });
 form.elements.direction.addEventListener("change", () => {
@@ -227,17 +266,25 @@ $("#add-fee").addEventListener("click", () => {
   const row = document.createElement("div");
   row.className = "fee-row";
   const type = document.createElement("select");
-  for (const [k, v] of [
-    ["COMMISSION", "Commission"],
-    ["EXCHANGE_FEE", "Exchange Fee"],
-    ["REGULATORY_FEE", "Regulatory Fee"],
-    ["OTHER", "Other"],
-  ])
-    type.add(new Option(v, k));
-  type.setAttribute("aria-label", "Fee Type");
+  for (const c of chargeCategories) type.add(new Option(c.display_name, c.id));
+  type.setAttribute("aria-label", "Charge category");
+  const currency = document.createElement("select");
+  currency.className = "charge-currency";
+  currency.add(new Option("Select cash currency", ""));
+  currency.required = true;
+  for (const c of cashCurrencies) currency.add(new Option(c, c));
+  currency.setAttribute("aria-label", "Charge cash currency");
+  const day = document.createElement("input");
+  day.type = "date";
+  day.className = "charge-date";
+  day.required = true;
+  day.value = trade.elements.effective_date.value;
+  day.setAttribute("aria-label", "Charge posting date");
   const amount = document.createElement("input");
-  amount.placeholder = "Fee Amount";
-  amount.setAttribute("aria-label", "Fee Amount");
+  amount.className = "charge-amount";
+  amount.required = true;
+  amount.placeholder = "Signed amount";
+  amount.setAttribute("aria-label", "Charge amount");
   amount.inputMode = "decimal";
   const remove = document.createElement("button");
   remove.type = "button";
@@ -246,24 +293,55 @@ $("#add-fee").addEventListener("click", () => {
     row.remove();
     invalidate();
   });
-  row.append(type, amount, remove);
+  row.append(type, currency, day, amount, remove);
   $("#fee-rows").append(row);
 });
 async function preview(body, path) {
   const sequence = previewSequence;
   try {
-    const result = await api("/api/transaction-previews", {
-      method: "POST",
-      body: JSON.stringify(body),
-    });
+    const result = await api(
+      path === "batch"
+        ? "/api/transactions/batch/preview"
+        : "/api/transaction-previews",
+      {
+        method: "POST",
+        body: JSON.stringify(body),
+      },
+    );
     if (sequence !== previewSequence) return;
     prepared = { body, path };
-    journal($("#cash-preview"), result.journal);
+    if (result.events) {
+      $("#cash-preview").replaceChildren();
+      for (const event of result.events) {
+        const title = document.createElement("h3"),
+          box = document.createElement("div");
+        title.textContent =
+          event.client_event_id + " · " + event.effective_date;
+        journal(box, event.journal);
+        $("#cash-preview").append(title, box);
+        if (event.allocations?.length)
+          table(
+            box,
+            ["BUY Transaction", "Disposed Quantity", "Disposed Cost (HKD)"],
+            event.allocations.map((a) => [
+              a.buy_transaction_id,
+              a.quantity_disposed,
+              a.book_cost_disposed,
+            ]),
+          );
+      }
+    } else journal($("#cash-preview"), result.journal);
     if (result.position_scope_id) {
-      const scope = currentScopes.find(s => s.position_scope_id === result.position_scope_id);
+      const scope = currentScopes.find(
+        (s) => s.position_scope_id === result.position_scope_id,
+      );
       if (scope && (scope.scope_code !== "DEFAULT" || scope.tax_scheme_name)) {
         const p = document.createElement("p");
-        p.textContent = (scope.scope_code === "DEFAULT" ? "Account default holdings" : "Position Scope: " + scope.display_name) + (scope.tax_scheme_name ? " · " + scope.tax_scheme_name : "");
+        p.textContent =
+          (scope.scope_code === "DEFAULT"
+            ? "Account default holdings"
+            : "Position Scope: " + scope.display_name) +
+          (scope.tax_scheme_name ? " · " + scope.tax_scheme_name : "");
         $("#cash-preview").prepend(p);
       }
     }
@@ -313,12 +391,32 @@ trade.addEventListener("submit", async (e) => {
     "memo",
   ])
     f[k] = f[k] || null;
-  f.fees = [...document.querySelectorAll(".fee-row")].map((r) => ({
-    fee_type: r.querySelector("select").value,
-    amount: r.querySelector("input").value,
-  }));
-  f.request_key = crypto.randomUUID();
-  await preview(f, "trades");
+  const events = [
+    { client_event_id: "trade", transaction_type: "TRADE", payload: f },
+  ];
+  const charge_for = [];
+  for (const [i, row] of [...document.querySelectorAll(".fee-row")].entries()) {
+    const client_event_id = "charge-" + (i + 1);
+    events.push({
+      client_event_id,
+      transaction_type: "INVESTMENT_CHARGE",
+      payload: {
+        effective_date: row.querySelector(".charge-date").value,
+        account_id: f.account_id,
+        investment_charge_category_id: row.querySelector("select").value,
+        currency: row.querySelector(".charge-currency").value,
+        amount: row.querySelector(".charge-amount").value,
+      },
+    });
+    charge_for.push({
+      subject_client_event_id: client_event_id,
+      object_client_event_id: "trade",
+    });
+  }
+  await preview(
+    { events, charge_for, request_key: crypto.randomUUID() },
+    "batch",
+  );
 });
 $("#submit-cash").addEventListener("click", async () => {
   if (!prepared) return;
@@ -332,7 +430,7 @@ $("#submit-cash").addEventListener("click", async () => {
     invalidate();
     form.elements.amount.value = "";
     await refresh();
-    await detail(result.transaction_id);
+    await detail(result.transaction_id || result.events[0].transaction_id);
     message("Transaction committed.");
     page("transactions");
   } catch (e) {
@@ -356,9 +454,14 @@ async function detail(id) {
       : null,
   ]);
   const scopeRows = economic.data.position_scope_id
-    ? await api(`/api/accounts/${economic.accounts.ACCOUNT}/position-scopes`) : [];
-  const scopeNames = new Map(scopeRows.map(s => [s.position_scope_id,
-    s.scope_code === "DEFAULT" ? "Account default holdings" : s.display_name]));
+    ? await api(`/api/accounts/${economic.accounts.ACCOUNT}/position-scopes`)
+    : [];
+  const scopeNames = new Map(
+    scopeRows.map((s) => [
+      s.position_scope_id,
+      s.scope_code === "DEFAULT" ? "Account default holdings" : s.display_name,
+    ]),
+  );
   if (sequence !== detailSequence) return;
   const accountNames = new Map(
     accountRows.map((a) => [
@@ -425,10 +528,13 @@ async function detail(id) {
       accountNames.get(accountId) || accountId,
     ]);
   }
-  const selectedScope = scopeRows.find(s => s.position_scope_id === economic.data.position_scope_id);
+  const selectedScope = scopeRows.find(
+    (s) => s.position_scope_id === economic.data.position_scope_id,
+  );
   if (selectedScope?.scope_code !== "DEFAULT" && selectedScope)
     identities.push(["Position Scope", selectedScope.display_name]);
-  if (selectedScope?.tax_scheme_name) identities.push(["Tax Classification", selectedScope.tax_scheme_name]);
+  if (selectedScope?.tax_scheme_name)
+    identities.push(["Tax Classification", selectedScope.tax_scheme_name]);
   if (identities.length) table(container, ["Field", "Value"], identities);
   const desc = document.createElement("p");
   const fieldLabels = {
@@ -452,12 +558,35 @@ async function detail(id) {
       .map(([k, v]) => fieldLabels[k] + ": " + v)
       .join(" · ") + (tx.memo ? " · " + tx.memo : "");
   container.append(desc);
-  if (tx.data.fees && Object.keys(tx.data.fees).length)
-    table(
+  if (economic.transaction_type === "INVESTMENT_CHARGE") {
+    const categories = await api("/api/investment-charge-categories");
+    if (sequence !== detailSequence) return;
+    const p = document.createElement("p");
+    p.textContent =
+      "Category: " +
+      (categories.find(
+        (c) => c.id === economic.data.investment_charge_category_id,
+      )?.display_name || economic.data.investment_charge_category_id);
+    container.append(p);
+    await renderRelations(
       container,
-      ["Fee Type", "Fee Amount (Quote Currency)"],
-      Object.entries(tx.data.fees),
+      economic.transaction_id,
+      () => sequence === detailSequence,
     );
+    if (sequence !== detailSequence) return;
+  }
+  if (tx.transaction_type !== "INVESTMENT_CHARGE") {
+    for (const rel of tx.charge_relationships || []) {
+      const b = document.createElement("button");
+      b.textContent = "Related Charge #" + rel.subject_transaction_id;
+      b.addEventListener("click", () =>
+        detail(rel.subject_transaction_id).catch((e) =>
+          message(e.message, true),
+        ),
+      );
+      container.append(b);
+    }
+  }
   if (tx.book_fx_evidence?.length)
     table(
       container,
@@ -484,7 +613,8 @@ async function detail(id) {
       tx.position_lines.map((l) => [
         l.line_type === "OWNERSHIP"
           ? "Ownership / SELF"
-          : "Location / " + (scopeNames.get(l.position_scope_id) || l.position_scope_id),
+          : "Location / " +
+            (scopeNames.get(l.position_scope_id) || l.position_scope_id),
         l.quantity_delta,
       ]),
     );
@@ -534,7 +664,9 @@ async function detail(id) {
               body: JSON.stringify({ request_key: key }),
             });
             await refresh();
-            await detail(result.transaction_id);
+            await detail(
+              result.transaction_id || result.events[0].transaction_id,
+            );
             message("Reversal committed. The original record is retained.");
           } catch (e) {
             message(e.message, true);
@@ -558,6 +690,28 @@ async function refresh() {
     api("/api/transactions" + transactionQuery()),
   ]);
   if (sequence !== refreshSequence) return;
+  const resultQuery = new URLSearchParams();
+  if ($("#as-of").value) resultQuery.set("date_to", $("#as-of").value);
+  if ($("#holdings-account").value)
+    resultQuery.set("account_id", $("#holdings-account").value);
+  const recognized = await api("/api/investment-results?" + resultQuery);
+  if (sequence !== refreshSequence) return;
+  $("#investment-results").replaceChildren();
+  table(
+    $("#investment-results"),
+    ["Recognized Investment Result", recognized.functional_currency],
+    [
+      ["Gross Realized Trade P&L", recognized.gross_realized_trade_pnl],
+      ["Dividend Income", recognized.dividend_income],
+      ["Investment Fees", recognized.investment_fees],
+      ["Investment Taxes", recognized.investment_taxes],
+      ["Financing Interest", recognized.investment_financing_interest],
+      [
+        "Net Recognized Investment Result",
+        recognized.net_recognized_investment_result,
+      ],
+    ],
+  );
   const allRows = [...holdings.cash, ...holdings.investments];
   const filter = (r) =>
     (!$("#holdings-asset").value ||
@@ -670,14 +824,29 @@ async function refresh() {
     cell(tr, r.unrealized_difference ?? "—").className = "numeric";
     cell(tr, marketStatus(r));
     inv.append(tr);
-    if (r.scopes?.some(s => s.scope_code !== "DEFAULT")) {
-      const details = document.createElement("details"), summary = document.createElement("summary");
+    if (r.scopes?.some((s) => s.scope_code !== "DEFAULT")) {
+      const details = document.createElement("details"),
+        summary = document.createElement("summary");
       summary.textContent = "Position holdings";
       details.append(summary);
-      table(details, ["Position Scope", "Quantity", "Historical Cost (HKD)", "Functional Market Value (HKD)"],
-        r.scopes.map(s => [
-          (s.scope_code === "DEFAULT" ? "Account default holdings" : s.display_name) + (s.tax_scheme_name ? " · " + s.tax_scheme_name : ""),
-          s.quantity, s.book_value, s.market_value ?? "Unavailable"]));
+      table(
+        details,
+        [
+          "Position Scope",
+          "Quantity",
+          "Historical Cost (HKD)",
+          "Functional Market Value (HKD)",
+        ],
+        r.scopes.map((s) => [
+          (s.scope_code === "DEFAULT"
+            ? "Account default holdings"
+            : s.display_name) +
+            (s.tax_scheme_name ? " · " + s.tax_scheme_name : ""),
+          s.quantity,
+          s.book_value,
+          s.market_value ?? "Unavailable",
+        ]),
+      );
       const scopeRow = document.createElement("tr");
       cell(scopeRow, "").colSpan = 11;
       scopeRow.firstChild.append(details);
@@ -736,6 +905,37 @@ for (const [f, path] of [
     body.request_key = crypto.randomUUID();
     await preview(body, path);
   });
+
+charge.addEventListener("submit", async (e) => {
+  e.preventDefault();
+  invalidate();
+  const payload = Object.fromEntries(new FormData(charge));
+  const ids = payload.related_ids
+    .split(",")
+    .map((x) => x.trim())
+    .filter(Boolean);
+  delete payload.related_ids;
+  await preview(
+    {
+      events: [
+        {
+          client_event_id: "charge",
+          transaction_type: "INVESTMENT_CHARGE",
+          payload,
+        },
+      ],
+      charge_for: ids.map((id) => ({
+        subject_client_event_id: "charge",
+        object_transaction_id: id,
+      })),
+      request_key: crypto.randomUUID(),
+    },
+    "batch",
+  );
+});
+window.addEventListener("charge-references-changed", () =>
+  options().catch((e) => message(e.message, true)),
+);
 
 function asOfQuery() {
   const value = $("#as-of").value;

@@ -43,12 +43,14 @@ def validate(store):
                     "CASH_TRANSFER": "cash_transfers",
                     "FX_CONVERSION": "fx_conversions",
                     "DIVIDEND_RECEIPT": "dividend_receipts",
+                    "INVESTMENT_CHARGE": "investment_charges",
                 }.get(tx["transaction_type"])
                 for table in (
                     "trades",
                     "cash_transfers",
                     "fx_conversions",
                     "dividend_receipts",
+                    "investment_charges",
                 ):
                     count = conn.execute(
                         "SELECT COUNT(*) FROM " + table + " WHERE transaction_id=?",
@@ -61,7 +63,7 @@ def validate(store):
                 if tx["transaction_type"] != "REVERSAL":
                     require(
                         not conn.execute(
-                            "SELECT 1 FROM transaction_relationships WHERE subject_transaction_id=?",
+                            "SELECT 1 FROM transaction_relationships WHERE subject_transaction_id=? AND relationship_type='REVERSES'",
                             (tid,),
                         ).fetchone(),
                         "An ordinary transaction cannot have a REVERSES relationship.",
@@ -81,6 +83,7 @@ def validate(store):
                         "TRADE",
                         "FX_CONVERSION",
                         "DIVIDEND_RECEIPT",
+                        "INVESTMENT_CHARGE",
                         "REVERSAL",
                     ),
                     "Unsupported stored transaction type.",
@@ -107,6 +110,82 @@ def validate(store):
                         and set(roles) <= {"SOURCE", "DESTINATION"}
                         and len(set(roles.values())) == len(roles),
                         "Invalid account role integrity.",
+                    )
+                elif tx["transaction_type"] == "INVESTMENT_CHARGE":
+                    from ..application import investment_charges
+
+                    data, ledger = investment_charges.load(conn, tid)
+                    roles = saved_events[tid]["accounts"]
+                    require(
+                        set(roles) == {"ACCOUNT"},
+                        "Investment Charge requires exactly one ACCOUNT.",
+                    )
+                    normalized, _, _ = investment_charges.normalize(
+                        conn,
+                        store.catalog,
+                        {
+                            **data,
+                            "investment_charge_category_id": str(
+                                data["investment_charge_category_id"]
+                            ),
+                            "account_id": str(roles["ACCOUNT"]),
+                        },
+                    )
+                    require(
+                        data == normalized,
+                        "Charge amount is not canonical decimal text.",
+                    )
+                    charge_lines = conn.execute(
+                        "SELECT l.* FROM journal_lines l JOIN journal_entries e USING(journal_entry_id) WHERE e.source_transaction_id=? AND l.ledger_account_code=?",
+                        (tid, ledger),
+                    ).fetchall()
+                    require(
+                        len(charge_lines) == 1,
+                        "Charge expense category and journal disagree.",
+                    )
+                    require(
+                        charge_lines[0]["side"]
+                        == ("DEBIT" if Decimal(data["amount"]) > 0 else "CREDIT"),
+                        "Invalid expense side.",
+                    )
+                    from ..numbers import book_amount
+
+                    amount = Decimal(data["amount"])
+                    rates, _ = service.rates(conn, saved_events[tid], frozen=True)
+                    require(
+                        Decimal(charge_lines[0]["book_amount"])
+                        == book_amount(abs(amount) * rates[data["currency"]]),
+                        "Charge expense does not match its frozen recognition rate.",
+                    )
+                    all_lines = conn.execute(
+                        "SELECT l.* FROM journal_lines l JOIN journal_entries e USING(journal_entry_id) WHERE e.source_transaction_id=?",
+                        (tid,),
+                    ).fetchall()
+                    cash_lines = [
+                        l for l in all_lines if l["ledger_account_code"] == "CASH"
+                    ]
+                    require(
+                        len(cash_lines) == 1, "Charge requires exactly one CASH line."
+                    )
+                    cash_line = cash_lines[0]
+                    require(
+                        cash_line["financial_account_id"] == roles["ACCOUNT"]
+                        and cash_line["native_currency"] == data["currency"]
+                        and Decimal(cash_line["native_amount"]) == abs(amount)
+                        and cash_line["side"] == ("CREDIT" if amount > 0 else "DEBIT"),
+                        "Charge cash dimensions or amount disagree with canonical data.",
+                    )
+                    require(
+                        all(
+                            l["ledger_account_code"]
+                            in {ledger, "CASH", "FX_ADJUSTMENT_RESERVE"}
+                            for l in all_lines
+                        ),
+                        "Unexpected charge journal account.",
+                    )
+                    require(
+                        len(all_lines) in ((2, 3) if amount > 0 else (2,)),
+                        "Invalid charge journal line count.",
                     )
                 elif tx["transaction_type"] in ("FX_CONVERSION", "DIVIDEND_RECEIPT"):
                     from ..application.cash_events import load, normalize
@@ -210,6 +289,12 @@ def validate(store):
                             "Invalid non-cash dimensions.",
                         )
                 require(total == 0, "Journal debits and credits do not balance.")
+            from ..application.relationships import check
+
+            for rel in conn.execute(
+                "SELECT * FROM transaction_relationships WHERE relationship_type='CHARGE_FOR'"
+            ):
+                check(conn, rel["subject_transaction_id"], rel["object_transaction_id"])
             for q, b in cash.values():
                 require(
                     q >= 0 and b >= 0 and (q == 0) == (b == 0),

@@ -274,7 +274,7 @@ def read_state(conn, as_of=None):
         AND NOT EXISTS (
             SELECT 1 FROM transaction_relationships r
             JOIN transactions reversal ON reversal.transaction_id=r.subject_transaction_id
-            WHERE r.object_transaction_id=t.transaction_id
+            WHERE r.object_transaction_id=t.transaction_id AND r.relationship_type='REVERSES'
             AND (? IS NULL OR reversal.effective_date<=?)
         )
     ) """

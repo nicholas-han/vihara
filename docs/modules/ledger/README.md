@@ -4,7 +4,7 @@
 
 This package contains two separate ledger domains. The sections below describe **generic personal bookkeeping**. **Investment Ledger** lives in `ledger/investment/` and owns Accounting Ledger, Position Ledger, canonical SQLite storage, atomic commands, imports and validation. It depends on `instrument_manager`; its catalog startup uses the IM C++ binding. Portfolio Manager supplies analysis, valuation and the English Web/API.
 
-The investment database defaults to `state/holdings.sqlite3` in the Vihara repo and is authoritative, not rebuildable from legacy CSVs. Investment corrections use Reversal; generic journal editing and snapshots below do not apply to it. See the [Holdings runbook](../../projects/portfolio-holdings/RUNBOOK.md) and [module boundaries](../../projects/portfolio-holdings/MODULE_BOUNDARIES.md).
+The local investment database is explicitly configured as `$VIHARA_DATA_DIR/data/holdings.sqlite3` outside the Vihara repo and is authoritative, not rebuildable from legacy CSVs. Investment corrections use Reversal; generic journal editing and snapshots below do not apply to it. See the [Holdings runbook](../../projects/portfolio-holdings/guides/RUNBOOK.md) and [module boundaries](../../projects/portfolio-holdings/design/MODULE_BOUNDARIES.md).
 
 Double-entry bookkeeping for all personal financial activity. The
 authoritative record is a SQLite database of structured journal entries
@@ -21,7 +21,8 @@ journal, which superseded the `ledger-v1` MySQL prototype.
 ## Quick start
 
 ```bash
-export VIHARA_DATA_DIR=~/git/vihara-data
+export VIHARA_DATA_DIR="$VIHARA_DATA_DIR/archive/2026-09-10-storage-consolidation/dropbox-before"
+# Legacy bookkeeping only. Do not use this archived layout for new investment entries.
 
 python -m ledger init-db
 python -m ledger import-beancount old-journal.beancount   # historical data
@@ -68,3 +69,7 @@ ledger/
 ├── tests/             pytest suite + golden journals (tests/golden/)
 └── # documentation: docs/modules/ledger/ at repository root
 ```
+
+## Investment Charge v8
+
+Investment Ledger 已支持独立投资费用、税费、融资利息与退款；Trade 成本/收入只计本金，来源映射和可编辑 CHARGE_FOR 不改变历史会计。Portfolio Manager 提供录入、分类/映射维护、导入与 recognized investment result 分析。见 [实现设计](../../projects/portfolio-holdings/design/INVESTMENT_CHARGE_TECHNICAL_DESIGN.md)、[使用与 v7 准备流程](../../projects/portfolio-holdings/guides/RUNBOOK.md)。

@@ -1,6 +1,9 @@
 """Investment accounting contracts; no dependency on legacy ledger CRUD."""
 
 ACCOUNT_DEFINITIONS = (
+    ("INVESTMENT_FEES", "EXPENSE", "DEBIT"),
+    ("INVESTMENT_TAXES", "EXPENSE", "DEBIT"),
+    ("INVESTMENT_FINANCING_INTEREST", "EXPENSE", "DEBIT"),
     ("CASH", "ASSET", "DEBIT"),
     ("INVESTMENT", "ASSET", "DEBIT"),
     ("REALIZED_TRADE_PNL", "INCOME", "CREDIT"),

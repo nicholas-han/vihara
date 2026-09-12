@@ -1,30 +1,24 @@
 # Vihara 文档中心
 
-所有面向阅读的设计、使用、项目和研究文档集中在本目录，按职责分组；代码仍由原模块维护。仓库与模块 README 保留短入口，许可证、测试 fixture、API/界面源码及构建文件保留在其必需位置。
+主体文档集中在 `docs/`。仓库、模块和策略目录中的短 README 仅作导航；许可证、工具规则、源码、配置模板、构建文件和测试样本仍放在其需要的位置。
 
-## 从这里开始
+## 按主题查找
 
-| 你要做什么 | 入口 |
-|---|---|
-| 查看本轮 Financial Account 设计 | [用户 PRD](projects/portfolio-holdings/Financial_Account_PRD.md) · [实施设计与验收方案](projects/portfolio-holdings/FINANCIAL_ACCOUNT_DESIGN.md) |
-| 理解或使用 Portfolio Holdings | [项目阅读入口](projects/portfolio-holdings/README.md) · [当前运行说明](projects/portfolio-holdings/RUNBOOK.md) |
-| 查模块边界、架构和使用方式 | [模块索引](modules/README.md) |
-| 查看 Limit with MOC | [产品文档](products/limit-with-moc/README.md) |
-| 研究 IV/RV 策略 | [策略说明](strategies/iv_rv_arb/README.md) · [数据格式](strategies/iv_rv_arb/DATA.md) |
-| 查 Portfolio Theory 研究规范 | [FIN531](research/FIN531_portfolio_management.md) |
-| 查文档存放规则和旧路径 | [维护约定与迁移清单](DOCUMENTATION_GUIDE.md) |
+| 目录 | 存放内容 | 入口 |
+|---|---|---|
+| `modules/` | 单个代码模块的职责、模型、接口与使用说明 | [模块索引](modules/README.md) |
+| `projects/` | 跨模块业务功能及其设计、交付与验收；原 products 已并入 | [业务项目索引](projects/README.md) |
+| `strategies/` | 投资策略逻辑、运行方法与数据要求 | [策略索引](strategies/README.md) |
+| `operations/` | 全仓库共用的本机环境、数据存储与维护操作 | [操作索引](operations/README.md) |
+| `research/` | 理论参考、架构分析与尚未成为实施合同的研究 | [研究索引](research/README.md) |
 
-## 目录组织
+## 常用入口
 
-```text
-docs/
-  modules/       模块职责、设计、ADR、使用说明
-  products/      跨模块的可复用产品能力
-  projects/      有明确范围、计划和验收的业务专项
-  strategies/    策略逻辑、运行与数据输入
-  research/      课程/理论参考与研究实现规范
-```
+- 使用 Portfolio Holdings：[启动与维护](projects/portfolio-holdings/guides/RUNBOOK.md) · [CSV 导入合同](projects/portfolio-holdings/guides/CSV_IMPORT.md)。
+- 查看 Holdings 设计与状态：[项目导航](projects/portfolio-holdings/README.md) · [Financial Account PRD](projects/portfolio-holdings/design/Financial_Account_PRD.md)。
+- 查看本轮费用与成本政策：[FINAL PRD](projects/portfolio-holdings/design/INVESTMENT_CHARGE_PRD.md) · [技术设计](projects/portfolio-holdings/design/INVESTMENT_CHARGE_TECHNICAL_DESIGN.md)。技术设计与股息预扣税补充已收口，已实现并通过本地验收与独立审查；旧草稿已被替代。
+- 查看 Limit with MOC：[功能导航](projects/limit-with-moc/README.md)。
+- 配置本机数据路径：[数据存储约定](operations/DATA_STORAGE.md)。
+- 新增或移动文档：[分类、状态与维护规则](DOCUMENTATION_GUIDE.md)。
 
-Financial Account v1.0 已实现，结果见 [专项验收](projects/portfolio-holdings/FINANCIAL_ACCOUNT_ACCEPTANCE.md)。原 S0～S10 验收与 2026-09-08 回归记录保留为历史版本证据。
-
-文档集中后仍区分当前实现、目标设计和历史决策。尤其不能把通用 Ledger 或旧 Portfolio Records 的 CSV rebuild、snapshot/edit 规则用于 Investment Ledger 的 canonical 数据库。
+第一层按主题归属分类；较大的主题内部再按用途分层。文档是否已实现，由正文状态与对应版本的验收证据决定，不能仅凭所在目录推断。通用 Ledger 和旧 Portfolio Records 的编辑、快照或 CSV rebuild 规则不适用于当前 Investment Ledger。

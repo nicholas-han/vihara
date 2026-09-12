@@ -1,6 +1,8 @@
+> 2026-09-12 Investment Charge v8：费用与交易成本遵循 [FINAL PRD](INVESTMENT_CHARGE_PRD.md)、[用户补充决定](../planning/DECISIONS.md#d-ic-002--股息预扣税类别与实际现金入账2026-09-12) 和 [实现设计](INVESTMENT_CHARGE_TECHNICAL_DESIGN.md)。本文已同步本轮合同；旧阶段验收仍只证明当时版本。正式数据库切换是独立发布步骤。
+
 # Portfolio Holdings & Accounting System
 
-> 2026-09-09 target update: [Financial Account PRD v1.0](Financial_Account_PRD.md) governs account aggregation, PositionScope and cost-basis boundaries. [Implementation design](FINANCIAL_ACCOUNT_DESIGN.md) and [Financial Account acceptance](FINANCIAL_ACCOUNT_ACCEPTANCE.md) describe the implemented increment; S0–S10 reports remain historical records.
+> 2026-09-09 target update: [Financial Account PRD v1.0](Financial_Account_PRD.md) governs account aggregation, PositionScope and cost-basis boundaries. [Implementation design](FINANCIAL_ACCOUNT_DESIGN.md) and [Financial Account acceptance](../history/FINANCIAL_ACCOUNT_ACCEPTANCE.md) describe the implemented increment; S0–S10 reports remain historical records.
 
 
 > 2026-09-08 实施补充：Transaction Status 中 Reversed 表示截至 As Of 已被冲销的原交易；Active 表示未被冲销的记录，包含 Reversal 记录本身（可同时用 Transaction Type 筛选）。From Date / To Date 是包含端点的日期范围，并与全局 As Of 同时生效。
@@ -571,7 +573,7 @@ Side
 Quantity
 Price
 Trade Date
-Fees
+Linked Charges (separate events; not part of Trade payload)
 Account
 Memo
 ```
@@ -677,7 +679,7 @@ Trade Time
 
 Scheduled Settlement Date
 
-Fees
+Linked Charges (separate events; not part of Trade payload)
 Memo
 Financial Account *
 Position Scope *
@@ -741,25 +743,13 @@ Product
 
 ---
 
-## 19.4 Trade Fees
+## 19.4 独立费用与便利录入
 
-允许多行：
+新增 INVESTMENT_CHARGE 表单，输入账户、日期、分类、币种、正负金额、来源说明及可选关联。Trade 表单可以“同时录入费用”，但每个费用生成独立 canonical 事件；同次复合请求必须原子预览/提交，不引入 source group。不能向旧 Trade payload 写入 fees。
 
-```text
-Fee Type
-Amount
-```
+费用不分摊到产品/PositionScope。来源只提供日/月费用时直接记录独立费用，不要求选择 trade；未关联不显示为零。
 
-但同 fee type 在 canonicalization 前 aggregation。
-
-UI 可以允许 source-level multiple rows。
-
-Canonical：
-
-```text
-one Trade + fee_type
-→ one TradeFee
-```
+详细字段、退款、幂等和日期规则见Investment Charge FINAL PRD。
 
 ---
 
@@ -768,9 +758,9 @@ one Trade + fee_type
 Submit 前建议展示：
 
 ```text
-Gross Consideration
-Total Fees
-Net Acquisition Cost / Net Sale Proceeds
+Trade Principal (cost/proceeds excluding fees)
+Separate Charges / Refunds by Currency
+Combined Cash Movement by Currency
 Quote Currency
 Account
 ```
@@ -2253,7 +2243,7 @@ transaction detail
 ```text
 instrument selection
 Trade form
-fees
+optional separate INVESTMENT_CHARGE events
 Cash disposal
 Investment accounting
 Position
@@ -2430,3 +2420,8 @@ Document priority：
 ## Financial Account v1.0 — Holdings 展示补充
 
 高层默认 FinancialAccount → Position 汇总数量与成本；有多个 meaningful scopes 时可展开各 scope。DEFAULT 标签隐藏，但该 scope 的数量和成本仍计入账户汇总。平均历史成本由汇总成本 / 汇总数量计算，不能平均 scope 均价。账户行和 scope 明细不能重复计入总资产。Cash 仍只按账户 × 币种展示。
+
+
+## 费用增量的查询与历史工作模式
+
+费用详情展示分类、币种、收支方向、关联及退款；交易详情将本金与关联费用分开显示，共享费用不重复计入逐笔盈亏。报表区分 gross realized、期间已确认净损益、未实现盈亏及覆盖状态。Canonical 自创建即冻结，历史纠错使用 REVERSAL + 新事件；仅未提交 staging 可以调整引用映射并重新预览。CHARGE_FOR 可直接编辑，不改变经济事实。详见 [Investment Charge 实现设计](INVESTMENT_CHARGE_TECHNICAL_DESIGN.md)。

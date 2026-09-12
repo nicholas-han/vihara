@@ -1,5 +1,5 @@
 from datetime import date
-from decimal import localcontext
+from decimal import localcontext, Decimal
 from hashlib import sha256
 from io import StringIO
 from pathlib import Path
@@ -12,7 +12,13 @@ from ..persistence.store import Store
 from ..errors import LedgerError
 from instrument_manager.holding_catalog import CatalogError
 
-KINDS = {"TRADE", "CASH_TRANSFER", "FX_CONVERSION", "DIVIDEND_RECEIPT"}
+KINDS = {
+    "TRADE",
+    "CASH_TRANSFER",
+    "FX_CONVERSION",
+    "DIVIDEND_RECEIPT",
+    "INVESTMENT_CHARGE",
+}
 ALLOWED_OVERRIDES = {
     "account_code",
     "position_scope_code",
@@ -37,10 +43,16 @@ def normalize(store, conn, row):
     if any(v is None or isinstance(v, list) for v in raw.values()):
         raise LedgerError("VALIDATION_ERROR", "CSV column count does not match.")
     kind = raw.get("transaction_type", "").strip().upper()
+    if "fees" in raw:
+        raise LedgerError(
+            "VALIDATION_ERROR",
+            "Legacy fees columns are not supported; provide independent Investment Charge rows.",
+            "LEGACY_TRADE_FEES",
+        )
     if kind not in KINDS:
         raise LedgerError(
             "VALIDATION_ERROR",
-            "Only TRADE, CASH_TRANSFER, FX_CONVERSION and DIVIDEND_RECEIPT are supported.",
+            "Unsupported transaction type.",
         )
     if None in raw or any(isinstance(v, list) for v in raw.values()):
         raise LedgerError("VALIDATION_ERROR", "CSV column count does not match.")
@@ -208,30 +220,12 @@ def normalize(store, conn, row):
                     matching_listings
                 ) == 1:
                     listing = matching_listings[0].listing_id
-        try:
-            fees = json.loads(raw.get("fees") or "[]")
-        except (ValueError, TypeError):
-            raise LedgerError(
-                "VALIDATION_ERROR", "Fees must be a JSON array."
-            ) from None
-        if not isinstance(fees, list) or any(
-            not isinstance(f, dict)
-            or set(f) != {"fee_type", "amount"}
-            or not isinstance(f["fee_type"], str)
-            or not isinstance(f["amount"], str)
-            for f in fees
-        ):
-            raise LedgerError(
-                "VALIDATION_ERROR",
-                "Fees require string fee_type and decimal-string amount.",
-            )
         payload.update(
             product_id=product,
             listing_id=listing,
             side=raw.get("side", "").upper(),
             quantity=raw.get("quantity"),
             price=raw.get("price"),
-            fees=fees,
             trade_time=raw.get("trade_time") or None,
             scheduled_settlement_date=raw.get("scheduled_settlement_date") or None,
         )
@@ -244,6 +238,63 @@ def normalize(store, conn, row):
         )
     elif kind == "DIVIDEND_RECEIPT":
         payload.update({k: raw.get(k) for k in ("observable_id", "currency", "amount")})
+    elif kind == "INVESTMENT_CHARGE":
+        from ..persistence.charges import normalize_label
+        from ..numbers import decimal_text
+
+        payload.update({k: raw.get(k) for k in ("currency", "amount")})
+        payload["amount"] = decimal_text(payload["amount"])
+        # Validate the booking date and explicit currency even for zero evidence.
+        try:
+            if (
+                date.fromisoformat(payload["effective_date"]).isoformat()
+                != payload["effective_date"]
+            ):
+                raise ValueError()
+        except (TypeError, ValueError):
+            raise LedgerError(
+                "VALIDATION_ERROR", "A valid posting date is required."
+            ) from None
+        if payload["currency"] not in store.catalog.currencies:
+            raise LedgerError("REFERENCE_NOT_FOUND", "Select the actual cash currency.")
+        label = normalize_label(raw.get("source_label_raw"))
+        key = source_key(conn, row, raw, payload)
+        previous = conn.execute(
+            "SELECT l.*,r.payload_json FROM import_links l JOIN import_rows r USING(row_id) WHERE l.dedup_key=? LIMIT 1",
+            (key,),
+        ).fetchone()
+        if previous:
+            if previous["source_hash"] != source_hash(raw):
+                raise LedgerError(
+                    "VALIDATION_ERROR",
+                    "The same source ID refers to changed source facts.",
+                    "IMPORT_CONFLICT",
+                )
+            # Mapping has completed its job. Do not resolve committed facts again.
+            return (
+                kind,
+                json.loads(previous["payload_json"]),
+                key,
+                previous["payload_hash"],
+            )
+        if Decimal(payload["amount"]) == 0:
+            return kind, payload, key, "ZERO_EVIDENCE"
+        mapping = conn.execute(
+            "SELECT investment_charge_category_id FROM investment_charge_source_mappings WHERE financial_account_id=? AND source_label_normalized=?",
+            (payload["account_id"], label),
+        ).fetchone()
+        if mapping is None:
+            raise LedgerError(
+                "VALIDATION_ERROR",
+                "Assign this account's source label to an Investment Charge category before importing.",
+                "UNMAPPED_INVESTMENT_CHARGE",
+                field_errors={
+                    "source_label_raw": raw["source_label_raw"],
+                    "source_label_normalized": label,
+                    "account_id": payload["account_id"],
+                },
+            )
+        payload["investment_charge_category_id"] = str(mapping[0])
     with localcontext() as context:
         context.prec = 80
         event = Service(store).normalize(conn, kind, payload)
@@ -254,6 +305,29 @@ def normalize(store, conn, row):
             for k in ("transaction_type", "effective_date", "memo", "accounts", "data")
         }
     )
+    return kind, payload, source_key(conn, row, raw, payload), economic_hash
+
+
+def source_hash(raw):
+    from ..numbers import decimal_text
+
+    ignored = {
+        "source_system",
+        "source_account_namespace",
+        "external_transaction_id",
+        "source_component_key",
+        "source_row_number",
+        "related_source_component_key",
+        "related_transaction_id",
+    }
+    facts = {k: v for k, v in raw.items() if k not in ignored and v not in ("", None)}
+    for field in ("amount", "quantity", "price", "buy_amount", "sell_amount"):
+        if field in facts:
+            facts[field] = decimal_text(facts[field])
+    return digest(facts)
+
+
+def source_key(conn, row, raw, payload):
     external = (raw.get("external_transaction_id") or "").strip()
     system = (raw.get("source_system") or "").strip()
     for field, normalized in (
@@ -288,13 +362,21 @@ def normalize(store, conn, row):
             scope = ["external", account_id, external_number]
         else:
             scope = ["account", account_id]
-        key = "source:" + digest([system, scope, external])
+        key = "source:" + digest(
+            [system, scope, external, raw.get("source_component_key") or "event"]
+        )
     else:
         file_hash = conn.execute(
             "SELECT file_hash FROM import_batches WHERE batch_id=?", (row["batch_id"],)
         ).fetchone()[0]
-        key = "file:" + digest([file_hash, row["row_number"], economic_hash])
-    return kind, payload, key, economic_hash
+        key = "file:" + digest(
+            [
+                file_hash,
+                raw.get("source_row_number") or row["row_number"],
+                raw.get("source_component_key") or "event",
+            ]
+        )
+    return key
 
 
 class Imports:
@@ -314,6 +396,12 @@ class Imports:
                 raise LedgerError(
                     "VALIDATION_ERROR",
                     "CSV requires transaction_type and effective_date with unique column names.",
+                )
+            if "fees" in reader.fieldnames:
+                raise LedgerError(
+                    "VALIDATION_ERROR",
+                    "Legacy fees columns are not supported. Use independent Investment Charge rows.",
+                    "LEGACY_TRADE_FEES",
                 )
             rows = list(reader)
         except csv.Error as exc:
@@ -416,42 +504,170 @@ class Imports:
             ),
         )
 
-    def _commit_row(self, store, conn, row):
-        if conn.execute(
-            "SELECT 1 FROM import_links WHERE row_id=?", (row["row_id"],)
-        ).fetchone():
-            return
-        kind, payload, key, fingerprint = normalize(store, conn, row)
-        previous = conn.execute(
-            "SELECT * FROM import_links WHERE dedup_key=? LIMIT 1", (key,)
-        ).fetchone()
-        if previous:
-            if previous["payload_hash"] != fingerprint:
+    def _groups(self, conn, batch):
+        groups = {}
+        for row in self._ordered(conn, batch):
+            raw = json.loads(row["raw_json"])
+            # Explicit source record boundaries exist only in staging.
+            key = (
+                (
+                    raw.get("source_system"),
+                    raw.get("source_account_namespace")
+                    or raw.get("external_account_number")
+                    or raw.get("account_code")
+                    or raw.get("source_account_code")
+                    or raw.get("destination_account_code"),
+                    raw.get("source_row_number"),
+                )
+                if raw.get("source_row_number")
+                else ("row", row["row_id"])
+            )
+            groups.setdefault(key, []).append(row)
+        return list(groups.values())
+
+    def _commit_group(self, store, conn, rows):
+        prepared, new_events, relationships = [], [], []
+        client_ids = {}
+        for row in rows:
+            if conn.execute(
+                "SELECT 1 FROM import_links WHERE row_id=?", (row["row_id"],)
+            ).fetchone():
+                continue
+            raw = {**json.loads(row["raw_json"]), **json.loads(row["override_json"])}
+            kind, payload, key, fingerprint = normalize(store, conn, row)
+            prior = conn.execute(
+                "SELECT * FROM import_links WHERE dedup_key=? LIMIT 1", (key,)
+            ).fetchone()
+            if prior and prior["payload_hash"] != fingerprint:
                 raise LedgerError(
                     "VALIDATION_ERROR",
                     "The same source ID refers to different content.",
                     "IMPORT_CONFLICT",
                 )
-            tid = previous["transaction_id"]
-            status = "DUPLICATE"
-        else:
-            result = Service(store).submit(
-                kind, payload, "import:" + key, connection=conn
+            if any(p[3] == key for p in prepared):
+                raise LedgerError(
+                    "VALIDATION_ERROR",
+                    "Source components must have distinct stable identities.",
+                    "IMPORT_CONFLICT",
+                )
+            client = str(row["row_id"])
+            component = raw.get("source_component_key") or "event"
+            if component in client_ids and len(rows) > 1:
+                raise LedgerError(
+                    "VALIDATION_ERROR",
+                    "A split source record requires distinct source_component_key values.",
+                )
+            client_ids[component] = (client, prior["transaction_id"] if prior else None)
+            prepared.append((row, kind, payload, key, fingerprint, prior, raw))
+            if not prior and fingerprint != "ZERO_EVIDENCE":
+                new_events.append(
+                    {
+                        "client_event_id": client,
+                        "transaction_type": kind,
+                        "payload": payload,
+                    }
+                )
+        for row, kind, payload, key, fingerprint, prior, raw in prepared:
+            if prior or fingerprint == "ZERO_EVIDENCE" or kind != "INVESTMENT_CHARGE":
+                continue
+            rel = {"subject_client_event_id": str(row["row_id"])}
+            target = raw.get("related_source_component_key")
+            existing = raw.get("related_transaction_id")
+            if target and existing:
+                raise LedgerError(
+                    "VALIDATION_ERROR", "Specify only one related transaction identity."
+                )
+            if target:
+                if target not in client_ids:
+                    raise LedgerError(
+                        "REFERENCE_NOT_FOUND",
+                        "Related source component is missing from this request.",
+                    )
+                client, saved = client_ids[target]
+                rel["object_transaction_id" if saved else "object_client_event_id"] = (
+                    str(saved) if saved else client
+                )
+            elif existing:
+                rel["object_transaction_id"] = existing
+            else:
+                continue
+            relationships.append(rel)
+        created = {}
+        if new_events:
+            result = Service(store).submit_many(
+                new_events,
+                relationships,
+                "import-request:" + digest([p[3] for p in prepared]),
+                connection=conn,
             )
-            tid = int(result["transaction_id"])
-            status = "COMMITTED"
-        # Row status and link share the command transaction. Never link a partial event.
-        conn.execute(
-            "UPDATE import_rows SET status=?,payload_json=?,error_json=NULL WHERE row_id=?",
-            (status, json.dumps(payload), row["row_id"]),
-        )
-        conn.execute(
-            "INSERT INTO import_links VALUES (?,?,?,?)",
-            (row["row_id"], tid, key, fingerprint),
-        )
+            created = {
+                r["client_event_id"]: int(r["transaction_id"]) for r in result["events"]
+            }
+        results = []
+        from ..application.service import serialize_lines
+        from ..accounting.journal import stored_lines
+        from ..position.ledger import detail as position_detail
+
+        for row, kind, payload, key, fingerprint, prior, raw in prepared:
+            tid = prior["transaction_id"] if prior else created.get(str(row["row_id"]))
+            if fingerprint == "ZERO_EVIDENCE":
+                preview = {"input": payload, "journal": [], "allocations": []}
+                status, note = "ZERO_EVIDENCE", None
+            else:
+                preview = {
+                    "input": payload,
+                    "journal": serialize_lines(stored_lines(conn, tid)),
+                    "allocations": position_detail(conn, tid)["allocations"],
+                }
+                status = "DUPLICATE" if prior else "COMMITTED"
+                note = None
+                if prior:
+                    note = {
+                        "code": "DUPLICATE_PREVIEW",
+                        "message": "This source is already recorded; confirmation links the original transaction.",
+                        "transaction_id": str(tid),
+                    }
+                elif conn.execute(
+                    "SELECT 1 FROM import_links WHERE payload_hash=? AND dedup_key<>?",
+                    (fingerprint, key),
+                ).fetchone():
+                    note = {
+                        "code": "POTENTIAL_DUPLICATE",
+                        "message": "Another source has identical economic content. Please verify.",
+                    }
+            # A READY confirmation must reproduce the preview, including cash basis and allocations.
+            if (
+                row["status"] == "READY"
+                and row["payload_json"]
+                and json.loads(row["payload_json"]) != preview
+            ):
+                raise LedgerError(
+                    "VALIDATION_ERROR",
+                    "The source mapping or economic preview changed. Preview again before confirming.",
+                    "PREVIEW_STALE",
+                )
+            conn.execute(
+                "UPDATE import_rows SET status=?,payload_json=?,error_json=NULL WHERE row_id=?",
+                (status, json.dumps(payload), row["row_id"]),
+            )
+            if tid is not None:
+                conn.execute(
+                    "INSERT INTO import_links VALUES (?,?,?,?,?)",
+                    (row["row_id"], tid, key, fingerprint, source_hash(raw)),
+                )
+            results.append(
+                (
+                    row["row_id"],
+                    "ZERO_EVIDENCE" if tid is None else "READY",
+                    json.dumps(preview),
+                    json.dumps(note) if note else None,
+                    row["override_json"],
+                )
+            )
+        return results
 
     def preview(self, batch):
-        # A SQLite snapshot permits sequential preview with the same commands; no live event or ID is consumed.
+        # Use a consistent temporary SQLite snapshot. Each source request is atomic.
         with TemporaryDirectory(prefix="holdings-preview-") as directory:
             path = Path(directory) / "preview.sqlite3"
             with self.store.read() as source:
@@ -463,74 +679,43 @@ class Imports:
             temporary = Store(path, self.store.catalog)
             results = []
             with temporary.read() as conn:
-                rows = self._ordered(conn, batch)
-            if not rows:
+                groups = self._groups(conn, batch)
+            if not groups:
                 raise LedgerError("REFERENCE_NOT_FOUND", "Import batch not found.")
-            for row in rows:
-                if row["status"] in ("COMMITTED", "DUPLICATE"):
+            for group in groups:
+                rows = [
+                    dict(r)
+                    for r in group
+                    if r["status"] not in ("COMMITTED", "DUPLICATE")
+                ]
+                if not rows:
                     continue
+                # A new preview deliberately replaces the old preview after revalidation.
+                for row in rows:
+                    row["status"] = "STAGED"
                 try:
                     with temporary.transaction() as conn:
-                        self._commit_row(temporary, conn, row)
-                        saved = conn.execute(
-                            "SELECT status,payload_json FROM import_rows WHERE row_id=?",
-                            (row["row_id"],),
-                        ).fetchone()
-                        linked = conn.execute(
-                            "SELECT transaction_id FROM import_links WHERE row_id=?",
-                            (row["row_id"],),
-                        ).fetchone()[0]
-                    preview_detail = Service(temporary).detail(linked)
-                    preview_payload = json.dumps(
-                        {
-                            "input": json.loads(saved["payload_json"]),
-                            "journal": preview_detail["journal"],
-                            "allocations": preview_detail["allocations"],
-                        }
-                    )
-                    note = None
-                    with temporary.read() as conn:
-                        link = conn.execute(
-                            "SELECT * FROM import_links WHERE row_id=?",
-                            (row["row_id"],),
-                        ).fetchone()
-                        if saved["status"] == "DUPLICATE":
-                            note = {
-                                "code": "DUPLICATE_PREVIEW",
-                                "message": "A record with the same source ID exists; confirmation will link the original transaction.",
-                                "transaction_id": str(link["transaction_id"]),
-                            }
-                        elif conn.execute(
-                            "SELECT 1 FROM import_links WHERE payload_hash=? AND dedup_key<>?",
-                            (link["payload_hash"], link["dedup_key"]),
-                        ).fetchone():
-                            note = {
-                                "code": "POTENTIAL_DUPLICATE",
-                                "message": "Another source has identical economic content; this row will create a new transaction. Please verify.",
-                            }
-                    results.append(
-                        (
-                            row["row_id"],
-                            "READY",
-                            preview_payload,
-                            json.dumps(note) if note else None,
-                            row["override_json"],
-                        )
-                    )
+                        results.extend(self._commit_group(temporary, conn, rows))
                 except (LedgerError, CatalogError) as exc:
                     error = (
                         exc.as_dict()
                         if isinstance(exc, LedgerError)
                         else {"code": "REFERENCE_NOT_FOUND", "message": str(exc)}
                     )
-                    results.append(
+                    status = (
+                        "UNMAPPED"
+                        if getattr(exc, "reason", None) == "UNMAPPED_INVESTMENT_CHARGE"
+                        else "ERROR"
+                    )
+                    results.extend(
                         (
-                            row["row_id"],
-                            "ERROR",
+                            r["row_id"],
+                            status,
                             None,
                             json.dumps(error),
-                            row["override_json"],
+                            r["override_json"],
                         )
+                        for r in rows
                     )
             with self.store.transaction() as conn:
                 for row_id, status, payload, error, override in results:
@@ -542,22 +727,29 @@ class Imports:
 
     def canonicalize(self, batch):
         with self.store.read() as conn:
-            rows = self._ordered(conn, batch)
-        if not rows:
+            groups = self._groups(conn, batch)
+        if not groups:
             raise LedgerError("REFERENCE_NOT_FOUND", "Import batch not found.")
-        for snapshot in rows:
-            # Confirmation applies to rows previewed READY only; each is revalidated under the writer lock.
-            if snapshot["status"] != "READY":
+        for group in groups:
+            pending = [
+                r for r in group if r["status"] not in ("COMMITTED", "DUPLICATE")
+            ]
+            if not pending or any(
+                r["status"] not in ("READY", "ZERO_EVIDENCE") for r in pending
+            ):
                 continue
+            ids = [r["row_id"] for r in pending]
             try:
                 with self.store.transaction() as conn:
-                    row = conn.execute(
-                        "SELECT * FROM import_rows WHERE row_id=?",
-                        (snapshot["row_id"],),
-                    ).fetchone()
-                    if row["status"] != "READY":
+                    rows = [
+                        conn.execute(
+                            "SELECT * FROM import_rows WHERE row_id=?", (key,)
+                        ).fetchone()
+                        for key in ids
+                    ]
+                    if any(r["status"] not in ("READY", "ZERO_EVIDENCE") for r in rows):
                         continue
-                    self._commit_row(self.store, conn, row)
+                    self._commit_group(self.store, conn, rows)
             except (LedgerError, CatalogError) as exc:
                 error = (
                     exc.as_dict()
@@ -565,8 +757,9 @@ class Imports:
                     else {"code": "REFERENCE_NOT_FOUND", "message": str(exc)}
                 )
                 with self.store.transaction() as conn:
-                    conn.execute(
-                        "UPDATE import_rows SET status='ERROR',error_json=? WHERE row_id=? AND status NOT IN ('COMMITTED','DUPLICATE')",
-                        (json.dumps(error), snapshot["row_id"]),
-                    )
+                    for row_id in ids:
+                        conn.execute(
+                            "UPDATE import_rows SET status='ERROR',error_json=? WHERE row_id=? AND status NOT IN ('COMMITTED','DUPLICATE')",
+                            (json.dumps(error), row_id),
+                        )
         return self.detail(batch)

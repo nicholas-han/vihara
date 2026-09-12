@@ -323,3 +323,19 @@ nav {
   width: 100%;
   min-width: 0;
 }
+
+#charge-settings > label {
+  margin-bottom: 12px;
+}
+#charge-settings details {
+  margin: 16px 0;
+}
+#charge-settings .entry-form {
+  gap: 12px;
+}
+.fee-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 8px;
+  margin: 12px 0;
+}

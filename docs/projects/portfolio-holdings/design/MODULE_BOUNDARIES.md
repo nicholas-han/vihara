@@ -35,3 +35,7 @@ Portfolio Manager → Ledger → Instrument Manager；Ledger 不反向依赖 Por
 - 正式数据库只读校验通过，交易/账户/分录/持仓行/导入批次数仍全部为零；已有数据的 schema v6 临时副本重新初始化及校验后字节完全不变。
 - 历史 staging 中的中文系统错误不改写存储原文；界面用英文提示重新 Preview，以获取当前英文校验详情。
 - 本次没有修改 C++；原阶段的 C++ 验收记录继续保留。
+
+## Investment Charge v8 增量
+
+Ledger 拥有 InvestmentCharge、category reference、source mapping、CHARGE_FOR 治理及费用会计/损益查询；Portfolio Manager 拥有 API、英文 Web、导入操作与分析展示。费用不进入 PositionScope 或 Instrument Manager。实施入口：[Investment Charge](INVESTMENT_CHARGE_TECHNICAL_DESIGN.md)。

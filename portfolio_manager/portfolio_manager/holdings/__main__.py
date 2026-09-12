@@ -27,6 +27,11 @@ def main(argv=None):
     subs = parser.add_subparsers(dest="command", required=True)
     subs.add_parser("validate", help="Read-only full-history integrity checks")
     subs.add_parser("init", help="Initialize a dedicated empty holdings database")
+    prep = subs.add_parser(
+        "prepare-v8",
+        help="Prepare a separate v8 database from a v7 database containing references only",
+    )
+    prep.add_argument("source", type=Path)
     serve = subs.add_parser("serve")
     serve.add_argument("--port", type=int, default=8643)
     fx = subs.add_parser("import-book-fx")
@@ -55,7 +60,13 @@ def main(argv=None):
         uvicorn.run(create_app(settings), host="127.0.0.1", port=args.port)
         return
     store = Store(settings.db_path, HoldingCatalog(settings.instruments_dir))
-    if args.command == "init":
+    if args.command == "prepare-v8":
+        from ledger.investment.persistence.prepare_v8 import prepare
+
+        print(
+            json.dumps(prepare(args.source, settings.db_path, store.catalog), indent=2)
+        )
+    elif args.command == "init":
         store.initialize()
         print("Initialized:", settings.db_path)
     elif args.command == "validate":

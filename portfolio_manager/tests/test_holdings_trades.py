@@ -34,7 +34,7 @@ def trade(
         "side": side,
         "quantity": quantity,
         "price": price,
-        "fees": fees or [],
+        **({"fees": fees} if fees is not None else {}),
         **extra,
     }
     return service.submit("TRADE", payload, str(uuid4()))
@@ -68,22 +68,14 @@ def test_buy_then_lowest_hkd_cost_sell_exact_scenario(store, setup):
     assert validate(store)["transaction_count"] == 4
 
 
-def test_buy_fee_capitalization_rebate_and_zero_aggregate(store, setup):
+@pytest.mark.parametrize("fees", [[], [{"fee_type": "COMMISSION", "amount": "2"}]])
+def test_legacy_fees_are_rejected_even_when_empty(store, setup, fees):
     s, a, b = setup
     funding(store, s, a)
-    tx = trade(
-        s,
-        a,
-        fees=[
-            {"fee_type": "COMMISSION", "amount": "2"},
-            {"fee_type": "COMMISSION", "amount": "-2"},
-            {"fee_type": "OTHER", "amount": "-1"},
-        ],
-    )
-    detail = s.detail(int(tx["transaction_id"]))
-    assert detail["data"]["fees"] == {"OTHER": "-1"}
-    assert detail["lots"][0]["book_cost_basis"] == "792"
-    assert validate(store)["valid"]
+    with pytest.raises(LedgerError) as exc:
+        trade(s, a, fees=fees)
+    assert exc.value.reason == "LEGACY_TRADE_FEES"
+    assert validate(store)["transaction_count"] == 1
 
 
 def test_sell_wrong_account_or_too_much_fails_atomically(store, setup):
