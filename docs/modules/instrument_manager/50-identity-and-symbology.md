@@ -1,5 +1,17 @@
 # Identity & symbology
 
+> Current implementation scope (2026-09-15): this document retains the identity
+> design and historical PostgreSQL/C++ lookup shapes; it is not a statement that
+> every listed API or table is active. The public Python query contract is
+> `ReferencePort` in `instrument_manager.references`, implemented by `HoldingCatalog`;
+> its `resolve()` uses effective date, optional authority and venue context. The generic JSON
+> loader does not populate the C++ registry's external-identifier map, so
+> `InstrumentRegistry::product_by_external_id()` is not the current Holdings
+> resolver; its retained Python binding emits `DeprecationWarning`. The SQLite
+> index now preserves authority and repeated validity periods and rebuilds
+> atomically, but has no full resolver. Current storage and date rules are in
+> [75-file-persistence](75-file-persistence.md).
+
 ## 0. Scope and the one rule that governs everything here
 
 This document specifies how `instrument_manager` v2 names things and keeps those names from rotting. It owns one DDL surface — the shared `external_identifiers` table — and one C++ surface — the canonical-symbol generator plus the load-time guards. Three concepts that v1 already kept apart (opaque internal id, generated canonical symbol, external/venue identifiers) are carried over, but lifted from the single-instrument grain up to the three-layer stack: every layer (`L0` observable, `L1` product, `L2` listing) gets its own opaque id, and the identifier-mapping machinery is shared across all three rather than re-implemented per layer.
@@ -174,6 +186,14 @@ std::string option_symbol(const l1::OptionLeg& o, const std::string& expiration,
 
 ## 4. External identifiers and venue symbols
 
+> Historical PostgreSQL design: the tables and active-code uniqueness below
+> describe the earlier relational design, not the current JSON/SQLite contract.
+> Current identifier records retain authority and `[valid_from, valid_to)`;
+> the index deduplicates only identical full records, allowing multiple targets
+> and disjoint periods. Generic missing dates stay null; Holdings requires an
+> explicit start date and applies its existing overlap rules. Resolution can
+> return `AMBIGUOUS` rather than force a code to one target.
+
 There are two distinct mapping concerns, and they live in two tables for a reason:
 
 1. **Standard external identifiers** — issued by an external authority, often regulatory or industry-standard, and frequently shared across venues: ISIN, CUSIP, FIGI/COMPOSITE_FIGI, SEDOL, RIC, Bloomberg ticker, LEI, OSI, MIC, plain ticker. These can target *any* layer (an ISIN is on the L0/L1 grain; a venue MIC is on L2). They live in the single shared `external_identifiers` table.
@@ -338,15 +358,43 @@ for (const auto& [pid, product] : option_products_) {
 }
 ```
 
-### 6.3 Active-identifier uniqueness mirrors the DB constraint
+### 6.3 Historical plan: active-identifier uniqueness mirrors the DB constraint
 
-`validate_all()` also re-asserts in C++ what the partial unique index asserts in Postgres — at most one active `(scheme, identifier)` mapping — so the snapshot loader catches a violation even if the snapshot is built from a source that bypassed the DB constraint (e.g. a config-seeded identifier map). Postgres CHECK/unique-index integrity is a strict subset of the C++ SoT; the DB is the cheap declarative backstop, the core is the authority.
+The PostgreSQL design proposed that `validate_all()` re-assert the database's
+active `(scheme, identifier)` uniqueness in C++. This is not implemented by the
+current JSON load gate: identifiers stay outside the C++ registry. Holdings'
+Python catalog owns its identifier validation and contextual resolution; the
+derived SQLite index validates dates and deduplicates full records as described
+in [75-file-persistence](75-file-persistence.md).
 
 ---
 
 ## 7. Registry lookup surface (read path)
 
-The in-memory snapshot exposes the resolution paths a hot-path consumer needs. The class keeps the legacy name `InstrumentRegistry`; the identity-relevant lookups (master Section 5.3) are:
+### 7.1 Current public Python contract
+
+Consumers import `ReferencePort` from `instrument_manager.references` and receive
+an implementation from application setup. `HoldingCatalog` implements the
+contract over one validated JSON snapshot. It exposes `holding`, `listing`,
+`observable`, `currency_observable`, `currency_mappings`, related holdings/listings,
+`resolve`, `search`, `detail`, `transferable_observables`, and `fingerprint`.
+Frozen reference values and detached query results keep consumers independent
+of internal dictionaries. Direct missing-ID/code lookups return `None`;
+`holding` and `detail` raise `CatalogError` for ineligible products or a Listing
+belonging to another product.
+
+`resolve(scheme, identifier, as_of, authority=None, venue_id=None, venue_segment=None)`
+returns `{state, candidates}`, with states `FOUND`, `AMBIGUOUS`, `MISMATCH`, and
+`NOT_FOUND`. Matching uses left-closed, right-open validity intervals. Omitting
+authority searches across authorities: identical target identities are
+deduplicated, while multiple targets remain ambiguous. Generic JSON/index
+records with an unknown start date do not bypass Holdings' required-date gate.
+
+### 7.2 C++ lookup shape and compatibility
+
+The in-memory class keeps the name `InstrumentRegistry`. The following shape
+retains the historical external-identifier lookup alongside the implemented
+ID and scalar venue-symbol queries:
 
 ```cpp
 class InstrumentRegistry {
@@ -361,14 +409,20 @@ class InstrumentRegistry {
   const Listing* by_venue_symbol(std::string_view venue, std::string_view segment,
                                  std::string_view symbol) const;
 
-  // by external identifier — returns the opaque product/asset/listing id the
-  // ACTIVE mapping points at (effective_to is null at snapshot time).
+  // Legacy compatibility API: JSON ingestion does not populate this lookup.
+  // The Python binding emits DeprecationWarning; use ReferencePort.resolve().
   const std::string* product_by_external_id(std::string_view scheme,
                                              std::string_view identifier) const;
 };
 ```
 
-`by_venue_symbol` carries the corrected three-part key (`venue`, `segment`, `symbol`) so the v1 collision cannot recur. `product_by_external_id` resolves the active mapping only; point-in-time identifier resolution (what a code pointed at on some past date) is served from the `AsOf`-parameterized snapshot, which loads the identifier rows whose effective window contains the requested instant rather than only the `effective_to is null` rows.
+`by_venue_symbol` indexes the supplied scalar symbol with the three-part key
+(`venue`, `segment`, `symbol`); it does not resolve dated identifier arrays.
+`product_by_external_id` remains callable for compatibility but has no populated
+map after JSON ingestion. Its Python binding now emits `DeprecationWarning`.
+The earlier `AsOf`-parameterized C++ identifier snapshot is a historical design,
+not an implemented alternative to the current Python resolver. A full SQLite
+resolver is also deferred until it has a real consumer.
 
 ---
 

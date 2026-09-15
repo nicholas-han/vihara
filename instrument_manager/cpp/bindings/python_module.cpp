@@ -619,11 +619,19 @@ PYBIND11_MODULE(instrument_manager_py, m) {
       .def("product_by_external_id",
            [](const im::InstrumentRegistry& r, const std::string& scheme,
               const std::string& identifier) -> std::optional<std::string> {
+             if (PyErr_WarnEx(PyExc_DeprecationWarning,
+                             "product_by_external_id is not populated by JSON ingestion; "
+                             "use HoldingCatalog.resolve with a date and identifier context",
+                             1) < 0) {
+               throw py::error_already_set();
+             }
              const std::string* hit = r.product_by_external_id(scheme, identifier);
              if (!hit) return std::nullopt;
              return *hit;
            },
-           py::arg("scheme"), py::arg("identifier"))
+           py::arg("scheme"), py::arg("identifier"),
+           "Deprecated: JSON ingestion does not populate this lookup. "
+           "Use HoldingCatalog.resolve for dated Holdings identifier resolution.")
       // ---- multi-leg DAG (ADR-14) ----
       .def("direct_derivatives",
            [](const im::InstrumentRegistry& r, const std::string& ref_id) {

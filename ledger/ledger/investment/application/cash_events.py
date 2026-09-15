@@ -23,7 +23,7 @@ def normalize(conn, catalog, kind, payload):
     for k in fields:
         if k.endswith("amount"):
             data[k] = decimal_text(data[k], positive=True)
-        if k.endswith("currency") and data[k] not in catalog.currencies:
+        if k.endswith("currency") and catalog.currency_observable(data[k]) is None:
             raise LedgerError("REFERENCE_NOT_FOUND", "Currency is not registered.")
     if kind == "FX_CONVERSION":
         if data["sell_currency"] == data["buy_currency"]:
@@ -31,7 +31,7 @@ def normalize(conn, catalog, kind, payload):
                 "VALIDATION_ERROR", "FX Conversion requires different currencies."
             )
     else:
-        observable = catalog.observables.get(data["observable_id"])
+        observable = catalog.observable(data["observable_id"])
         if (
             observable is None
             or observable.kind != "TRANSFERABLE"

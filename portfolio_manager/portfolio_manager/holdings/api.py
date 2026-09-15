@@ -11,12 +11,11 @@ from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, ConfigDict, StrictStr
 
-from instrument_manager.holding_catalog import HoldingCatalog, CatalogError
+from instrument_manager.references import ReferencePort, CatalogError
 from .config import Settings
-from ledger.investment.errors import LedgerError
-from ledger.investment.persistence.store import Store
-from ledger.investment.application.service import Service
+from ledger.investment.api import Commands, Queries, References, Imports, LedgerError
 from .analysis import HoldingsService
+from .integrations.market import MarketRepository
 
 
 class ScopeInput(BaseModel):
@@ -156,12 +155,21 @@ class RelatedInput(BaseModel):
 
 
 def create_app(settings: Settings | None = None):
+    # Concrete storage and catalog construction belongs to application startup.
+    from instrument_manager.holding_catalog import HoldingCatalog
+    from ledger.investment.persistence.store import Store
+
     settings = settings or Settings.from_env()
-    catalog = HoldingCatalog(settings.instruments_dir)
+    catalog: ReferencePort = HoldingCatalog(settings.instruments_dir)
     store = Store(settings.db_path, catalog)
-    store.configuration()  # Never silently initialize, replace or seed a running database.
-    service = Service(store)
-    analysis = HoldingsService(store)
+    commands = Commands(store)
+    queries = Queries(store)
+    references = References(store)
+    imports = Imports(store)
+    queries.configuration()  # Never silently initialize, replace or seed a running database.
+    analysis = HoldingsService(
+        queries=queries, market=MarketRepository(store), catalog=catalog
+    )
     app = FastAPI(title="Portfolio Holdings", version="0.1.0")
     static_dir = Path(__file__).with_name("web")
     app.mount("/static", StaticFiles(directory=static_dir), name="static")
@@ -216,15 +224,15 @@ def create_app(settings: Settings | None = None):
 
     @app.get("/api/configuration")
     def configuration():
-        return store.configuration()
+        return queries.configuration()
 
     @app.get("/api/accounts")
     def accounts():
-        return store.accounts()
+        return references.accounts()
 
     @app.post("/api/accounts", status_code=201)
     def create_account(payload: AccountInput):
-        return store.create_account(
+        return references.create_account(
             payload.account_code,
             payload.display_name,
             payload.institution_type,
@@ -239,11 +247,11 @@ def create_app(settings: Settings | None = None):
 
     @app.get("/api/accounts/{account_id}/position-scopes")
     def position_scopes(account_id: int):
-        return store.position_scopes(account_id)
+        return references.position_scopes(account_id)
 
     @app.get("/api/accounts/{account_id}/external-account-references")
     def external_account_references(account_id: int):
-        return store.external_account_references(account_id)
+        return references.external_account_references(account_id)
 
     @app.get("/api/instruments/search")
     def search(q: str = Query(default="", max_length=200)):
@@ -269,41 +277,15 @@ def create_app(settings: Settings | None = None):
 
     @app.get("/api/instruments/{product_id}")
     def instrument_detail(product_id: str, listing_id: str | None = None):
-        product = catalog.holding(product_id, listing_id)
-        return {
-            **asdict(product),
-            "holding_leg": catalog.holding_legs[product_id],
-            "observable": asdict(catalog.observables[product.asset_observable_id]),
-            "quote_observable": asdict(
-                catalog.observables[product.quote_observable_id]
-            ),
-            "listings": [
-                asdict(l)
-                for l in catalog.listings.values()
-                if l.product_id == product_id
-            ],
-            "identifiers": [
-                asdict(i)
-                for i in catalog.identifiers
-                if (i.target_type == "PRODUCT" and i.target_id == product_id)
-                or (
-                    i.target_type == "OBSERVABLE"
-                    and i.target_id == product.asset_observable_id
-                )
-                or (
-                    i.target_type == "LISTING"
-                    and catalog.listings[i.target_id].product_id == product_id
-                )
-            ],
-        }
+        return catalog.detail(product_id, listing_id)
 
     @app.get("/api/book-fx")
     def book_fx(base_currency: str, effective_date: date):
-        return store.book_fx(base_currency, effective_date)
+        return references.book_fx(base_currency, effective_date)
 
     @app.post("/api/transactions/cash-transfers", status_code=201)
     def cash_transfer(payload: CashInput):
-        return service.submit(
+        return commands.submit(
             "CASH_TRANSFER",
             payload.model_dump(exclude={"request_key"}),
             payload.request_key,
@@ -311,13 +293,13 @@ def create_app(settings: Settings | None = None):
 
     @app.post("/api/transactions/trades", status_code=201)
     def trade(payload: TradeInput):
-        return service.submit(
+        return commands.submit(
             "TRADE", payload.model_dump(exclude={"request_key"}), payload.request_key
         )
 
     @app.post("/api/transactions/fx-conversions", status_code=201)
     def fx_conversion(payload: FXInput):
-        return service.submit(
+        return commands.submit(
             "FX_CONVERSION",
             payload.model_dump(exclude={"request_key"}),
             payload.request_key,
@@ -325,7 +307,7 @@ def create_app(settings: Settings | None = None):
 
     @app.post("/api/transactions/dividends", status_code=201)
     def dividend(payload: DividendInput):
-        return service.submit(
+        return commands.submit(
             "DIVIDEND_RECEIPT",
             payload.model_dump(exclude={"request_key"}),
             payload.request_key,
@@ -336,7 +318,7 @@ def create_app(settings: Settings | None = None):
         return {
             "rows": [
                 asdict(o)
-                for o in catalog.observables.values()
+                for o in catalog.transferable_observables()
                 if o.kind == "TRANSFERABLE" and o.asset_class in ("EQUITY", "CRYPTO")
             ]
         }
@@ -345,7 +327,7 @@ def create_app(settings: Settings | None = None):
     def preview(
         payload: CashInput | TradeInput | FXInput | DividendInput | ChargeInput,
     ):
-        return service.submit(
+        return commands.submit(
             (
                 "INVESTMENT_CHARGE"
                 if isinstance(payload, ChargeInput)
@@ -385,7 +367,7 @@ def create_app(settings: Settings | None = None):
         status: Literal["ACTIVE", "REVERSED"] | None = None,
         date_to: date | None = None,
     ):
-        return service.transactions(
+        return queries.transactions(
             as_of.isoformat() if as_of else None,
             limit,
             offset,
@@ -398,46 +380,40 @@ def create_app(settings: Settings | None = None):
             date_to.isoformat() if date_to else None,
         )
 
-    from ledger.investment.persistence.charges import ChargeReferences
-    from ledger.investment.application import relationships
-    from ledger.investment.application.results import investment_results
-
-    charge_refs = ChargeReferences(store)
-
     @app.get("/api/investment-charge-categories")
     def charge_categories():
-        return charge_refs.categories()
+        return references.categories()
 
     @app.post("/api/investment-charge-categories", status_code=201)
     def create_charge_category(payload: CategoryInput):
-        return charge_refs.create_category(**payload.model_dump())
+        return references.create_category(**payload.model_dump())
 
     @app.patch("/api/investment-charge-categories/{category_id}")
     def rename_charge_category(category_id: int, payload: CategoryNameInput):
-        return charge_refs.rename_category(category_id, payload.display_name)
+        return references.rename_category(category_id, payload.display_name)
 
     @app.get("/api/investment-charge-source-mappings")
     def charge_mappings(
         financial_account_id: int | None = None, source_label_raw: str | None = None
     ):
-        return charge_refs.mappings(financial_account_id, source_label_raw)
+        return references.mappings(financial_account_id, source_label_raw)
 
     @app.post("/api/investment-charge-source-mappings", status_code=201)
     def create_charge_mapping(payload: ChargeMappingInput):
-        return charge_refs.save_mapping(**payload.model_dump())
+        return references.save_mapping(**payload.model_dump())
 
     @app.patch("/api/investment-charge-source-mappings/{mapping_id}")
     def change_charge_mapping(mapping_id: int, payload: ChargeMappingInput):
-        return charge_refs.save_mapping(**payload.model_dump(), key=mapping_id)
+        return references.save_mapping(**payload.model_dump(), key=mapping_id)
 
     @app.delete("/api/investment-charge-source-mappings/{mapping_id}")
     def delete_charge_mapping(mapping_id: int):
-        charge_refs.delete_mapping(mapping_id)
+        references.delete_mapping(mapping_id)
         return {"deleted": True}
 
     @app.post("/api/transactions/investment-charges", status_code=201)
     def charge(payload: ChargeInput):
-        return service.submit(
+        return commands.submit(
             "INVESTMENT_CHARGE",
             payload.model_dump(exclude={"request_key"}),
             payload.request_key,
@@ -474,7 +450,7 @@ def create_app(settings: Settings | None = None):
 
     @app.post("/api/transactions/batch/preview")
     def batch_preview(payload: BatchInput):
-        return service.submit_many(
+        return commands.submit_many(
             validated_batch(payload),
             payload.charge_for,
             payload.request_key,
@@ -483,19 +459,18 @@ def create_app(settings: Settings | None = None):
 
     @app.post("/api/transactions/batch", status_code=201)
     def batch_submit(payload: BatchInput):
-        return service.submit_many(
+        return commands.submit_many(
             validated_batch(payload), payload.charge_for, payload.request_key
         )
 
     @app.get("/api/investment-charges/{transaction_id}/related-transactions")
     def related_charge(transaction_id: int):
-        with store.read() as conn:
-            return relationships.related(conn, transaction_id)
+        return queries.related(transaction_id)
 
     @app.put("/api/investment-charges/{transaction_id}/related-transactions")
     def replace_related_charge(transaction_id: int, payload: RelatedInput):
-        return relationships.replace(
-            store, transaction_id, payload.transaction_ids, payload.expected_version
+        return commands.replace_related(
+            transaction_id, payload.transaction_ids, payload.expected_version
         )
 
     @app.get("/api/investment-results")
@@ -504,8 +479,7 @@ def create_app(settings: Settings | None = None):
         date_to: date | None = None,
         account_id: int | None = None,
     ):
-        return investment_results(
-            store,
+        return queries.investment_results(
             date_from.isoformat() if date_from else None,
             date_to.isoformat() if date_to else None,
             account_id,
@@ -513,31 +487,23 @@ def create_app(settings: Settings | None = None):
 
     @app.get("/api/transactions/{transaction_id}")
     def transaction_detail(transaction_id: int):
-        return service.detail(transaction_id)
+        return queries.detail(transaction_id)
 
     @app.get("/api/transactions/{transaction_id}/reversal-check")
     def reversal_check(transaction_id: int):
-        return service.reversal_check(transaction_id)
+        return queries.reversal_check(transaction_id)
 
     @app.post("/api/transactions/{transaction_id}/reversal", status_code=201)
     def reverse(transaction_id: int, payload: ReversalInput):
-        return service.reverse(transaction_id, payload.request_key, payload.memo)
+        return commands.reverse(transaction_id, payload.request_key, payload.memo)
 
     @app.get("/api/holdings/{position_id}")
     def position_detail(position_id: int, as_of: date | None = None):
-        from ledger.investment.application.queries import position
-
-        return position(store, position_id, as_of.isoformat() if as_of else None)
+        return queries.position(position_id, as_of.isoformat() if as_of else None)
 
     @app.get("/api/cash/{account_id}/{currency}")
     def cash_detail(account_id: int, currency: str, as_of: date | None = None):
-        from ledger.investment.application.queries import cash
-
-        return cash(store, account_id, currency, as_of.isoformat() if as_of else None)
-
-    from ledger.investment.imports.service import Imports
-
-    imports = Imports(store)
+        return queries.cash(account_id, currency, as_of.isoformat() if as_of else None)
 
     @app.get("/api/imports")
     def import_batches():

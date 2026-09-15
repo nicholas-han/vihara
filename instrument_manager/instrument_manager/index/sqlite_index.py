@@ -1,6 +1,6 @@
 """Derived SQLite index over a loaded instrument universe.
 
-Disposable by construction (rebuild = drop + recreate from JSON). Flattened
+Disposable by construction (rebuild = replace from JSON after validation). Flattened
 lookups for non-C++ consumers — notably portfolio_manager's future adapter,
 which joins its ``instrument_aliases`` against ``external_identifiers``
 here. Classification and canonical symbols are DERIVED at build time by the
@@ -11,7 +11,10 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 import sqlite3
+import tempfile
+from datetime import date
 from pathlib import Path
 
 from ..config import load_pybind
@@ -72,16 +75,25 @@ CREATE TABLE listings (
     venue_symbol  TEXT NOT NULL,
     contract_size TEXT
 );
+-- Holdings listings may carry dated VENUE_SYMBOL identifiers only.
 CREATE UNIQUE INDEX uq_listings_venue
-    ON listings(venue_id, venue_segment, venue_symbol);
+    ON listings(venue_id, venue_segment, venue_symbol) WHERE venue_symbol <> '';
 CREATE TABLE external_identifiers (
+    identifier_id INTEGER PRIMARY KEY,
     entity_kind TEXT NOT NULL CHECK (entity_kind IN ('asset','product','listing')),
     entity_id   TEXT NOT NULL,
     scheme      TEXT NOT NULL,
+    authority   TEXT,
     identifier  TEXT NOT NULL,
     valid_from  TEXT,
-    valid_to    TEXT,
-    PRIMARY KEY (scheme, identifier, entity_kind, entity_id)
+    valid_to    TEXT
+);
+-- NULL means unspecified; retain it distinctly from an explicitly empty value.
+CREATE UNIQUE INDEX uq_external_identifiers_record ON external_identifiers(
+    scheme, authority IS NULL, coalesce(authority, ''), identifier,
+    entity_kind, entity_id,
+    valid_from IS NULL, coalesce(valid_from, ''),
+    valid_to IS NULL, coalesce(valid_to, '')
 );
 CREATE INDEX ix_external_identifiers_entity
     ON external_identifiers(entity_kind, entity_id);
@@ -110,35 +122,90 @@ _LEG_KINDS = {
 }
 
 
-def _sha256(path: Path) -> str:
-    return hashlib.sha256(path.read_bytes()).hexdigest()
+_INSERT_IDENTIFIERS = """
+INSERT INTO external_identifiers
+    (entity_kind, entity_id, scheme, authority, identifier, valid_from, valid_to)
+VALUES (?, ?, ?, ?, ?, ?, ?)
+ON CONFLICT DO NOTHING
+"""
+
+
+def _source_hashes(universe: LoadedUniverse) -> list[tuple[str, str]]:
+    """Hash the bytes whose JSON still matches the loaded, validated snapshot."""
+    loaded = {
+        row["_path"]: {key: value for key, value in row.items() if key != "_path"}
+        for rows in (universe.venues, universe.assets, universe.products, universe.listings)
+        for row in rows
+    }
+    hashes = []
+    for path in universe.files:
+        content = path.read_bytes()
+        if json.loads(content) != loaded.get(str(path)):
+            raise ValueError(f"Instrument source changed since loading: {path}")
+        hashes.append((str(path), hashlib.sha256(content).hexdigest()))
+    return hashes
+
+
+def _identifier_date(value, field: str) -> str | None:
+    if value is None:
+        return None
+    try:
+        if not isinstance(value, str) or date.fromisoformat(value).isoformat() != value:
+            raise ValueError
+    except ValueError:
+        raise ValueError(f"Identifier {field} must be an ISO date or null") from None
+    return value
 
 
 def _identifiers(entity_kind: str, data: dict):
     for entry in data.get("identifiers", []):
+        authority = entry.get("authority")
+        if authority is not None and not isinstance(authority, str):
+            raise ValueError("Identifier authority must be a string or null")
+        valid_from = _identifier_date(entry.get("valid_from"), "valid_from")
+        valid_to = _identifier_date(entry.get("valid_to"), "valid_to")
+        if valid_from is not None and valid_to is not None and valid_from >= valid_to:
+            raise ValueError("Identifier valid_from must be earlier than valid_to")
         yield (
             entity_kind,
             data["id"],
             entry["scheme"],
+            authority,
             entry["value"],
-            entry.get("valid_from"),
-            entry.get("valid_to"),
+            valid_from,
+            valid_to,
         )
 
 
 def rebuild(db_path: str | Path, universe: LoadedUniverse) -> None:
-    im = load_pybind()
+    """Publish a complete validated index, leaving any previous index on failure."""
+    if not universe.ok:
+        raise ValueError("Cannot rebuild index from an invalid instrument universe")
+    input_files = _source_hashes(universe)
     db_path = Path(db_path)
     db_path.parent.mkdir(parents=True, exist_ok=True)
-    if db_path.exists():
-        db_path.unlink()
+    descriptor, temporary_name = tempfile.mkstemp(
+        prefix=f".{db_path.name}.", suffix=".tmp", dir=db_path.parent
+    )
+    os.close(descriptor)
+    temporary_path = Path(temporary_name)
+    try:
+        _build(temporary_path, universe, input_files)
+        if _source_hashes(universe) != input_files:
+            raise ValueError("Instrument source changed during index rebuild")
+        temporary_path.replace(db_path)
+    finally:
+        temporary_path.unlink(missing_ok=True)
 
+
+def _build(db_path: Path, universe: LoadedUniverse, input_files: list[tuple[str, str]]) -> None:
+    im = load_pybind()
     conn = sqlite3.connect(db_path)
     try:
         conn.executescript(_SCHEMA)
         conn.executemany(
             "INSERT INTO input_files VALUES (?, ?)",
-            [(str(p), _sha256(p)) for p in universe.files],
+            input_files,
         )
         for data in universe.venues:
             conn.execute(
@@ -174,7 +241,7 @@ def rebuild(db_path: str | Path, universe: LoadedUniverse) -> None:
                     ),
                 )
             conn.executemany(
-                "INSERT INTO external_identifiers VALUES (?, ?, ?, ?, ?, ?)",
+                _INSERT_IDENTIFIERS,
                 list(_identifiers("asset", data)),
             )
         for data in universe.products:
@@ -216,7 +283,7 @@ def rebuild(db_path: str | Path, universe: LoadedUniverse) -> None:
                     (product.id, str(ref.kind).rsplit(".", 1)[-1], ref.id),
                 )
             conn.executemany(
-                "INSERT INTO external_identifiers VALUES (?, ?, ?, ?, ?, ?)",
+                _INSERT_IDENTIFIERS,
                 list(_identifiers("product", data)),
             )
         for data in universe.listings:
@@ -235,9 +302,13 @@ def rebuild(db_path: str | Path, universe: LoadedUniverse) -> None:
                 ),
             )
             conn.executemany(
-                "INSERT INTO external_identifiers VALUES (?, ?, ?, ?, ?, ?)",
+                _INSERT_IDENTIFIERS,
                 list(_identifiers("listing", data)),
             )
         conn.commit()
+        if conn.execute("PRAGMA integrity_check").fetchall() != [("ok",)]:
+            raise ValueError("Rebuilt instrument index failed integrity validation")
+        if conn.execute("PRAGMA foreign_key_check").fetchone() is not None:
+            raise ValueError("Rebuilt instrument index contains broken references")
     finally:
         conn.close()

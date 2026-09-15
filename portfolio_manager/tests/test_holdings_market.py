@@ -1,5 +1,7 @@
 from datetime import date
+from copy import deepcopy
 from decimal import Decimal
+import pytest
 from portfolio_manager.holdings.analysis import HoldingsService
 from test_holdings_foundation import store
 from test_holdings_cash import setup, move
@@ -7,6 +9,64 @@ from test_holdings_trades import funding, trade
 from test_holdings_cash_events import fx, dividend
 from portfolio_manager.holdings.integrations.market import import_rows
 from ledger.investment.validation import validate
+
+
+def test_detached_market_snapshot_values_without_database_or_mutating_ledger(
+    store, setup, monkeypatch
+):
+    from portfolio_manager.holdings.integrations.market import MarketRepository, value
+
+    s, a, _ = setup
+    funding(store, s, a)
+    trade(s, a)
+    balances = s.balances("2026-09-03")
+    original = deepcopy(balances)
+    oid = balances["investments"][0]["observable_id"]
+    market = MarketRepository(store)
+    market.import_rows("prices", [
+        {"observable_id": oid, "price": "10", "currency": "HKD",
+         "as_of": "2026-09-03", "source": "initial"},
+        {"observable_id": oid, "price": "12", "currency": "HKD",
+         "as_of": "2026-09-03", "source": "revised"},
+        {"observable_id": oid, "price": "99", "currency": "HKD",
+         "as_of": "2026-09-04", "source": "future"},
+    ])
+    snapshot = market.snapshot("2026-09-03", "HKD", [oid], ["USD"])
+    market.import_rows("prices", [
+        {"observable_id": oid, "price": "13", "currency": "HKD",
+         "as_of": "2026-09-03", "source": "later correction"},
+    ])
+    with pytest.raises(TypeError):
+        snapshot.prices[oid]["price"] = "100"
+
+    def forbidden():
+        raise AssertionError("Valuation tried to open the database")
+
+    monkeypatch.setattr(store, "read", forbidden)
+    result = value(balances, snapshot, store.catalog)
+    row = result["investments"][0]
+    assert row["market_price"] == "12"
+    assert row["price_source"] == "revised"
+    assert row["market_value"] == "120"
+    assert row["unrealized_difference"] == "-680"
+    assert balances == original
+    assert value(balances, snapshot, store.catalog) == result
+
+
+def test_market_import_rolls_back_all_observations_on_invalid_row(store, setup):
+    from ledger.investment.api import LedgerError
+    from portfolio_manager.holdings.integrations.market import MarketRepository
+
+    market = MarketRepository(store)
+    with pytest.raises(LedgerError):
+        market.import_rows("fx", [
+            {"base_currency": "USD", "quote_currency": "HKD", "rate": "7.8",
+             "as_of": "2026-09-03", "source": "test"},
+            {"base_currency": "USD", "quote_currency": "HKD", "rate": "0",
+             "as_of": "2026-09-03", "source": "test"},
+        ])
+    snapshot = market.snapshot("2026-09-03", "HKD", [], ["USD"])
+    assert "USD" not in snapshot.rates
 
 
 def test_fixed_valuation_does_not_change_books(store, setup):

@@ -53,8 +53,10 @@ class InstrumentRegistry : public ObservableResolver {
   std::vector<const Listing*> listings_of_product(std::string_view product_id) const;
 
   // ---- external identifiers -----------------------------------------------
-  /// Returns the opaque product/asset/listing id the ACTIVE mapping points at, or
-  /// nullptr if no active mapping exists.
+  /// Legacy lookup retained for source compatibility. JSON ingestion does not
+  /// populate this map; this API cannot resolve authority or historical dates.
+  /// Use Python HoldingCatalog.resolve for supported Holdings identifiers.
+  [[deprecated("Use HoldingCatalog.resolve; JSON does not populate this lookup")]]
   const std::string* product_by_external_id(std::string_view scheme,
                                             std::string_view identifier) const;
 

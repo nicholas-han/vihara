@@ -24,7 +24,7 @@ def normalize(conn, catalog, payload):
     ref = category(conn, payload.get("investment_charge_category_id"))
     currency = payload.get("currency")
     if (
-        currency not in catalog.currencies
+        catalog.currency_observable(currency) is None
         or not conn.execute(
             "SELECT 1 FROM currencies WHERE currency_code=?", (currency,)
         ).fetchone()

@@ -1,18 +1,21 @@
-> 2026-09-12 Investment Charge v8：费用与交易成本遵循 [FINAL PRD](INVESTMENT_CHARGE_PRD.md)、[用户补充决定](../planning/DECISIONS.md#d-ic-002--股息预扣税类别与实际现金入账2026-09-12) 和 [实现设计](INVESTMENT_CHARGE_TECHNICAL_DESIGN.md)。本文已同步本轮合同；旧阶段验收仍只证明当时版本。正式数据库切换是独立发布步骤。
+> 2026-09-15 文档修正：费用与交易成本遵循 [FINAL PRD](INVESTMENT_CHARGE_PRD.md)、[用户补充决定](../planning/DECISIONS.md#d-ic-002--股息预扣税类别与实际现金入账2026-09-12) 和 [实现设计](INVESTMENT_CHARGE_TECHNICAL_DESIGN.md)。处理器表已修正为本金成本与独立费用；旧阶段验收只证明当时版本。正式数据库切换仍是独立发布步骤。
 
 # Portfolio Holdings MVP — Technical Design Document
 
 > 2026-09-09 target update: [Financial Account PRD v1.0](Financial_Account_PRD.md) governs account aggregation, PositionScope and cost-basis boundaries. [Implementation design](FINANCIAL_ACCOUNT_DESIGN.md) and [Financial Account acceptance](../history/FINANCIAL_ACCOUNT_ACCEPTANCE.md) describe the implemented increment; S0–S10 reports remain historical records.
 
 
-**版本：** v1.1  
-**更新：** 2026-09-07  
-**状态：** S0～S10 已实现并通过工程验收  
+**版本：** v1.2
+
+**更新：** 2026-09-15
+
+**状态：** S0～S10 历史基线已实现并通过当时工程验收
+
 **代码审查基准：** `12b80c956abdb024a2a0542530c03b6e5c501d3b`
 
 推进入口：[PROJECT_PLAN](../planning/PROJECT_PLAN.md)。仓库依据：[GAP_ANALYSIS](../history/GAP_ANALYSIS.md)。确认状态：[DECISIONS](../planning/DECISIONS.md)。
 
-本文决定实现方式，不重定义领域模型。Q-001～Q-003 已于 2026-09-06 获用户确认并同步 canonical 文档。旧数据迁移不在范围，采用独立空库。
+本文决定基础实现方式，不重定义当前领域模型。Q-001～Q-003 已于 2026-09-06 获用户确认并同步 canonical 文档。旧经济交易迁移不在本基础设计范围；v8 发布所需的参考配置复制见 [专项实现设计](INVESTMENT_CHARGE_TECHNICAL_DESIGN.md)。
 
 ## 1. 架构与部署单位
 
@@ -171,15 +174,16 @@ Repositories 不 commit。事务锁覆盖读取余额、计算和写入，防止
 
 ## 6. 处理器边界
 
-遵循 PRD 的五类 flat types，直接显式分派，不建通用注册框架。
+当前支持五类普通经济事件及 REVERSAL，直接显式分派，不建通用注册框架。BUY/SELL 是同一种 TRADE 的两个方向。
 
 | 类型 | 核心处理职责 |
 |---|---|
 | CashTransfer | 根据 SOURCE/DESTINATION 判断方向；同币内部搬运历史 basis；外部入金 recognition；出金按历史 basis 处置并记录必要 reserve |
-| BUY Trade | 费用资本化；Book FX 确认新 Investment；Cash 按历史 basis 处置；Position 双轴增加；生成一个 lot |
-| SELL Trade | 同 bucket LOWEST_BOOK_COST；冻结 allocations；按 Book FX 确认 cash proceeds；Investment 按历史成本减少；差额为 net realized P&L |
+| BUY Trade | 只按成交本金和 Book FX 确认新 Investment；Cash 按历史 basis 处置；Position 双轴增加；生成一个 lot。费用必须作为独立 InvestmentCharge |
+| SELL Trade | 同 bucket LOWEST_BOOK_COST；冻结 allocations；按 Book FX 确认 cash proceeds；Investment 按历史成本减少；差额为 gross realized trade P&L。费用必须作为独立 InvestmentCharge |
 | FXConversion | 单账户、两币种；functional→foreign 用实际功能币支付；foreign→functional / foreign→foreign 按规范确认 reserve |
 | DividendReceipt | Observable + 显式实收币种；现金及 Dividend Income；不要求当日仍持仓 |
+| InvestmentCharge | 正数收费、负数退款/冲减；独立影响现金及费用科目；不改变证券数量、成本或选批。关联仅用于追溯 |
 | REVERSAL | 关系、exact inverse、依赖保护；无 subtype / 自有 account rows / 负 lot |
 
 金额公式不在前端另写权威版本。预览调用应用层 calc；最终提交总是重新验证，不能信任旧预览里的余额或 lot 选择。
@@ -435,9 +439,9 @@ S0 接口集中在 `holdings/api.py`；Book FX 与事务基础在 `persistence/s
 
 验收、环境前提与启动方式见 [S0_ACCEPTANCE](../history/S0_ACCEPTANCE.md)。
 
-## 18. 最终实际落点与验收
+## 18. S0～S10 实际落点与验收（历史基线）
 
-数据库迁移版本为 6：foundation、cash、trades、cash events、market、imports。`application/service.py` 协调普通 command、冲销及重演；cash / trades / cash_events 显式分担五类经济处理。`ledger/ledger/investment/accounting/` 提供会计分录，`position/` 提供持仓与批次，统一由 `application/` 协调并通过 `persistence/` 原子保存；没有复用旧 generic ledger CRUD。`validation/` 独立读取已存关系和表，检查冗余约束、原始/有效历史及冻结效果。
+以下是 S0～S10 的 schema v6 历史基线：foundation、cash、trades、cash events、market、imports。`application/service.py` 协调普通 command、冲销及重演；cash / trades / cash_events 显式分担当时的经济处理。`ledger/ledger/investment/accounting/` 提供会计分录，`position/` 提供持仓与批次，统一由 `application/` 协调并通过 `persistence/` 原子保存；没有复用旧 generic ledger CRUD。`validation/` 独立读取已存关系和表，检查冗余约束、原始/有效历史及冻结效果。当前 Financial Account 增量和 Investment Charge v8 以本文后续增量及各自专项设计为准。
 
 Holdings 现金读取原始 CASH 行、数量读取 LOCATION 行，分别与有效历史/批次数量核对；成本来自 active lot/allocation，并与 INVESTMENT 对账。book 使用 80 位中间 Decimal context；市场派生估值用 120 位以容纳 quantity × price × FX 三因子，不改变 canonical 存储精度。
 

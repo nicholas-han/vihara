@@ -56,7 +56,7 @@ def position(store, pid, as_of=None):
             )
             return {
                 **serialize_ids(dict(row)),
-                "name": store.catalog.observables[row["observable_id"]].name,
+                "name": store.catalog.observable(row["observable_id"]).name,
                 "as_of": as_of,
                 "lots": lots,
                 "transaction_ids": list(map(str, sorted(ids))),
@@ -72,7 +72,7 @@ def cash(store, account, currency, as_of=None):
                     "SELECT 1 FROM financial_accounts WHERE financial_account_id=?",
                     (account,),
                 ).fetchone()
-                or currency not in store.catalog.currencies
+                or store.catalog.currency_observable(currency) is None
             ):
                 raise LedgerError(
                     "REFERENCE_NOT_FOUND", "Financial Account or Currency not found."

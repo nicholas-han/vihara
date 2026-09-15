@@ -6,56 +6,26 @@ Portfolio eligibility and identifier context without changing derivative APIs.
 
 from __future__ import annotations
 
-from dataclasses import asdict, dataclass
+from copy import deepcopy
+from dataclasses import asdict
 from datetime import date
 import hashlib
 import json
 from pathlib import Path
 from types import MappingProxyType
+from typing import Mapping
 
+from .references import (
+    CatalogError,
+    HoldingProduct,
+    Identifier,
+    Listing,
+    Observable,
+    Resolution,
+)
 from .serde.loader import load_universe
 
 ASSET_CLASSES = frozenset({"EQUITY", "CRYPTO", "FIAT_CURRENCY", "STABLECOIN"})
-
-
-class CatalogError(ValueError):
-    pass
-
-
-@dataclass(frozen=True)
-class Observable:
-    observable_id: str
-    code: str
-    name: str
-    kind: str
-    asset_class: str | None
-
-
-@dataclass(frozen=True)
-class HoldingProduct:
-    product_id: str
-    name: str
-    asset_observable_id: str
-    quote_observable_id: str
-
-
-@dataclass(frozen=True)
-class Listing:
-    listing_id: str
-    product_id: str
-    venue_id: str
-    venue_segment: str
-
-
-@dataclass(frozen=True)
-class Identifier:
-    scheme: str
-    authority: str | None
-    identifier: str
-    target_type: str
-    target_id: str
-    valid_from: date
-    valid_to: date | None
 
 
 class HoldingCatalog:
@@ -208,6 +178,36 @@ class HoldingCatalog:
         self.listings = MappingProxyType(listings)
         self.identifiers = tuple(identifiers)
 
+    @property
+    def currency_mappings(self) -> Mapping[str, str]:
+        return self.currencies
+
+    def listing(self, listing_id: str) -> Listing | None:
+        return self.listings.get(listing_id)
+
+    def observable(self, observable_id: str) -> Observable | None:
+        return self.observables.get(observable_id)
+
+    def currency_observable(self, currency_code: str) -> str | None:
+        return self.currencies.get(currency_code)
+
+    def holdings_for_observable(
+        self, observable_id: str
+    ) -> tuple[HoldingProduct, ...]:
+        return tuple(
+            p for p in self.products.values() if p.asset_observable_id == observable_id
+        )
+
+    def listings_for_product(self, product_id: str) -> tuple[Listing, ...]:
+        return tuple(l for l in self.listings.values() if l.product_id == product_id)
+
+    def transferable_observables(self) -> list[Observable]:
+        return [
+            o
+            for o in self.observables.values()
+            if o.kind == "TRANSFERABLE" and o.asset_class in ("EQUITY", "CRYPTO")
+        ]
+
     def holding(self, product_id: str, listing_id: str | None = None) -> HoldingProduct:
         if product_id not in self.products:
             raise CatalogError("Product is missing or ineligible for Portfolio MVP")
@@ -216,6 +216,29 @@ class HoldingCatalog:
             if listing is None or listing.product_id != product_id:
                 raise CatalogError("Listing does not belong to Product")
         return self.products[product_id]
+
+    def detail(self, product_id: str, listing_id: str | None = None) -> dict:
+        """Return a detached product detail using the existing Holdings shape."""
+        product = self.holding(product_id, listing_id)
+        listings = self.listings_for_product(product_id)
+        listing_ids = {listing.listing_id for listing in listings}
+        return {
+            **asdict(product),
+            "holding_leg": deepcopy(self.holding_legs[product_id]),
+            "observable": asdict(self.observables[product.asset_observable_id]),
+            "quote_observable": asdict(self.observables[product.quote_observable_id]),
+            "listings": [asdict(listing) for listing in listings],
+            "identifiers": [
+                asdict(i)
+                for i in self.identifiers
+                if (i.target_type == "PRODUCT" and i.target_id == product_id)
+                or (
+                    i.target_type == "OBSERVABLE"
+                    and i.target_id == product.asset_observable_id
+                )
+                or (i.target_type == "LISTING" and i.target_id in listing_ids)
+            ],
+        }
 
     def search(self, query: str = "") -> list[dict]:
         query = query.casefold().strip()
@@ -260,7 +283,7 @@ class HoldingCatalog:
         authority: str | None = None,
         venue_id: str | None = None,
         venue_segment: str | None = None,
-    ) -> dict:
+    ) -> Resolution:
         matches = [
             i
             for i in self.identifiers

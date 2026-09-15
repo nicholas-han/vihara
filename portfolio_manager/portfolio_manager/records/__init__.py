@@ -1,4 +1,9 @@
-"""Portfolio records application layer (v2).
+"""Legacy portfolio records application layer (v2), separate from canonical Holdings.
+
+This package is retained for compatibility with the old records/ledger-bridge
+workflow. Current Portfolio Holdings writes and imports belong to
+``ledger.investment`` through ``portfolio_manager.holdings``; do not use these
+records APIs for the canonical Holdings database.
 
 Historical holdings tracking: trades are the single source of truth for
 positions; 'opening' snapshots anchor accounts whose earlier history is

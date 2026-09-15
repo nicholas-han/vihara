@@ -1,12 +1,17 @@
 # Architecture decisions (ADR log)
 
-This is the decision log for the **quant-research & backtesting stack** — the three new
+This is the historical decision log for the **quant-research & backtesting stack** — the three new
 modules introduced together: `forecaster` (model library), `portfolio_manager`
 (backtester + runtime), and the project-layer `strategies/` container. It lives in
 `docs/modules/portfolio_manager` as the hub for the first vertical slice (branch `vol-arb-v1`,
 the IV-vs-RV strategy); `forecaster` and `strategies/` will grow their own docs once they
 have independent surface. ADR-1 … ADR-8 were founder-confirmed in the design discussion
-on 2026-06-21. Each entry is intentionally terse.
+on 2026-06-21. Each entry is intentionally terse. It is retained as historical
+context. For current Portfolio Holdings ownership, accounting and import behavior,
+use [Portfolio Holdings module boundaries](../../projects/portfolio-holdings/design/MODULE_BOUNDARIES.md),
+the current Technical Design and the current Investment Charge PRD. In particular,
+ADR-4 and ADR-9–11 describe the legacy records/backtest direction and are superseded
+for Holdings by the Investment Ledger and current project documents.
 
 ## ADR-1 — The research/strategy stack is Python-first; existing C++ modules are composed via pybind
 **Decision.** `forecaster`, `portfolio_manager`, and `strategies/` are Python-first. `asset_pricer` and `instrument_manager` are consumed through their pybind bindings, never reimplemented. C++ is reserved for proven hotspots later (event-driven inner loop, order-book simulation).

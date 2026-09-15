@@ -69,7 +69,7 @@ class Service:
         if kind != "CASH_TRANSFER":
             raise LedgerError("VALIDATION_ERROR", "Transaction type is not supported.")
         currency = payload.get("currency")
-        if currency not in self.store.catalog.currencies:
+        if self.store.catalog.currency_observable(currency) is None:
             raise LedgerError("REFERENCE_NOT_FOUND", "Currency not found.")
         amount = decimal_text(payload.get("amount"), positive=True)
         roles = {}
@@ -690,7 +690,9 @@ class Service:
                             "financial_account_id": str(account),
                             "account_name": accounts[account]["display_name"],
                             "currency": currency,
-                            "observable_id": self.store.catalog.currencies[currency],
+                            "observable_id": self.store.catalog.currency_observable(
+                                currency
+                            ),
                             "quantity": decimal_text(q),
                             "book_value": decimal_text(b),
                         }
@@ -920,7 +922,7 @@ def investment_rows(conn, state, catalog, accounts):
         account = int(scope["financial_account_id"])
         key = (pid, account)
         if key not in grouped:
-            observable = catalog.observables[positions[pid]]
+            observable = catalog.observable(positions[pid])
             grouped[key] = {
                 "observable_id": positions[pid],
                 "name": observable.name,

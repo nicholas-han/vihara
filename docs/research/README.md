@@ -4,6 +4,8 @@
 
 | 文档 | 主题 |
 |---|---|
+| [当前实现与整体架构 Review 必要性评估（2026-09-14，9 月 15 日更新）](ARCHITECTURE_REVIEW_ASSESSMENT_2026-09-14.md) | 源码与测试证据、模块成熟度及按用户反馈收窄后的推进顺序；评估建议 |
+| [跨模块接口最小设计（2026-09-15）](CROSS_MODULE_REFERENCE_CONTRACT_2026-09-15.md) | 本轮最小接口已实施；保留设计依据及后置范围，当前实现和验收见文内 Module Boundaries 链接 |
 | [FIN531 Portfolio Management](FIN531_portfolio_management.md) | 投资组合理论与研究实现规范 |
 | [下单校验公式架构](下单校验公式架构.md) | 保证金计算、规则引擎取舍、参数版本、案例规格与计算轨迹 |
 
