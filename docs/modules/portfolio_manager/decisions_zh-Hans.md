@@ -1,5 +1,10 @@
 # 架构决策(ADR 记录)
 
+这是研究/回测栈的历史决策记录。当前 Portfolio Holdings 的账户、记账和导入以
+[模块边界](../../projects/portfolio-holdings/design/MODULE_BOUNDARIES.md)、当前技术设计和
+Investment Charge PRD 为准；ADR-4、ADR-9～11 仅描述 legacy records/backtest 方向，已被
+当前 Holdings 设计取代。此范围说明不改变这些 ADR 在研究回测和旧 records 中的历史含义。
+
 这是**量化研究与回测技术栈**的决策记录——一同引入的三个新模块:`forecaster`(模型库)、
 `portfolio_manager`(回测 + 运行时),以及项目层的 `strategies/` 容器。它放在
 `docs/modules/portfolio_manager`,作为第一刀纵切(分支 `vol-arb-v1`,IV-vs-RV 策略)的中枢;

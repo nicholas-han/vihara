@@ -1,5 +1,16 @@
 # Lifecycle & effective-dating
 
+> Current implementation scope (2026-09-15): the product-level `Lifecycle` enum
+> and relevant C++ product validation are implemented. The event log, dynamic
+> Listing state projection, PostgreSQL triggers and bitemporal version tables
+> below are historical/target design, not the current runtime path; statements
+> such as “built in P0” describe that design's phase plan, not shipped capability.
+> Current persistence uses entity JSON and effective-dated identifiers, with
+> Holdings identifier queries handled by `HoldingCatalog.resolve()`.
+> [75-file-persistence](75-file-persistence.md) supersedes the PostgreSQL storage
+> design; the loader does not automatically preserve prior JSON revisions or
+> provide arbitrary historical definition snapshots.
+
 ## 0. Scope and the one thing to remember
 
 "Static data" is a lie that costs money. Every L1 product term, every L2 listing parameter, and every identifier mapping in `instrument_manager` is *slowly-changing* data with a time dimension: a contract rolls, an option expires, a perp gets delisted, a name relists after a halt, a stock splits and rescales every strike on its chain. This document owns the time axis of the stack — how a definition changes over time, how an instrument moves through its operational life, and how that machinery is shaped so the deferred clearing/settlement/positions/margin world plugs in without a migration.

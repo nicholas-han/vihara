@@ -25,7 +25,9 @@ def prepare_position(conn, event, catalog):
     event["position_id"] = row[0] if row else (seq[0] if seq else 0) + 1
     event["observable_id"] = product.asset_observable_id
     event["currency"] = next(
-        c for c, o in catalog.currencies.items() if o == product.quote_observable_id
+        c
+        for c, o in catalog.currency_mappings.items()
+        if o == product.quote_observable_id
     )
 
 

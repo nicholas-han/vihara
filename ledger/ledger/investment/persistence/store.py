@@ -6,7 +6,7 @@ from pathlib import Path
 import sqlite3
 
 from ledger.investment.accounting import ACCOUNT_DEFINITIONS
-from instrument_manager.holding_catalog import CatalogError
+from instrument_manager.references import CatalogError, ReferencePort
 from ..errors import LedgerError
 from ..numbers import decimal_text
 from . import references
@@ -47,7 +47,7 @@ def _execute_migration(conn, text):
 
 
 class Store:
-    def __init__(self, path, catalog):
+    def __init__(self, path, catalog: ReferencePort):
         self.path = Path(path).expanduser().resolve()
         self.catalog = catalog
 
@@ -156,7 +156,7 @@ class Store:
                 )
         for row in conn.execute("SELECT * FROM currencies"):
             if (
-                self.catalog.currencies.get(row["currency_code"])
+                self.catalog.currency_observable(row["currency_code"])
                 != row["observable_id"]
             ):
                 raise LedgerError(
@@ -175,7 +175,7 @@ class Store:
                 self._validate(conn)
                 conn.commit()
                 return
-            if "HKD" not in self.catalog.currencies:
+            if self.catalog.currency_observable("HKD") is None:
                 raise LedgerError(
                     "REFERENCE_NOT_FOUND", "Reference data must include HKD."
                 )
@@ -183,7 +183,8 @@ class Store:
                 conn, Path(__file__).with_name("001_foundation.sql").read_text()
             )
             conn.executemany(
-                "INSERT INTO currencies VALUES (?,?)", self.catalog.currencies.items()
+                "INSERT INTO currencies VALUES (?,?)",
+                self.catalog.currency_mappings.items(),
             )
             conn.execute("INSERT INTO owners VALUES (1,'SELF','Self')")
             conn.execute("INSERT INTO accounting_config VALUES (1,'HKD')")
@@ -191,7 +192,7 @@ class Store:
                 "INSERT INTO ledger_account_definitions VALUES (?,?,?)",
                 ACCOUNT_DEFINITIONS,
             )
-            for oid in self.catalog.currencies.values():
+            for oid in self.catalog.currency_mappings.values():
                 conn.execute(
                     "INSERT INTO reference_catalog_pins VALUES ('OBSERVABLE',?,?)",
                     (oid, self.catalog.fingerprint("OBSERVABLE", oid)),

@@ -1,9 +1,17 @@
 # Architecture decisions (ADR log)
 
-This is the decision log for `instrument_manager` v2. ADR-1, ADR-2, and ADR-20 encode
-choices the founder confirmed directly this design cycle; the rest were settled during
-the design + adversarial-review pass and are **proposed** pending founder review.
+This is the decision log for `instrument_manager` v2 and its persistence pivot.
+ADR-1, ADR-2, and ADR-20–24 explicitly record founder confirmation. ADR-25 records
+the implemented Python serde path without a separate founder-confirmation claim.
+ADR-3–19 retain their original **proposed, pending founder review** status; their
+presence here or in implemented code does not change that recorded status.
 Each entry is intentionally terse — the full reasoning lives in the layer docs.
+
+> Current scope: ADR-24 records the storage choice and Git-history assumptions at
+> that time. Today's IM JSON contract and its history limitations are in
+> [75-file-persistence](75-file-persistence.md). Current investment records use an
+> authoritative SQLite database owned by `ledger.investment`; ADR-24 is not a
+> direction to rebuild that database from text.
 
 ## ADR-1 — L1 and L2 are split into separate layers
 **Decision.** Product economics (L1) and venue listing (L2) are distinct tables/types with distinct opaque ids (product_id, listing_id); L2 references L1 by FK and holds all venue microstructure; L1 holds no trading params.

@@ -10,7 +10,7 @@ import sqlite3
 from ..application.service import Service
 from ..persistence.store import Store
 from ..errors import LedgerError
-from instrument_manager.holding_catalog import CatalogError
+from instrument_manager.references import CatalogError
 
 KINDS = {
     "TRADE",
@@ -189,18 +189,17 @@ def normalize(store, conn, row):
                 product = target["target_id"]
             elif target["target_type"] == "LISTING":
                 listing = target["target_id"]
-                product = store.catalog.listings[listing].product_id
+                product = store.catalog.listing(listing).product_id
             else:
                 candidates = [
                     p.product_id
-                    for p in store.catalog.products.values()
-                    if p.asset_observable_id == target["target_id"]
+                    for p in store.catalog.holdings_for_observable(target["target_id"])
                 ]
                 matching_listings = [
                     l
-                    for l in store.catalog.listings.values()
-                    if l.product_id in candidates
-                    and (not raw.get("venue_id") or l.venue_id == raw["venue_id"])
+                    for product_id in candidates
+                    for l in store.catalog.listings_for_product(product_id)
+                    if (not raw.get("venue_id") or l.venue_id == raw["venue_id"])
                     and (
                         not raw.get("venue_segment")
                         or l.venue_segment == raw["venue_segment"]
@@ -255,7 +254,7 @@ def normalize(store, conn, row):
             raise LedgerError(
                 "VALIDATION_ERROR", "A valid posting date is required."
             ) from None
-        if payload["currency"] not in store.catalog.currencies:
+        if store.catalog.currency_observable(payload["currency"]) is None:
             raise LedgerError("REFERENCE_NOT_FOUND", "Select the actual cash currency.")
         label = normalize_label(raw.get("source_label_raw"))
         key = source_key(conn, row, raw, payload)

@@ -1,7 +1,14 @@
 # 架构决策（ADR 日志）
 
-这是 `instrument_manager` v2 的决策日志。ADR-1、ADR-2 和 ADR-20 记录了创始人在本设计周期中直接确认的选择；其余条目是在设计 + 对抗式评审环节中敲定的，在创始人评审前处于**提议中**状态。
+这是 `instrument_manager` v2 及后续持久化调整的决策日志。
+ADR-1、ADR-2 和 ADR-20～24 的正文明确记录了创始人确认。ADR-25 记录已实现的 Python serde 路径，
+未单独声称获得创始人确认。ADR-3～19 保留原有的**提议中、待创始人评审**状态；
+收入本日志或已有对应实现，不改变其记录的确认状态。
 每个条目都刻意保持简短——完整的论证位于各分层文档中。
+
+> 当前适用范围：ADR-24 保留当时的存储选择与 Git 历史假设。当前 IM JSON 合同及历史保留限制见
+> [75-file-persistence](75-file-persistence.md)。当前投资记录由 `ledger.investment` 的 SQLite 数据库权威保存；
+> ADR-24 不构成从文本重建该账本的指引。
 
 ## ADR-1 — L1 与 L2 被拆分为独立的分层
 **决策。** 产品经济性（L1）与场所挂牌（L2）是不同的表/类型，拥有各自不同的不透明 id（product_id、listing_id）；L2 通过 FK 引用 L1 并持有全部场所微观结构；L1 不持有任何交易参数。
@@ -203,3 +210,9 @@
 **理由。** 无近期交易需求；延迟可使 P0 schema 表面更小，并避免在消费者存在之前构建/填充计划机制。
 
 **后果。** 债券/优先股的覆盖行保持为"可表达，已延迟"；同向多腿分类在后续阶段计划被填充后才被行使。（创始人于 2026-06-15 确认；解决了 Q5。）
+
+## ADR-24 — 持久化改为逐实体 JSON 文件 + 派生 SQLite 索引；PostgreSQL 降为文档化选项
+日期：2026-07-16。创始人确认的方向（2026-07-14，当时面向整个仓库）：纯文本为主数据，SQLite 为可丢弃索引。每个实体对应 `$VIHARA_DATA_DIR/instruments/{assets,products,listings,venues}/` 下的一个 JSON 文件，文件名为不透明 id，枚举词汇沿用 SQL schema。当时方案以私有数据仓库的 Git 历史承载 recorded time，取代双时态 `*_versions` 机制；有效时间仍保留在数据中。`db/schema.sql` 及 seeds 留在仓库中，作为关系设计文档和未来多用户场景的选项；示例宇宙改用 JSON fixtures（`tests/fixtures/instruments/`）。当时尚未构建快照加载器，因此这次调整无需迁移已有加载实现。见 [75-file-persistence](75-file-persistence.md)。
+
+## ADR-25 — Serde 在 Python 侧经 pybind 完成；C++ 核心保持无解析器
+日期：2026-07-16。JSON 解析由新的 Python 包（`instrument_manager/instrument_manager/serde/loader.py`，使用标准库 json）完成，经 `instrument_manager_py` 构造核心结构，再送入 `InstrumentRegistry.validate_all()`；保留原有统一入口性质：进入核心的各路径使用相同的 C++ 校验代码。C++ 的零依赖规则保持不变，不引入第三方 JSON 库。如果未来出现纯 C++ 消费方，备选方案是在独立 `im_serde` CMake target 后引入单头文件 nlohmann/json；此方案仅记录，尚未构建。因此当前不能从纯 C++ 加载 JSON registry；当时没有这类消费方，可以接受这一限制。

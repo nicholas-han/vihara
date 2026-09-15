@@ -2,7 +2,7 @@
 
 > Documentation location: repository `docs/`. Source code remains in `instrument_manager`. Run module-relative commands from the source `instrument_manager/` directory; commands explicitly marked repository-root remain rooted there.
 
-> Scope: the layered model describes the target architecture. P0 Listing is minimal; full tick/lot/fee/calendar and lifecycle processing remain deferred. Holdings consumes the validated read-only `holding_catalog` projection. Current persistence: [JSON + derived SQLite](75-file-persistence.md).
+> 范围：分层模型描述目标架构。P0 Listing 为最小实现，完整 tick/lot/费用/日历及生命周期处理仍延后。Holdings 通过由 `HoldingCatalog` 实现的公共只读 `ReferencePort` 消费参考数据。当前持久化：[JSON + 派生 SQLite](75-file-persistence.md)。
 
 万物交易所 / 万物经纪商的静态数据 / 参考数据核心：用一套统一连贯的模型表达每一种可交易的金融产品（证券与衍生品），以及每一种已定价但不可交易的可观测量（指数、利率、事件、波动率）。
 
@@ -39,33 +39,35 @@ L0  Reference data    observables / underliers: asset, index, rate, event, volat
 - 两条横切线：
   - [`docs/modules/instrument_manager/50-identity-and-symbology_zh-Hans.md`](50-identity-and-symbology_zh-Hans.md) — 不透明 id、规范符号、带生效日期的外部标识符
   - [`docs/modules/instrument_manager/60-lifecycle_zh-Hans.md`](60-lifecycle_zh-Hans.md) — 生命周期状态、生效日期管理，以及为清算/结算预留的空间
-- 两个实现边界（如何落地）：
-  - [`docs/modules/instrument_manager/70-persistence-and-cpp_zh-Hans.md`](70-persistence-and-cpp_zh-Hans.md) — Postgres↔C++ 边界、混合式 payout 持久化、C++ 核心布局
+- 实现参考（如何落地）：
+  - [`docs/modules/instrument_manager/75-file-persistence.md`](75-file-persistence.md) — 当前 JSON 权威、Python 加载路径、派生 SQLite 索引及其限制
+  - [`docs/modules/instrument_manager/70-persistence-and-cpp_zh-Hans.md`](70-persistence-and-cpp_zh-Hans.md) — 历史 Postgres↔C++ 持久化设计与 C++ 核心布局，不是当前存储合同
   - [`docs/modules/instrument_manager/80-pricing-integration_zh-Hans.md`](80-pricing-integration_zh-Hans.md) — L1 如何投影为 `asset_pricer` 结构体，以及其中的缺口
 
 **C · 流程 / 元信息**
 - [`docs/modules/instrument_manager/90-roadmap-and-phasing_zh-Hans.md`](90-roadmap-and-phasing_zh-Hans.md) — 构建顺序：P0 / P1 / 延后项
-- [`docs/modules/instrument_manager/decisions_zh-Hans.md`](decisions_zh-Hans.md) — 23 项架构决策（ADR）：每个选择背后的*缘由*
+- [`docs/modules/instrument_manager/decisions_zh-Hans.md`](decisions_zh-Hans.md) — 25 项架构决策（ADR），包括 ADR-24/25 当前的 JSON 持久化与 Python serde 方向
 - [`docs/modules/instrument_manager/open-questions_zh-Hans.md`](open-questions_zh-Hans.md) — 尚未确定的事项（Q1/Q2/Q5 已解决；Q3/Q4/Q6/Q7/Q8 待定）
 
 编号说明：在 B 组中 `20`（L1）排在最前——并非严格的 L0→L1→L2 顺序——因为 L1 定义了*产品是什么*，是整个设计的关键；L0 与 L2 是它的支撑。
 
 **阅读路径**
 - 快速（要旨）：`00 → 10 → 20`（略读）`→ 90`，然后略读 ADR 日志。
-- 深入（评估设计）：`00 → 10 → 20`（仔细读——基石）`→ 30/40 → 50/60 → 70/80`，每遇到一个设计选择就查阅对应的 ADR。
+- 深入（评估设计）：`00 → 10 → 20`（仔细读——基石）`→ 30/40 → 50/60 → 75/80`，每遇到一个设计选择就查阅对应的 ADR；`70` 仅作历史持久化背景。
 - 只有时间读一篇？读 [`docs/modules/instrument_manager/20-product-economics_zh-Hans.md`](20-product-economics_zh-Hans.md)，但在此之前先用 5 分钟略读 [`docs/modules/instrument_manager/10-layered-model_zh-Hans.md`](10-layered-model_zh-Hans.md)。
 
 ## 边界
 
 - **定价**位于 [`asset_pricer`](../../../asset_pricer)；本模块产出类型良好的经济条款并将其投影为 `asset_pricer` 结构体——它从不进行估值。
-- **持久化**采用逐实体 JSON（主数据）及可重建 SQLite 索引；PostgreSQL 文件属于历史设计；**C++ 核心**则是内存中的模型、校验的唯一真相来源（通过 pybind11 共享给 Python），也是所有语义的归宿。
+- **参考查询**通过 `instrument_manager.references.ReferencePort` 提供：冻结的参考值、带上下文的标识解析、搜索/详情和经济指纹。`HoldingCatalog` 实现此合同，并负责 Holdings 适用范围和标识规则。遗留 C++ `product_by_external_id` 的 Python 绑定会发出 `DeprecationWarning`；JSON 加载仍不填充它的 map。
+- **持久化**采用逐实体 JSON（主数据）及可重建 SQLite 索引；PostgreSQL 文件属于历史设计。索引已保留标识 authority 和有效期间，通用缺日期仍为 null，并在校验后原子替换。索引尚无完整 resolver；Holdings 仍要求明确的标识起始日期。**C++ 核心**负责内存中的经济模型及共享的校验、分类、符号生成和定价投影。
 
 ## 当前布局（P0 已实现）
 
 ```
 instrument_manager/
   # Design docs: docs/modules/instrument_manager/ at repository root
-  instrument_manager/  Python serde, holding_catalog, seeds/
+  instrument_manager/  Python serde, references, holding_catalog, index/, seeds/
   db/              historical PostgreSQL design (not runtime migrations)
   cpp/             C++ core: src/{core,registry,projection,validation,symbology}, tests/, bindings/
 ```

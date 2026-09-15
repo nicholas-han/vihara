@@ -10,6 +10,7 @@ from pathlib import Path
 import instrument_manager
 from instrument_manager.holding_catalog import HoldingCatalog
 from .config import Settings
+from ledger.investment.api import References
 from ledger.investment.persistence.store import Store
 
 
@@ -83,18 +84,20 @@ def main(argv=None):
         )
     elif args.command == "import-references":
         print(
-            store.import_references(json.loads(args.file.read_text(encoding="utf-8")))
+            References(store).import_references(
+                json.loads(args.file.read_text(encoding="utf-8"))
+            )
         )
     elif args.command.startswith("import-market-"):
-        from .integrations.market import import_rows
+        from .integrations.market import MarketRepository
 
         with args.file.open(encoding="utf-8-sig", newline="") as stream:
             rows = list(csv.DictReader(stream))
         print(
             "Market observation IDs:",
             ", ".join(
-                import_rows(
-                    store, "prices" if args.command.endswith("prices") else "fx", rows
+                MarketRepository(store).import_rows(
+                    "prices" if args.command.endswith("prices") else "fx", rows
                 )
             ),
         )
@@ -108,7 +111,7 @@ def main(argv=None):
                 {**row, "effective_date": date.fromisoformat(row["effective_date"])}
                 for row in reader
             ]
-        print("Book FX observation IDs:", ", ".join(store.import_book_fx(rows)))
+        print("Book FX observation IDs:", ", ".join(References(store).import_book_fx(rows)))
 
 
 if __name__ == "__main__":

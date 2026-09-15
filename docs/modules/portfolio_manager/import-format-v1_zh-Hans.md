@@ -1,5 +1,7 @@
 # Portfolio Manager 标准导入格式 v1
 
+> **Legacy records v1。** 本文仅适用于 `portfolio_manager.records` / `ledger_bridge`，不适用于当前 Portfolio Holdings。当前导入契约见 [Portfolio Holdings CSV 合同](../../projects/portfolio-holdings/guides/CSV_IMPORT.md)。
+
 目标:把不同券商、银行、手工记录、AI 转换后的非标数据,统一成一个 canonical CSV。后端只认这个格式;
 外部来源各自写 adapter 转换到这个格式。
 

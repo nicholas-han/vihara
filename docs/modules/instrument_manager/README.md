@@ -2,7 +2,7 @@
 
 > Documentation location: repository `docs/`. Source code remains in `instrument_manager`. Run module-relative commands from the source `instrument_manager/` directory; commands explicitly marked repository-root remain rooted there.
 
-> Scope: the layered model describes the target architecture. P0 Listing is minimal; full tick/lot/fee/calendar and lifecycle processing remain deferred. Holdings consumes the validated read-only `holding_catalog` projection. Current persistence: [JSON + derived SQLite](75-file-persistence.md).
+> Scope: the layered model describes the target architecture. P0 Listing is minimal; full tick/lot/fee/calendar and lifecycle processing remain deferred. Holdings consumes the public read-only `ReferencePort`, implemented by `HoldingCatalog`. Current persistence: [JSON + derived SQLite](75-file-persistence.md).
 
 The static-data / reference-data core of an everything exchange / everything broker: one coherent model for every tradable financial product (securities and derivatives) and every priced-but-not-tradable observable (index, rate, event, volatility).
 
@@ -39,33 +39,35 @@ The docs mirror the design itself: four layers, two cross-cutting concerns, two 
 - The two cross-cutting lines:
   - [`docs/modules/instrument_manager/50-identity-and-symbology.md`](50-identity-and-symbology.md) — opaque ids, canonical symbols, effective-dated external identifiers
   - [`docs/modules/instrument_manager/60-lifecycle.md`](60-lifecycle.md) — lifecycle states, effective-dating, and the reserved clearing/settlement room
-- The two implementation boundaries (how it lands):
-  - [`docs/modules/instrument_manager/70-persistence-and-cpp.md`](70-persistence-and-cpp.md) — the Postgres↔C++ boundary, hybrid payout persistence, C++ core layout
+- Implementation references (how it lands):
+  - [`docs/modules/instrument_manager/75-file-persistence.md`](75-file-persistence.md) — current JSON authority, Python load path and derived SQLite index, including their limits
+  - [`docs/modules/instrument_manager/70-persistence-and-cpp.md`](70-persistence-and-cpp.md) — historical Postgres↔C++ persistence design and C++ core layout; not the runtime storage contract
   - [`docs/modules/instrument_manager/80-pricing-integration.md`](80-pricing-integration.md) — how L1 projects into `asset_pricer` structs, and the gaps
 
 **C · Process / meta**
 - [`docs/modules/instrument_manager/90-roadmap-and-phasing.md`](90-roadmap-and-phasing.md) — build sequence: P0 / P1 / deferred
-- [`docs/modules/instrument_manager/decisions.md`](decisions.md) — the 23 architecture decisions (ADRs): the *why* behind each choice
+- [`docs/modules/instrument_manager/decisions.md`](decisions.md) — the 25 architecture decisions (ADRs), including the current JSON persistence and Python serde pivot in ADR-24/25
 - [`docs/modules/instrument_manager/open-questions.md`](open-questions.md) — what's still undecided (Q1/Q2/Q5 resolved; Q3/Q4/Q6/Q7/Q8 open)
 
 Numbering note: `20` (L1) comes first in band B — not strict L0→L1→L2 order — because L1 defines *what a product is* and is the key to the whole design; L0 and L2 are its supports.
 
 **Reading paths**
 - Fast (the gist): `00 → 10 → 20` (skim) `→ 90`, then skim the ADR log.
-- Deep (to evaluate the design): `00 → 10 → 20` (carefully — the keystone) `→ 30/40 → 50/60 → 70/80`, consulting the matching ADR whenever you hit a design choice.
+- Deep (to evaluate the design): `00 → 10 → 20` (carefully — the keystone) `→ 30/40 → 50/60 → 75/80`, consulting the matching ADR whenever you hit a design choice; use `70` for historical persistence context.
 - Only have time for one doc? Read [`docs/modules/instrument_manager/20-product-economics.md`](20-product-economics.md), after a 5-minute skim of [`docs/modules/instrument_manager/10-layered-model.md`](10-layered-model.md).
 
 ## Boundaries
 
 - **Pricing** lives in [`asset_pricer`](../../../asset_pricer); this module produces well-typed economic terms and projects them into `asset_pricer` structs — it never values.
-- **Persistence** uses per-entity JSON as the system of record and a rebuildable SQLite index ([current design](75-file-persistence.md)); PostgreSQL files are historical design material; the **C++ core** is the in-memory model, the validation single-source-of-truth (shared to Python via pybind11), and the home of all semantics.
+- **References** are exposed through `instrument_manager.references.ReferencePort`: frozen reference values, contextual identifier resolution, search/detail, and economic fingerprints. `HoldingCatalog` implements this contract and owns Holdings eligibility and identifier checks. The legacy C++ `product_by_external_id` Python binding emits `DeprecationWarning`; its map is not populated by JSON loading.
+- **Persistence** uses per-entity JSON as the system of record and a rebuildable SQLite index ([current design](75-file-persistence.md)); PostgreSQL files are historical design material. The index preserves identifier authority and validity periods, permits generic unknown dates, and publishes a checked replacement atomically. It has no full resolver; Holdings still requires explicit identifier start dates. The **C++ core** owns the in-memory economic model and its shared validation, classification, symbology, and pricing projection.
 
 ## Current layout (P0 implemented)
 
 ```
 instrument_manager/
   # Design docs: docs/modules/instrument_manager/ at repository root
-  instrument_manager/  Python serde, holding_catalog, seeds/
+  instrument_manager/  Python serde, references, holding_catalog, index/, seeds/
   db/              historical PostgreSQL design (not runtime migrations)
   cpp/             C++ core: src/{core,registry,projection,validation,symbology}, tests/, bindings/
 ```

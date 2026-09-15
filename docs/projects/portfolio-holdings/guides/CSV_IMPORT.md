@@ -1,5 +1,7 @@
 # Portfolio Holdings MVP — CSV 合同与操作
 
+> 本文只适用于当前 Portfolio Holdings / Investment Ledger 导入；旧 records v1 的 CSV 合同见对应 legacy 文档。
+
 > 2026-09-09 target update: [Financial Account PRD v1.0](../design/Financial_Account_PRD.md) governs account aggregation, PositionScope and cost-basis boundaries. [Implementation design](../design/FINANCIAL_ACCOUNT_DESIGN.md) and [Financial Account acceptance](../history/FINANCIAL_ACCOUNT_ACCEPTANCE.md) describe the implemented increment; S0–S10 reports remain historical records.
 
 

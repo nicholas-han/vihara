@@ -1,5 +1,15 @@
 # 标识与符号体系
 
+> 当前实现范围（2026-09-15）：本文保留标识设计及历史 PostgreSQL/C++ 查询接口形态，
+> 不表示所列 API 和表都已投入运行。公共 Python 查询合同为
+> `instrument_manager.references.ReferencePort`，由 `HoldingCatalog` 实现；
+> 其 `resolve()` 按有效日期、可选 authority 和场所上下文解析外部标识。
+> 通用 JSON loader 不填充 C++ registry 的外部标识 map，因此
+> `InstrumentRegistry::product_by_external_id()` 不是当前 Holdings 的解析入口，
+> 保留的 Python 绑定会发出 `DeprecationWarning`。SQLite 索引已保留 authority 与
+> 多个有效期间，并采用原子重建，但尚无完整 resolver。
+> 当前存储和日期规则见 [75-file-persistence](75-file-persistence.md)。
+
 ## 0. 范围以及统辖本文一切的那一条规则
 
 本文档规定了 `instrument_manager` v2 如何为事物命名，以及如何防止这些名称发生腐化。它拥有一处 DDL 表面——共享的 `external_identifiers` 表——以及一处 C++ 表面——规范符号生成器加上加载期守卫。v1 已经分开维护的三个概念（不透明的内部 id、生成的规范符号、外部/场所标识符）被沿用下来，但从单一工具的粒度被提升到三层栈之上：每一层（`L0` 可观测量、`L1` 产品、`L2` 挂牌）都拥有自己的不透明 id，而标识符映射机制在三层之间共享，而不是每层各自重新实现一遍。
@@ -174,6 +184,12 @@ std::string option_symbol(const l1::OptionLeg& o, const std::string& expiration,
 
 ## 4. 外部标识符与场所符号
 
+> 历史 PostgreSQL 设计：下述表和活跃代码唯一性属于早期关系数据库设计，
+> 不代表当前 JSON/SQLite 合同。当前标识记录保留 authority 与
+> `[valid_from, valid_to)`；索引只去重完全相同的记录，允许多个目标和不连续有效期间。
+> 通用索引把缺省日期保留为 null；Holdings 要求明确起始日期，并沿用其现有重叠校验。
+> 解析允许返回 `AMBIGUOUS`，不强制每个代码只有一个目标。
+
 存在两个截然不同的映射关注点，它们出于某个原因分别存放在两张表中：
 
 1. **标准外部标识符**——由外部权威机构发布，通常具有监管或行业标准性质，并且常常跨场所共享：ISIN、CUSIP、FIGI/COMPOSITE_FIGI、SEDOL、RIC、Bloomberg ticker、LEI、OSI、MIC、普通 ticker。它们可以指向*任一*层（ISIN 在 L0/L1 粒度上；场所 MIC 在 L2 上）。它们存放在单一的共享 `external_identifiers` 表中。
@@ -338,15 +354,37 @@ for (const auto& [pid, product] : option_products_) {
 }
 ```
 
-### 6.3 活跃标识符唯一性映射数据库约束
+### 6.3 历史规划：活跃标识符唯一性映射数据库约束
 
-`validate_all()` 还在 C++ 中重新断言部分唯一索引在 Postgres 中所断言的内容——每个 `(scheme, identifier)` 至多一个活跃映射——这样即便快照是从一个绕过了数据库约束的来源（例如一份配置种子化的标识符映射）构建的，快照加载器也能捕获违规。Postgres 的 CHECK/唯一索引完整性是 C++ SoT 的一个严格子集；数据库是廉价的声明式兜底，核心才是权威。
+早期 PostgreSQL 设计计划由 C++ `validate_all()` 再次校验数据库的活跃
+`(scheme, identifier)` 唯一性。当前 JSON 加载路径没有实现这条规则：标识符不进入
+C++ registry。Holdings 的 Python catalog 负责其标识校验和上下文解析；
+派生 SQLite 索引校验日期并去重完整记录，具体规则见
+[75-file-persistence](75-file-persistence.md)。
 
 ---
 
 ## 7. 注册表查找表面（读路径）
 
-内存中的快照暴露了热路径消费方所需的解析路径。该类沿用旧名 `InstrumentRegistry`；与标识相关的查找（主设计第 5.3 节）是：
+### 7.1 当前公共 Python 合同
+
+调用方从 `instrument_manager.references` 导入 `ReferencePort`，由应用启动配置层
+注入实现。`HoldingCatalog` 在同一份已验证 JSON 快照上提供 `holding`、`listing`、
+`observable`、`currency_observable`、`currency_mappings`、关联持仓产品和挂牌查询、
+`resolve`、`search`、`detail`、`transferable_observables` 与 `fingerprint`。
+参考值是冻结对象，查询返回独立结果，调用方无需访问内部字典。
+按 ID/币种代码直接查询不存在的对象时返回 `None`；`holding` 和 `detail`
+对不符合 MVP 范围的产品或不属于该产品的 Listing 抛出 `CatalogError`。
+
+`resolve(scheme, identifier, as_of, authority=None, venue_id=None, venue_segment=None)`
+返回 `{state, candidates}`，状态为 `FOUND`、`AMBIGUOUS`、`MISMATCH` 或 `NOT_FOUND`。
+有效期采用左闭右开区间。不指定 authority 时跨来源查找，相同目标身份去重，
+不同目标仍返回歧义。通用 JSON/索引允许未知起始日期，不会绕过 Holdings 的明确日期要求。
+
+### 7.2 C++ 查询形态与兼容接口
+
+内存中的类保留 `InstrumentRegistry` 名称。下列形态在已实现的 ID 和标量场所代码
+查询旁保留历史外部标识查询接口：
 
 ```cpp
 class InstrumentRegistry {
@@ -361,14 +399,18 @@ class InstrumentRegistry {
   const Listing* by_venue_symbol(std::string_view venue, std::string_view segment,
                                  std::string_view symbol) const;
 
-  // by external identifier — returns the opaque product/asset/listing id the
-  // ACTIVE mapping points at (effective_to is null at snapshot time).
+  // Legacy compatibility API: JSON ingestion does not populate this lookup.
+  // The Python binding emits DeprecationWarning; use ReferencePort.resolve().
   const std::string* product_by_external_id(std::string_view scheme,
                                              std::string_view identifier) const;
 };
 ```
 
-`by_venue_symbol` 携带经过纠正的三段式键（`venue`、`segment`、`symbol`），使 v1 的碰撞无法重现。`product_by_external_id` 仅解析活跃映射；时点标识符解析（某个代码在过去某日期所指向的对象）由以 `AsOf` 为参数的快照服务，该快照加载的是其生效窗口包含所请求时刻的标识符行，而非仅 `effective_to is null` 的那些行。
+`by_venue_symbol` 使用三段式键（`venue`、`segment`、`symbol`）索引已提供的标量代码，
+不解析带有效日期的 identifiers 数组。`product_by_external_id` 为兼容性继续可调用，
+但 JSON 加载后其 map 仍未填充；Python 绑定现在会发出 `DeprecationWarning`。
+先前以 `AsOf` 为参数的 C++ 标识快照属于历史设计，不是当前 Python resolver 的已实现替代品。
+完整 SQLite resolver 也留待出现真实消费方时再实现。
 
 ---
 
