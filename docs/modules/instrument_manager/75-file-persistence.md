@@ -109,9 +109,11 @@ scalar symbols. It does not infer a current symbol from a dated identifier.
 
 Rebuild rejects an invalid loaded universe, constructs a temporary database in
 the destination directory, checks SQLite integrity and references, then
-atomically replaces the destination. Source bytes are compared with the loaded
-JSON before hashing and checked again before publication, so changed source
-files cannot certify an older loaded snapshot with a newer hash. A failed build
+atomically replaces the destination. Both freshness checks compare the current
+entity file set with the loaded set, including entity directories that were empty
+or absent at load time. Source bytes are also compared with the loaded JSON before
+hashing and checked again before publication, so added, removed or changed source
+files cannot certify an older loaded snapshot. A failed build
 or replacement leaves the previous index intact and removes the temporary file.
 An existing read transaction retains its old view; a newly opened connection
 sees the completed replacement.

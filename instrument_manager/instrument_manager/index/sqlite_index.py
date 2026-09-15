@@ -18,7 +18,7 @@ from datetime import date
 from pathlib import Path
 
 from ..config import load_pybind
-from ..serde.loader import LoadedUniverse
+from ..serde.loader import ENTITY_DIRECTORIES, LoadedUniverse, _json_files
 
 _SCHEMA = """
 CREATE TABLE input_files (
@@ -132,6 +132,15 @@ ON CONFLICT DO NOTHING
 
 def _source_hashes(universe: LoadedUniverse) -> list[tuple[str, str]]:
     """Hash the bytes whose JSON still matches the loaded, validated snapshot."""
+    if universe.instruments_dir is None:
+        raise ValueError("Cannot verify instrument source without its loaded directory")
+    current_files = {
+        path
+        for name in ENTITY_DIRECTORIES
+        for path in _json_files(universe.instruments_dir / name)
+    }
+    if current_files != set(universe.files):
+        raise ValueError("Instrument source file set changed since loading")
     loaded = {
         row["_path"]: {key: value for key, value in row.items() if key != "_path"}
         for rows in (universe.venues, universe.assets, universe.products, universe.listings)

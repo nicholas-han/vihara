@@ -4,6 +4,7 @@ import hashlib
 import json
 import shutil
 import sqlite3
+from dataclasses import replace
 from pathlib import Path
 
 import pytest
@@ -37,11 +38,15 @@ def _set_identifiers(master, identifiers, directory="products"):
     return row["id"], path
 
 
-def _assert_previous_index(db, previous):
+def _assert_previous_index(db, previous, *, product_count=None):
     assert db.read_bytes() == previous
     with sqlite3.connect(db) as conn:
         assert conn.execute("PRAGMA integrity_check").fetchone() == ("ok",)
-        assert conn.execute("SELECT count(*) FROM products").fetchone()[0] > 0
+        actual_count = conn.execute("SELECT count(*) FROM products").fetchone()[0]
+        if product_count is None:
+            assert actual_count > 0
+        else:
+            assert actual_count == product_count
     assert list(db.parent.glob(f".{db.name}.*")) == []
 
 
@@ -161,6 +166,74 @@ def test_source_change_during_build_cannot_publish_index(master, tmp_path, monke
     with pytest.raises(ValueError, match="source changed since loading"):
         sqlite_index.rebuild(db, universe)
     _assert_previous_index(db, previous)
+
+
+@pytest.mark.parametrize("directory", ["venues", "assets", "products", "listings"])
+@pytest.mark.parametrize("initial_state", ["populated", "empty", "missing"])
+@pytest.mark.parametrize("addition_time", ["after_load", "during_build"])
+def test_added_entity_cannot_publish_loaded_snapshot(
+    master, tmp_path, monkeypatch, directory, initial_state, addition_time
+):
+    source = master
+    if initial_state != "populated":
+        source = tmp_path / "empty-source"
+        if initial_state == "empty":
+            for name in ("venues", "assets", "products", "listings"):
+                (source / name).mkdir(parents=True)
+    universe = load_universe(source)
+    assert universe.ok
+    if initial_state != "populated":
+        assert universe.files == []
+    db = tmp_path / "index.sqlite3"
+    sqlite_index.rebuild(db, universe)
+    previous = db.read_bytes()
+
+    def add_entity():
+        template = sorted((SEEDS / directory).glob("*.json"))[0]
+        row = json.loads(template.read_text())
+        row["id"] += "_ADDED"
+        target = source / directory / (row["id"] + ".json")
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text(json.dumps(row))
+
+    if addition_time == "after_load":
+        add_entity()
+    else:
+        build = sqlite_index._build
+
+        def build_then_add(*args):
+            build(*args)
+            add_entity()
+
+        monkeypatch.setattr(sqlite_index, "_build", build_then_add)
+    with pytest.raises(ValueError, match="source file set changed since loading"):
+        sqlite_index.rebuild(db, universe)
+    _assert_previous_index(db, previous, product_count=len(universe.products))
+
+
+def test_missing_source_directory_metadata_cannot_bypass_freshness(master, tmp_path):
+    universe = load_universe(master)
+    db = tmp_path / "index.sqlite3"
+    sqlite_index.rebuild(db, universe)
+    previous = db.read_bytes()
+    with pytest.raises(ValueError, match="without its loaded directory"):
+        sqlite_index.rebuild(db, replace(universe, instruments_dir=None))
+    _assert_previous_index(db, previous)
+
+
+def test_files_outside_loader_scan_do_not_invalidate_snapshot(master, tmp_path):
+    universe = load_universe(master)
+    (master / "assets" / "notes.txt").write_text("not an entity")
+    (master / "ignored.json").write_text("{}")
+    nested = master / "assets" / "nested"
+    nested.mkdir()
+    (nested / "ignored.json").write_text("{}")
+    db = tmp_path / "index.sqlite3"
+    sqlite_index.rebuild(db, universe)
+    with sqlite3.connect(db) as conn:
+        assert {row[0] for row in conn.execute("SELECT path FROM input_files")} == {
+            str(path) for path in universe.files
+        }
 
 
 def test_replace_failure_keeps_previous_index_and_cleans_temporary_file(master, tmp_path, monkeypatch):

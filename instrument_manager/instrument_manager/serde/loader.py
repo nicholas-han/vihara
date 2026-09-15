@@ -34,6 +34,7 @@ from typing import Any
 from ..config import load_pybind
 
 SCHEMA_VERSION = 1
+ENTITY_DIRECTORIES = ("venues", "assets", "products", "listings")
 
 
 @dataclass
@@ -46,6 +47,7 @@ class LoadedUniverse:
     venues: list[dict] = field(default_factory=list)
     files: list[Path] = field(default_factory=list)
     errors: list[str] = field(default_factory=list)
+    instruments_dir: Path | None = None
 
     @property
     def ok(self) -> bool:
@@ -375,11 +377,14 @@ class _Loader:
         return listing
 
 
+def _json_files(directory: Path) -> list[Path]:
+    """The direct entity-file scan shared by loading and index freshness checks."""
+    return sorted(directory.glob("*.json")) if directory.is_dir() else []
+
+
 def _read_json_dir(directory: Path, universe: LoadedUniverse) -> list[dict]:
     entries: list[dict] = []
-    if not directory.is_dir():
-        return entries
-    for path in sorted(directory.glob("*.json")):
+    for path in _json_files(directory):
         universe.files.append(path)
         try:
             data = json.loads(path.read_text(encoding="utf-8"))
@@ -408,13 +413,13 @@ def load_universe(instruments_dir: str | Path) -> LoadedUniverse:
     loader = _Loader()
     im = loader.im
     registry = im.InstrumentRegistry()
-    universe = LoadedUniverse(registry=registry, validation=im.ValidationResult())
     instruments_dir = Path(instruments_dir)
+    universe = LoadedUniverse(
+        registry=registry, validation=im.ValidationResult(), instruments_dir=instruments_dir
+    )
 
-    universe.venues = _read_json_dir(instruments_dir / "venues", universe)
-    universe.assets = _read_json_dir(instruments_dir / "assets", universe)
-    universe.products = _read_json_dir(instruments_dir / "products", universe)
-    universe.listings = _read_json_dir(instruments_dir / "listings", universe)
+    for name in ENTITY_DIRECTORIES:
+        setattr(universe, name, _read_json_dir(instruments_dir / name, universe))
 
     for data in universe.assets:
         try:
