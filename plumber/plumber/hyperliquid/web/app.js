@@ -148,5 +148,5 @@ $('export-csv').onclick=()=>{
   const rows=selectedRows().map(r=>({...r,time_utc:new Date(r.time).toISOString(),fundingRatePct:Number(r.fundingRate)*100,fundingIntervalHours:1,annualizedRatePct:fundingMath.annualPercent(r.fundingRate)}));
   download('\uFEFF'+[fields.join(','),...rows.map(r=>fields.map(f=>quote(r[f])).join(','))].join('\r\n'),'text/csv;charset=utf-8',`${selected.replace(/[^a-zA-Z0-9_-]/g,'_')}_funding.csv`);
 };
-$('import').addEventListener('change',async()=>{const file=$('import').files[0];if(!file)return;try{if(file.size>30*1024*1024)throw Error('文件超过 30 MB');present(JSON.parse(await file.text()),`导入 · ${file.name}`);$('status').textContent='本地快照已加载；尚未刷新市场。';}catch(e){showError(`导入失败：${e.message}`);}finally{$('import').value='';}});
+$('import').addEventListener('change',async()=>{const file=$('import').files[0];if(!file)return;try{present(JSON.parse(await file.text()),`导入 · ${file.name}`);$('status').textContent='本地快照已加载；尚未刷新市场。';}catch(e){showError(`导入失败：${e.message}`);}finally{$('import').value='';}});
 (async()=>{try{const state=await request('/api/result');if(state.result)present(state.result,'本地缓存快照');$('status').textContent=state.progress;if(state.error)showError(state.error);if(state.running){setBusy(true);poll();}}catch(e){showError(e.message);}})();

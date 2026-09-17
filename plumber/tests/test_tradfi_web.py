@@ -80,3 +80,30 @@ def test_malformed_cache_is_reported(tmp_path):
     state = web.AppState(cache)
     assert state.snapshot()['has_result'] is False
     assert '无法读取缓存' in state.snapshot()['error']
+
+
+def test_all_history_requests_failing_preserves_cache_and_memory(tmp_path, monkeypatch):
+    previous = {'markets': [{'coin': 'xyz:GOLD', 'dayNtlVlm': '100'}], 'funding': []}
+    cache = tmp_path / 'cache.json'
+    cache.write_text(json.dumps(previous))
+    state = web.AppState(cache)
+    original_build = web.build_data
+    def info(payload):
+        if payload['type'] == 'metaAndAssetCtxs':
+            return [{'universe': [{'name': 'xyz:GOLD'}]}, [{'dayNtlVlm': '100'}]]
+        raise RuntimeError('funding endpoint unavailable')
+    monkeypatch.setattr(web, 'build_data', lambda opts, report: original_build(opts, report, info))
+    state._run({'top': 1, 'dex': 'xyz', 'days': 1})
+    assert state.snapshot(with_result=True)['result'] == previous
+    assert json.loads(cache.read_text()) == previous
+    assert '所有合约' in state.snapshot()['error']
+    assert state.snapshot()['running'] is False
+
+
+def test_successful_empty_history_can_replace_previous_cache(tmp_path, monkeypatch):
+    state = web.AppState(tmp_path / 'cache.json')
+    empty_result = {'markets': [{'coin': 'xyz:GOLD', 'status': 'empty'}], 'funding': [], 'errors': {}}
+    monkeypatch.setattr(web, 'build_data', lambda *args: empty_result)
+    state._run({})
+    assert state.snapshot(with_result=True)['result'] == empty_result
+    assert state.snapshot()['error'] is None

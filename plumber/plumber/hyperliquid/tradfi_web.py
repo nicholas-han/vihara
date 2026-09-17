@@ -107,6 +107,8 @@ class AppState:
     def _run(self, options):
         try:
             result = build_data(options, self.set_progress)
+            if result["markets"] and all(m.get("status") == "error" for m in result["markets"]):
+                raise RuntimeError("所有合约的资金费率下载失败：" + json.dumps(result["errors"], ensure_ascii=False))
             warning = None
             if self.cache:
                 try:

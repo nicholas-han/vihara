@@ -103,6 +103,8 @@ python3 plumber/scripts/run_tradfi_web.py --port 8766
 单合约错误显示在页面，整体下载失败时保留之前结果。Web 默认最多选择 50 个合约，
 历史区间不超过 730 天。CSV 导出当前合约全部已下载记录，JSON 导出完整快照。
 导入 JSON 仅在浏览器内解析，不上传到 Hyperliquid、不覆盖服务器缓存。
+合法长历史导出可以重新导入，不设与导出范围冲突的固定 30 MB 门槛；大文件处理受浏览器可用内存约束。
+所有合约历史请求都失败时，保留先前缓存；成功返回的空历史仍标记为 `empty`。
 
 默认缓存 `/tmp/hyperliquid-tradfi-funding/web-cache.json`。长期保存建议指定目录：
 
@@ -131,7 +133,7 @@ python3 plumber/scripts/run_tradfi_web.py --port 8766 --cache /path/to/data/trad
 
 ```sh
 python3 -m pytest plumber/tests/test_tradfi_funding.py plumber/tests/test_tradfi_web.py
-node --test plumber/tests/test_tradfi_math.cjs
+node --test plumber/tests/test_tradfi_math.cjs plumber/tests/test_tradfi_import.cjs
 ```
 
 Node.js 仅用于开发期前端计算回归测试，运行 Web UI 不需要 Node.js。
