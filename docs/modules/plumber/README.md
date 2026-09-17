@@ -47,3 +47,6 @@ Hyperliquid is available as the `hyperliquid` optional dependency extra and the
 `plumber.hyperliquid` subpackage. It defaults to read-only testnet access, separates
 trading from funds operations, and does not implement HK custom-order semantics.
 See [Hyperliquid setup, privacy and migration](HYPERLIQUID.md).
+
+For public mainnet data without the SDK or keys, see
+[TradFi top-volume perpetual funding downloader](TRADFI_FUNDING.md).

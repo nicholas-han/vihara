@@ -13,3 +13,6 @@ hyperliquid = ["hyperliquid-python-sdk==0.24.0", "eth-account>=0.10.0,<0.14.0"]
 dev = ["pytest>=7.4"]
 [tool.setuptools.packages.find]
 include = ["plumber*"]
+
+[tool.setuptools.package-data]
+"plumber.hyperliquid" = ["web/*.html", "web/*.css", "web/*.js"]
